@@ -5,12 +5,9 @@ pub fn positional_arg(pos: usize) -> Option<String> {
 }
 
 pub fn flag(name: &'static str) -> bool {
-    match env::args().find(move |arg| {
+    env::args().find(move |arg| {
         arg.len() == name.len() + 2 // + 2 for leading '--'
         && arg.starts_with("--")
         && arg.ends_with(name)
-    }) {
-        Some(_) => true,
-        None => false,
-    }
+    }).is_some()
 }

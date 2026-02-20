@@ -184,7 +184,7 @@ impl<'src> Iterator for Lexer<'src> {
             self.eat_until(|&c| !is_word(&c));
         }
 
-        return Some(self.emit(kind));
+        Some(self.emit(kind))
     }
 }
 
