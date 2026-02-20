@@ -1,4 +1,16 @@
+use crustydrageon::{cli, driver};
 
-fn main() {
-    println!("Hello, world!");
+fn main() -> Result<(), driver::CompilerError> {
+    let src_fn = cli::positional_arg(0).expect("source filename should be first argument");
+
+    let lex = cli::flag("lex");
+    let parse = cli::flag("parse");
+    let codegen = cli::flag("codegen");
+
+    driver::compile(
+        &src_fn,
+        driver::FinalCompilerStage::new(lex, parse, codegen),
+    )?;
+
+    Ok(())
 }
