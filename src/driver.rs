@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-use crate::lexer;
+use crate::{error::CompilerError, lexer, parser};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FileKind {
@@ -166,18 +166,6 @@ impl SysCompiler {
     }
 }
 
-#[derive(Debug)]
-pub enum CompilerError {
-    SysCompilerError(process::ExitStatus),
-    IoError,
-}
-
-impl CompilerError {
-    pub fn sys_cc_err(status: process::ExitStatus) -> Self {
-        CompilerError::SysCompilerError(status)
-    }
-}
-
 pub struct FinalCompilerStage {
     lex: bool,
     parse: bool,
@@ -207,7 +195,11 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> Result<PathBuf
         fs::read_to_string(preprocessed.filename()).map_err(|_| CompilerError::IoError)?;
 
     let tokens = lexer::tokenize(preprocessed_src.chars());
-    println!("{:?}", tokens.collect::<Vec<_>>());
+
+    let ast =
+        parser::parse(&mut tokens.peekable()).map_err(|err| CompilerError::ParserError(err))?;
+
+    println!("{:?}", ast);
 
     Ok("".into())
 }

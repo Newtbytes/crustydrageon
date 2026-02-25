@@ -1,37 +1,6 @@
 use std::{iter::Peekable, str::Chars};
 
-#[derive(Debug)]
-pub enum TokenKind {
-    // Structural
-    LParen,
-    RParen,
-    LBrace,
-    RBrace,
-    Semicolon,
-
-    // Literals
-    Constant,
-    Ident,
-
-    // Keywords
-    Int,
-    Void,
-    Return,
-
-    Error,
-}
-
-#[derive(Debug)]
-pub struct Token {
-    kind: TokenKind,
-    lexeme: String,
-}
-
-impl Token {
-    pub fn new(kind: TokenKind, lexeme: String) -> Self {
-        Self { kind, lexeme }
-    }
-}
+use crate::ast::{Token, TokenKind};
 
 pub struct Lexer<'src> {
     src: Peekable<Chars<'src>>,
@@ -100,11 +69,8 @@ impl<'src> Lexer<'src> {
         self.eat_while(char::is_ascii_digit);
     }
 
-    fn emit(&mut self, token: TokenKind) -> Token {
-        let tok = Token {
-            kind: token,
-            lexeme: self.consumed.clone(),
-        };
+    fn emit(&mut self, kind: TokenKind) -> Token {
+        let tok = Token::new(kind, self.consumed.clone());
 
         self.clear_consumed();
 
