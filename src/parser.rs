@@ -55,7 +55,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<'_, I> {
         let ret_val = self.parse_expr()?;
         self.expect(TokenKind::Semicolon)?;
 
-        return Ok(ast::Stmt::Return(ret_val));
+        Ok(ast::Stmt::Return(ret_val))
     }
 
     fn parse_function(&mut self) -> ParseResult<ast::Function> {

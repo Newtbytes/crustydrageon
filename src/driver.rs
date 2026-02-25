@@ -200,9 +200,9 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult
     let tokens = lexer::tokenize(preprocessed_src.chars());
 
     let ast =
-        parser::parse(&mut tokens.peekable()).map_err(|err| CompilerError::ParserError(err))?;
+        parser::parse(&mut tokens.peekable()).map_err(CompilerError::ParserError)?;
 
-    println!("{:?}", ast);
+    println!("{ast:?}");
 
     Ok("".into())
 }
