@@ -5,7 +5,10 @@ use std::{
     process,
 };
 
-use crate::{error::CompilerError, lexer, parser};
+use crate::{
+    error::{CompilerError, CompilerResult},
+    lexer, parser,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FileKind {
@@ -182,7 +185,7 @@ impl FinalCompilerStage {
     }
 }
 
-pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> Result<PathBuf, CompilerError> {
+pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult<PathBuf> {
     let sys_cc = SysCompiler::CC;
 
     let source = CompilerFile::from_path(Path::new(filename));

@@ -15,4 +15,4 @@ impl CompilerError {
     }
 }
 
-type CompilerResult<T> = Result<T, CompilerError>;
+pub type CompilerResult<T> = Result<T, CompilerError>;
