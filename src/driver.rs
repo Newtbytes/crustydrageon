@@ -113,8 +113,8 @@ impl SysCompiler {
         kind == FileKind::Source
     }
 
-    fn can_compile(&self, kind: FileKind) -> bool {
-        kind == FileKind::Source || kind == FileKind::Preprocessed || kind == FileKind::ASM
+    fn can_assemble(&self, kind: FileKind) -> bool {
+        kind == FileKind::ASM
     }
 
     pub fn preprocess<'a>(
@@ -142,11 +142,11 @@ impl SysCompiler {
         }
     }
 
-    pub fn compile<'a>(
+    pub fn assemble<'a>(
         &self,
         file: CompilerFile<'a>,
     ) -> Result<CompilerFile<'a>, process::ExitStatus> {
-        assert!(self.can_compile(file.kind));
+        assert!(self.can_assemble(file.kind));
 
         let compiled = file.with_kind(FileKind::Out);
 
@@ -209,9 +209,5 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> Result<PathBuf
     let tokens = lexer::tokenize(preprocessed_src.chars());
     println!("{:?}", tokens.collect::<Vec<_>>());
 
-    let compiled = sys_cc
-        .compile(preprocessed)
-        .map_err(CompilerError::sys_cc_err)?;
-
-    Ok(compiled.filename())
+    Ok("".into())
 }
