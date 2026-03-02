@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     error::{CompilerError, CompilerResult},
-    lexer, parser,
+    lexer, parser, x86,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -199,10 +199,11 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult
 
     let tokens = lexer::tokenize(preprocessed_src.chars());
 
-    let ast =
-        parser::parse(&mut tokens.peekable()).map_err(CompilerError::ParserError)?;
+    let ast = parser::parse(&mut tokens.peekable()).map_err(CompilerError::ParserError)?;
 
-    println!("{ast:?}");
+    let asm: x86::Program = x86::lower_program(ast);
+
+    println!("{asm}");
 
     Ok("".into())
 }

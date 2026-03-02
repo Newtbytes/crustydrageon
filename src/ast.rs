@@ -60,8 +60,8 @@ pub struct Identifier {
 /// Function definition
 #[derive(Debug)]
 pub struct Function {
-    name: Identifier,
-    body: Stmt,
+    pub name: Identifier,
+    pub body: Stmt,
 }
 
 impl Function {

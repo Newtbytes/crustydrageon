@@ -5,3 +5,4 @@ pub mod error;
 pub mod lexer;
 pub mod parser;
 pub mod src;
+pub mod x86;
