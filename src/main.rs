@@ -7,10 +7,12 @@ fn main() -> Result<(), error::CompilerError> {
     let parse = cli::flag("parse");
     let codegen = cli::flag("codegen");
 
-    driver::compile(
+    let filename = driver::compile(
         &src_fn,
         driver::FinalCompilerStage::new(lex, parse, codegen),
     )?;
+
+    println!("{}", filename.display());
 
     Ok(())
 }

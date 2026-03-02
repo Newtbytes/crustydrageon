@@ -47,6 +47,10 @@ pub struct CompilerFile<'a> {
 }
 
 impl<'a> CompilerFile<'a> {
+    pub fn write(&mut self, txt: String) -> Result<(), std::io::Error> {
+        fs::write(self.filename(), txt)
+    }
+
     pub fn from_path(path: &'a Path) -> Self {
         CompilerFile {
             dir: path.parent(),
@@ -201,9 +205,21 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult
 
     let ast = parser::parse(&mut tokens.peekable()).map_err(CompilerError::ParserError)?;
 
+    println!("{:#?}", ast);
+
     let asm: x86::Program = x86::lower_program(ast);
 
     println!("{asm}");
 
-    Ok("".into())
+    let mut asm_file: CompilerFile<'_> = preprocessed.with_kind(FileKind::ASM);
+
+    asm_file
+        .write(asm.to_string())
+        .expect("Writing to intermediate file shouldn't fail");
+
+    let out = sys_cc
+        .assemble(asm_file)
+        .map_err(CompilerError::sys_cc_err)?;
+
+    Ok(out.filename())
 }
