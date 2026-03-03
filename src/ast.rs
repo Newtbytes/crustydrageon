@@ -19,7 +19,7 @@ pub enum TokenKind {
     Error,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     kind: TokenKind,
     lexeme: String,
