@@ -84,7 +84,7 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn error(&mut self, msg: &'static str) -> TokenKind {
+    fn error(&mut self, msg: &str) -> TokenKind {
         self.consumed = msg.to_owned();
         TokenKind::Error
     }
@@ -140,7 +140,7 @@ impl<'src> Iterator for Lexer<'src> {
                     }
                 }
 
-                _ => todo!(),
+                c => self.error(&format!("Unknown character: {}", c)),
             },
             None => return None,
         };
