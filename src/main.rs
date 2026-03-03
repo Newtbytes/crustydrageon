@@ -6,13 +6,15 @@ fn main() -> Result<(), error::CompilerError> {
     let lex = cli::flag("lex");
     let parse = cli::flag("parse");
     let codegen = cli::flag("codegen");
+    let verbose = cli::flag("verbose");
 
-    let filename = driver::compile(
+    if let Some(filename) = driver::compile(
         &src_fn,
         driver::FinalCompilerStage::new(lex, parse, codegen),
-    )?;
-
-    println!("{}", filename.display());
+        verbose,
+    )? {
+        println!("{}", filename.display());
+    }
 
     Ok(())
 }

@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    ast::Token,
     error::{CompilerError, CompilerResult},
     lexer, parser, x86,
 };
@@ -189,7 +190,11 @@ impl FinalCompilerStage {
     }
 }
 
-pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult<PathBuf> {
+pub fn compile(
+    filename: &String,
+    stop_at: FinalCompilerStage,
+    verbose: bool,
+) -> CompilerResult<Option<PathBuf>> {
     let sys_cc = SysCompiler::CC;
 
     let source = CompilerFile::from_path(Path::new(filename));
@@ -203,13 +208,30 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult
 
     let tokens = lexer::tokenize(preprocessed_src.chars());
 
+    if stop_at.lex {
+        println!("{:#?}", tokens.collect::<Vec<Token>>());
+        return Ok(None);
+    }
+
     let ast = parser::parse(&mut tokens.peekable()).map_err(CompilerError::ParserError)?;
 
-    println!("{:#?}", ast);
+    if verbose || stop_at.parse {
+        println!("{:#?}", ast);
+    }
+
+    if stop_at.parse {
+        return Ok(None);
+    }
 
     let asm: x86::Program = x86::lower_program(ast);
 
-    println!("{asm}");
+    if verbose || stop_at.codegen {
+        println!("{asm}");
+    }
+
+    if stop_at.codegen {
+        return Ok(None);
+    }
 
     let mut asm_file: CompilerFile<'_> = preprocessed.with_kind(FileKind::ASM);
 
@@ -221,5 +243,5 @@ pub fn compile(filename: &String, stop_at: FinalCompilerStage) -> CompilerResult
         .assemble(asm_file)
         .map_err(CompilerError::sys_cc_err)?;
 
-    Ok(out.filename())
+    Ok(Some(out.filename()))
 }
