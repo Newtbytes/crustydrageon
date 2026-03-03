@@ -8,8 +8,9 @@ pub enum ParserError {
         expected: TokenKind,
         actual: TokenKind,
     },
-    ReachedEOF,
     ErrorToken(String),
+    ReachedEOF,
+    ExpectedEOF(Token),
 }
 
 type ParseResult<T> = Result<T, ParserError>;
@@ -81,7 +82,10 @@ impl<I: iter::Iterator<Item = Token>> Parser<'_, I> {
     fn parse_program(&mut self) -> ParseResult<ast::Program> {
         let func = self.parse_function()?;
 
-        Ok(ast::Program { body: func })
+        match self.tokens.next() {
+            Some(token) => Err(ParserError::ExpectedEOF(token)),
+            None => Ok(ast::Program { body: func }),
+        }
     }
 }
 
