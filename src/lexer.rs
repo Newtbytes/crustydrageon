@@ -1,25 +1,26 @@
 use std::{iter::Peekable, str::Chars};
 
-use crate::ast::{Token, TokenKind};
+use crate::{
+    ast::{Token, TokenKind},
+    src::{Source, Span},
+};
 
 pub struct Lexer<'src> {
     src: Peekable<Chars<'src>>,
-    consumed: String,
-    offset: usize,
+    consumed: Span<'src>,
 }
 
 impl<'src> Lexer<'src> {
-    pub fn new(src: Chars<'src>) -> Self {
+    pub fn new(src: &'src Source) -> Self {
         Lexer {
-            src: src.peekable(),
-            consumed: String::new(),
-            offset: 0,
+            src: src.chars().peekable(),
+            consumed: Span::empty(src),
         }
     }
 
-    fn clear_consumed(&mut self) {
-        self.offset += self.consumed.len();
-        self.consumed.clear();
+    /// Reset the consumed token, setting it to start at the next character
+    fn end_token(&mut self) {
+        self.consumed.point_to(self.consumed.end_index()).unwrap();
     }
 
     fn one_ahead(&mut self) -> Option<&char> {
@@ -29,7 +30,8 @@ impl<'src> Lexer<'src> {
     fn eat(&mut self) -> Option<char> {
         let c = self.src.next()?;
 
-        self.consumed.push(c);
+        self.consumed.advance_by(1)
+            .expect("Extending the consumed token should not fail as we should be guaranteed to be within bounds here");
 
         Some(c)
     }
@@ -38,11 +40,11 @@ impl<'src> Lexer<'src> {
     where
         P: FnMut(&char) -> bool,
     {
-        let c = self.src.next_if(&mut predicate)?;
-
-        self.consumed.push(c);
-
-        Some(c)
+        if predicate(self.one_ahead()?) {
+            self.eat()
+        } else {
+            None
+        }
     }
 
     fn eat_while<P>(&mut self, mut predicate: P)
@@ -69,10 +71,10 @@ impl<'src> Lexer<'src> {
         self.eat_while(char::is_ascii_digit);
     }
 
-    fn emit(&mut self, kind: TokenKind) -> Token {
-        let tok = Token::new(kind, self.consumed.clone());
+    fn emit(&mut self, kind: TokenKind) -> Token<'src> {
+        let tok = Token::new(kind, self.consumed);
 
-        self.clear_consumed();
+        self.end_token();
 
         tok
     }
@@ -84,8 +86,8 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn error(&mut self, msg: &str) -> TokenKind {
-        self.consumed = msg.to_owned();
+    fn error(&mut self, _msg: &str) -> TokenKind {
+        // self.consumed = msg.to_owned();
         TokenKind::Error
     }
 }
@@ -95,14 +97,14 @@ fn is_word(c: &char) -> bool {
 }
 
 impl<'src> Iterator for Lexer<'src> {
-    type Item = Token;
+    type Item = Token<'src>;
 
     fn next(&mut self) -> Option<Self::Item> {
         use TokenKind as tk;
 
         // skip whitespace
         self.eat_while(|&c| c.is_whitespace());
-        self.clear_consumed();
+        self.end_token();
 
         let kind = match self.eat() {
             Some(c) => match c {
@@ -154,6 +156,6 @@ impl<'src> Iterator for Lexer<'src> {
     }
 }
 
-pub fn tokenize(src: Chars) -> impl Iterator<Item = Token> {
+pub fn tokenize<'src>(src: &'src Source) -> impl Iterator<Item = Token<'src>> {
     Lexer::new(src)
 }

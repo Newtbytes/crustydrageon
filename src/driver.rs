@@ -8,7 +8,9 @@ use std::{
 use crate::{
     ast::Token,
     error::{CompilerError, CompilerResult},
-    lexer, parser, x86,
+    lexer, parser,
+    src::Source,
+    x86,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -191,7 +193,7 @@ impl FinalCompilerStage {
 }
 
 pub fn compile(
-    filename: &String,
+    filename: &str,
     stop_at: FinalCompilerStage,
     verbose: bool,
 ) -> CompilerResult<Option<PathBuf>> {
@@ -206,7 +208,8 @@ pub fn compile(
     let preprocessed_src =
         fs::read_to_string(preprocessed.filename()).map_err(|_| CompilerError::IoError)?;
 
-    let tokens = lexer::tokenize(preprocessed_src.chars());
+    let src = Source::new(preprocessed_src);
+    let tokens = lexer::tokenize(&src);
 
     if stop_at.lex {
         println!("{:#?}", tokens.collect::<Vec<Token>>());
@@ -233,7 +236,7 @@ pub fn compile(
         return Ok(None);
     }
 
-    let mut asm_file: CompilerFile<'_> = preprocessed.with_kind(FileKind::ASM);
+    let mut asm_file: CompilerFile = preprocessed.with_kind(FileKind::ASM);
 
     asm_file
         .write(asm.to_string())

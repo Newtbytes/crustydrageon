@@ -1,3 +1,5 @@
+use crate::src::Span;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     // Structural
@@ -20,13 +22,13 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Token {
+pub struct Token<'src> {
     kind: TokenKind,
-    lexeme: String,
+    lexeme: Span<'src>,
 }
 
-impl Token {
-    pub fn new(kind: TokenKind, lexeme: String) -> Self {
+impl<'src> Token<'src> {
+    pub fn new(kind: TokenKind, lexeme: Span<'src>) -> Self {
         Self { kind, lexeme }
     }
 
@@ -35,12 +37,12 @@ impl Token {
         self.kind
     }
 
-    pub fn value(&self) -> &String {
-        &self.lexeme
+    pub fn value(&self) -> Span<'_> {
+        self.lexeme
     }
 
-    pub fn lexeme(&self) -> &String {
-        &self.lexeme
+    pub fn lexeme(&self) -> Span<'_> {
+        self.lexeme
     }
 }
 
