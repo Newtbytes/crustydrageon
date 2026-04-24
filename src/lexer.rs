@@ -86,9 +86,8 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn error(&mut self, _msg: &str) -> TokenKind {
-        // self.consumed = msg.to_owned();
-        TokenKind::Error
+    fn error(&mut self, msg: &'static str) -> TokenKind {
+        TokenKind::Error(msg)
     }
 }
 
@@ -142,13 +141,13 @@ impl<'src> Iterator for Lexer<'src> {
                     }
                 }
 
-                c => self.error(&format!("Unknown character: {}", c)),
+                _ => self.error("Unexpected character"),
             },
             None => return None,
         };
 
         // synchronize by eating until synchronization point
-        if let tk::Error = kind {
+        if let tk::Error(_) = kind {
             self.eat_until(|&c| !is_word(&c));
         }
 

@@ -18,7 +18,7 @@ pub enum TokenKind {
     Void,
     Return,
 
-    Error,
+    Error(&'static str),
 }
 
 #[derive(Debug, Clone)]

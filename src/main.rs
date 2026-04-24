@@ -1,6 +1,6 @@
 use crustydrageon::{cli, driver, error};
 
-fn main() -> Result<(), error::CompilerError> {
+fn main() -> Result<(), String> {
     let src_fn = cli::positional_arg(0).expect("source filename should be first argument");
 
     let lex = cli::flag("lex");
@@ -12,7 +12,9 @@ fn main() -> Result<(), error::CompilerError> {
         &src_fn,
         driver::FinalCompilerStage::new(lex, parse, codegen),
         verbose,
-    )? {
+    )
+    .map_err(|e| e.to_string())?
+    {
         println!("{}", filename.display());
     }
 

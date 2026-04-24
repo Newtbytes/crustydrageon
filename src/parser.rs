@@ -1,19 +1,32 @@
-use std::iter;
+use std::{fmt, iter};
 
 use crate::ast::{self, Token, TokenKind};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ParserError {
     UnexpectedToken {
         expected: TokenKind,
         actual: TokenKind,
     },
-    ErrorToken(String),
+    ErrorToken(&'static str, String),
     ReachedEOF,
     ExpectedEOF(String),
 }
 
 type ParseResult<T> = Result<T, ParserError>;
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParserError::UnexpectedToken { expected, actual } => {
+                write!(f, "Expected a {:?} but got a {:?}", expected, actual)
+            }
+            ParserError::ErrorToken(msg, value) => write!(f, "{}: {}", msg, value),
+            ParserError::ReachedEOF => write!(f, "Unexpectedly reached end of file"),
+            ParserError::ExpectedEOF(s) => write!(f, "Expected end of file but got {}", s),
+        }
+    }
+}
 
 struct Parser<'src, 'iter, I: Iterator<Item = Token<'src>> + 'iter> {
     tokens: &'iter mut iter::Peekable<I>,
@@ -23,8 +36,8 @@ impl<'src, 'iter, I: iter::Iterator<Item = Token<'src>> + 'iter> Parser<'src, 'i
     fn take(&mut self) -> ParseResult<Token<'src>> {
         let token = self.tokens.next().ok_or(ParserError::ReachedEOF)?;
 
-        if let TokenKind::Error = token.kind() {
-            Err(ParserError::ErrorToken(token.value().to_string()))
+        if let TokenKind::Error(msg) = token.kind() {
+            Err(ParserError::ErrorToken(msg, token.value().to_string()))
         } else {
             Ok(token)
         }
