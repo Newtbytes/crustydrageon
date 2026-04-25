@@ -1,5 +1,7 @@
 use std::{fmt::Display, ops::Deref};
 
+use contracts::{debug_ensures, ensures};
+
 #[derive(Debug, Clone)]
 pub struct Source(String);
 
@@ -81,6 +83,7 @@ impl<'src> Span<'src> {
     ///
     /// # Note
     /// For most use cases, you should probably use `chars().count()` instead of `len()` to get the number of characters in the span, since UTF-8 characters can be more than one byte long.
+    #[ensures(self.span.is_none() -> ret == 0)]
     pub fn len(&self) -> usize {
         self.span.map_or(0, |s| s.len())
     }
@@ -115,16 +118,20 @@ impl<'src> Span<'src> {
     /// assert_eq!(span.as_str(), "");
     /// assert_eq!(span.len(), 0);
     /// ```
+    #[debug_ensures(ret.is_ok() -> self.src.get(index..index) == self.src.get(self.start_index()..self.start_index()))]
+    #[debug_ensures(ret.is_err() -> old(self.start_index()) == self.start_index())]
     pub fn point_to(&mut self, index: usize) -> Result<(), &'static str> {
         self.span = Some(self.src.get(index..index).ok_or("Invalid offset")?);
         Ok(())
     }
 
+    #[debug_ensures(ret.is_err() -> old(self.start_index()) == self.start_index())]
     pub fn start_at(&mut self, index: usize) -> Result<(), &'static str> {
         todo!()
     }
 
     /// Set the end index of the span to the index
+    #[debug_ensures(ret.is_err() -> old(self.end_index()) == self.end_index())]
     pub fn end_at(&mut self, index: usize) -> Result<(), &'static str> {
         if index < self.start_index() {
             Err("Cannot set end index before start index")
@@ -151,6 +158,8 @@ impl<'src> Span<'src> {
     /// span.clear();
     /// assert_eq!(span.as_str(), "");
     /// ```
+    #[debug_ensures(old(self.start_index()) == self.start_index())]
+    #[ensures(self.is_empty())]
     pub fn clear(&mut self) {
         self.span = Some(
             self.src
@@ -159,8 +168,15 @@ impl<'src> Span<'src> {
         );
     }
 
+    /// Completely reset the span. Unlike Span::clear(), the start index is not retained.
+    #[ensures(self.is_empty())]
+    pub fn reset(&mut self) {
+        self.span = None;
+    }
+
     /// Return the string slice that the span references.
     /// If the span is empty, return an empty string *which does not reference any part of the source*.
+    #[debug_ensures(ret.is_empty() -> self.is_empty())]
     pub fn as_str(&self) -> &str {
         self.span.map_or("", |s| s)
     }
@@ -186,6 +202,10 @@ impl<'src> Span<'src> {
     /// # span.advance_by(1).unwrap();
     /// span.advance_by(100).expect_err("Advancing the span beyond the bounds of the source should return an error");
     /// ```
+    #[debug_ensures(ret.is_ok() -> self.len() <= self.src.len())]
+    #[debug_ensures(ret.is_ok() -> self.start_index() < self.src.len())]
+    #[debug_ensures(ret.is_ok() -> self.end_index() <= self.src.len())]
+    #[debug_ensures(ret.is_ok() -> self.start_index() <= self.end_index())]
     pub fn advance_by(&mut self, n: usize) -> Result<(), &'static str> {
         let span = match self.span {
             Some(span) => span,

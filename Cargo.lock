@@ -3,9 +3,21 @@
 version = 4
 
 [[package]]
+name = "contracts"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "008eb94d541da40512913ef5e0707c3fb0e7280ba1af13f062461e46dd96ef7e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "crustydrageon"
 version = "0.1.0"
 dependencies = [
+ "contracts",
  "test_each_file",
 ]
 

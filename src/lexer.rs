@@ -20,7 +20,11 @@ impl<'src> Lexer<'src> {
 
     /// Reset the consumed token, setting it to start at the next character
     fn end_token(&mut self) {
-        self.consumed.point_to(self.consumed.end_index()).unwrap();
+        if self.one_ahead() != None {
+            self.consumed.point_to(self.consumed.end_index()).unwrap();
+        } else {
+            self.consumed.reset();
+        }
     }
 
     fn one_ahead(&mut self) -> Option<&char> {
