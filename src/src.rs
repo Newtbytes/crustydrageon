@@ -48,7 +48,7 @@ impl<'src> Span<'src> {
     pub fn new(src: &'src Source, start: usize, len: usize) -> Result<Self, &'static str> {
         Ok(Self {
             src,
-            span: Some(&src.get(start..start + len).ok_or("Invalid span range")?),
+            span: Some(src.get(start..start + len).ok_or("Invalid span range")?),
         })
     }
 
@@ -89,7 +89,7 @@ impl<'src> Span<'src> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.span.map_or(true, |s| s.is_empty())
+        self.span.is_none_or(|s| s.is_empty())
     }
 
     pub fn chars(&self) -> std::str::Chars<'_> {
@@ -126,7 +126,7 @@ impl<'src> Span<'src> {
     }
 
     #[debug_ensures(ret.is_err() -> old(self.start_index()) == self.start_index())]
-    pub fn start_at(&mut self, index: usize) -> Result<(), &'static str> {
+    pub fn start_at(&mut self, _index: usize) -> Result<(), &'static str> {
         todo!()
     }
 

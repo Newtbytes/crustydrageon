@@ -1,4 +1,4 @@
-use crustydrageon::{cli, driver, error};
+use crustydrageon::{cli, driver};
 
 fn main() -> Result<(), String> {
     let src_fn = cli::positional_arg(0).expect("source filename should be first argument");
