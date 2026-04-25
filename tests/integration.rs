@@ -22,7 +22,12 @@ fn test_lex_invalid(program: &str) {
     let src = Source::new(program.to_owned());
     let mut tokens = tokenize(&src);
     assert!(
-        tokens.any(|tok| tok.kind() == TokenKind::Error),
+        tokens.any(|tok| {
+            match tok.kind() {
+                TokenKind::Error(_) => true,
+                _ => false,
+            }
+        }),
         "{}:\n{:#?}",
         FAIL_INVALID,
         tokens.collect::<Vec<Token>>()
