@@ -1,4 +1,4 @@
-use std::{fmt, iter, ops::Deref, slice::SliceIndex};
+use std::{fmt, ops::Deref, slice::SliceIndex};
 
 use contracts::{debug_ensures, ensures};
 
@@ -38,7 +38,7 @@ impl Source {
         return Ok(Location {
             line,
             column,
-            index: index,
+            index,
         });
     }
 
