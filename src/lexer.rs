@@ -6,36 +6,45 @@ use crate::{
 };
 
 pub struct Lexer<'src> {
-    src: Peekable<Chars<'src>>,
-    consumed: Span<'src>,
+    src: &'src Source,
+    chars: Peekable<Chars<'src>>,
+    consumed: Span,
 }
 
 impl<'src> Lexer<'src> {
     pub fn new(src: &'src Source) -> Self {
         Lexer {
-            src: src.chars().peekable(),
-            consumed: Span::empty(src),
+            src,
+            chars: src.chars().peekable(),
+            consumed: Span::empty_at(src, 0).expect(""),
         }
+    }
+
+    fn get_consumed(&self) -> &str {
+        self.consumed
+            .get(self.src)
+            .expect("Consumed span should always be valid for the source string")
     }
 
     /// Reset the consumed token, setting it to start at the next character
     fn end_token(&mut self) {
         if self.one_ahead().is_some() {
-            self.consumed.point_to(self.consumed.end_index()).unwrap();
+            self.consumed
+                .point_to(self.src, self.consumed.end_index())
+                .unwrap();
         } else {
-            self.consumed.reset();
+            self.consumed.clear();
         }
     }
 
     fn one_ahead(&mut self) -> Option<&char> {
-        self.src.peek()
+        self.chars.peek()
     }
 
     fn eat(&mut self) -> Option<char> {
-        let c = self.src.next()?;
+        let c = self.chars.next()?;
 
-        self.consumed.advance_by(1)
-            .expect("Extending the consumed token should not fail as we should be guaranteed to be within bounds here");
+        self.consumed.push_char(c);
 
         Some(c)
     }
@@ -75,8 +84,8 @@ impl<'src> Lexer<'src> {
         self.eat_while(char::is_ascii_digit);
     }
 
-    fn emit(&mut self, kind: TokenKind) -> Token<'src> {
-        let tok = Token::new(kind, self.consumed);
+    fn emit(&mut self, kind: TokenKind) -> Token {
+        let tok = Token::new(kind, self.consumed.clone());
 
         self.end_token();
 
@@ -100,7 +109,7 @@ fn is_word(c: &char) -> bool {
 }
 
 impl<'src> Iterator for Lexer<'src> {
-    type Item = Token<'src>;
+    type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
         use TokenKind as tk;
@@ -122,7 +131,7 @@ impl<'src> Iterator for Lexer<'src> {
 
                     if self.at_word_bound() {
                         // handle keywords
-                        match self.consumed.as_str() {
+                        match self.get_consumed() {
                             "void" => tk::Void,
                             "int" => tk::Int,
                             "return" => tk::Return,
@@ -159,6 +168,6 @@ impl<'src> Iterator for Lexer<'src> {
     }
 }
 
-pub fn tokenize<'src>(src: &'src Source) -> impl Iterator<Item = Token<'src>> {
+pub fn tokenize(src: &Source) -> impl Iterator<Item = Token> {
     Lexer::new(src)
 }

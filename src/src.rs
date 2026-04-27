@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref};
+use std::{fmt, iter, ops::Deref, slice::SliceIndex};
 
 use contracts::{debug_ensures, ensures};
 
@@ -10,12 +10,40 @@ impl Source {
         Source(src)
     }
 
-    pub fn chars(&self) -> std::str::Chars<'_> {
-        self.0.chars()
+    #[ensures(index < self.len() -> ret.is_ok())]
+    #[ensures(index >= self.len() -> ret.clone()
+                .expect_err("Out of bounds index should result in error").to_lowercase().contains("out of bounds"))]
+    pub fn location_at(&self, index: usize) -> Result<Location, String> {
+        if index >= self.len() {
+            return Err(format!(
+                "Index {} out of bounds for Source of length {}",
+                index,
+                self.len()
+            ));
+        }
+
+        let all_before_idx = self.get(..index).unwrap();
+        // get line number by count newlines before idx
+        let line = all_before_idx.matches("\n").count();
+        let column = if line > 0 {
+            let line_start_idx = all_before_idx
+                .rfind("\n")
+                .expect("Should always find a newline if lineno > 0");
+
+            index - line_start_idx - 1
+        } else {
+            index
+        };
+
+        return Ok(Location {
+            line,
+            column,
+            index: index,
+        });
     }
 
-    pub fn len(&self) -> usize {
-        self.0.len()
+    pub fn span_between<I: SliceIndex<str>>(&self, _i: I) -> Result<Span, &'static str> {
+        unimplemented!()
     }
 }
 
@@ -33,283 +61,221 @@ impl From<String> for Source {
     }
 }
 
-/// A reference to a contiguous range of characters in a source string.
-/// Used to track the source spans.
 #[derive(Debug, Clone, Copy)]
-pub struct Span<'src> {
-    src: &'src Source,
-    span: Option<&'src str>,
+pub struct Location {
+    line: usize,
+    column: usize,
+    index: usize,
 }
 
-impl<'src> Span<'src> {
-    /// Create a new span that references the given source and covers the range from `start` to `start + len`.
-    /// The `start` and `len` parameters are in bytes, not characters.
-    /// Returns an error if the specified range is out of bounds of the source string or if it does not align with UTF-8 character boundaries.
-    pub fn new(src: &'src Source, start: usize, len: usize) -> Result<Self, &'static str> {
+impl Location {
+    pub fn try_new(src: &Source, index: usize) -> Result<Self, String> {
+        src.location_at(index)
+    }
+}
+
+/// A reference to a contiguous range of characters in a source string.
+/// Used to track the source spans.
+#[derive(Debug, Clone)]
+pub struct Span {
+    loc: Location,
+    span: String,
+}
+
+impl Span {
+    pub fn new_between(_start: Location, _end: Location) -> Self {
+        unimplemented!()
+    }
+
+    pub fn empty_at(src: &Source, index: usize) -> Result<Self, String> {
         Ok(Self {
-            src,
-            span: Some(src.get(start..start + len).ok_or("Invalid span range")?),
+            loc: src.location_at(index)?,
+            span: String::new(),
         })
     }
 
-    /// Create an empty span that references the given source.
-    /// The span will be an empty string, but it will still reference the source.
-    pub fn empty(src: &'src Source) -> Self {
-        Self { src, span: None }
-    }
-
-    /// Create an empty span that references the given source and starts at the given byte offset.
-    /// The span will be an empty string, but it will still reference the source.
-    pub fn empty_at(src: &'src Source, start: usize) -> Result<Self, &'static str> {
-        Self::new(src, start, 0)
-    }
-
-    /// Return the length of the span in bytes.
-    /// Note that this is the length in bytes, not characters. For example, a span that references Ferris "🦀" will have a length of 4 bytes, even though it is only one character.
-    /// ```
-    /// # use crustydrageon::src::{Source, Span};
-    /// let src = Source::new("🦀".to_string());
-    /// let span = Span::new(&src, 0, 4).unwrap();
-    /// assert_eq!(span.len(), 4);
-    /// ```
-    ///
-    /// If the span is empty, a length of 0 is returned:
-    /// ```
-    /// # use crustydrageon::src::{Source, Span};
-    /// # let src = Source::new("12345".to_string());
-    /// let span = Span::empty(&src);
-    /// assert_eq!(span.len(), 0);
-    /// ```
-    ///
-    /// # Note
-    /// For most use cases, you should probably use `chars().count()` instead of `len()` to get the number of characters in the span, since UTF-8 characters can be more than one byte long.
-    #[ensures(self.span.is_none() -> ret == 0)]
+    #[ensures(ret == self.span.len())]
     pub fn len(&self) -> usize {
-        self.span.map_or(0, |s| s.len())
+        self.span.len()
     }
 
+    #[ensures(ret == self.span.is_empty())]
     pub fn is_empty(&self) -> bool {
-        self.span.is_none_or(|s| s.is_empty())
+        self.span.is_empty()
     }
 
-    pub fn chars(&self) -> std::str::Chars<'_> {
-        self.as_str().chars()
+    #[ensures(self.span.chars().eq(ret))]
+    pub fn chars(&self, _src: &Source) -> std::str::Chars<'_> {
+        unimplemented!()
     }
 
-    /// Return the byte offset of the start of the span in the source string.
+    /// Return the index into the Source string that this span starts at
     pub fn start_index(&self) -> usize {
-        self.span
-            .map_or(0, |s| s.as_ptr() as usize - self.src.as_ptr() as usize)
+        self.loc.index
     }
 
-    /// Return the byte offset of the end of the span in the source string.
+    /// Return the index into the Source string that this span ends at
     pub fn end_index(&self) -> usize {
-        self.start_index() + self.len()
+        self.loc.index + self.len()
     }
 
-    /// Set the offset of the span to the given byte offset. The length is set to zero.
-    /// ```
-    /// # use crustydrageon::src::{Source, Span};
-    /// let src = Source::new("let ferris = 5;".to_string());
-    /// let mut span = Span::empty(&src);
-    /// span.point_to(4).unwrap();
-    /// assert_eq!(span.start_index(), 4);
-    /// assert_eq!(span.end_index(), 4);
-    /// assert_eq!(span.as_str(), "");
-    /// assert_eq!(span.len(), 0);
-    /// ```
-    #[debug_ensures(ret.is_ok() -> self.src.get(index..index) == self.src.get(self.start_index()..self.start_index()))]
-    #[debug_ensures(ret.is_err() -> old(self.start_index()) == self.start_index())]
-    pub fn point_to(&mut self, index: usize) -> Result<(), &'static str> {
-        self.span = Some(self.src.get(index..index).ok_or("Invalid offset")?);
+    /// Set the start position of the span to the given index. The length is set to zero.
+    pub fn point_to(&mut self, src: &Source, index: usize) -> Result<(), String> {
+        self.clear();
+        self.loc = src.location_at(index)?;
         Ok(())
     }
 
-    #[debug_ensures(ret.is_err() -> old(self.start_index()) == self.start_index())]
-    pub fn start_at(&mut self, _index: usize) -> Result<(), &'static str> {
-        todo!()
+    /// Set the index of the span start
+    pub fn start_at(&mut self, _src: &Source, _index: usize) -> Result<(), &'static str> {
+        unimplemented!()
     }
 
-    /// Set the end index of the span to the index
-    #[debug_ensures(ret.is_err() -> old(self.end_index()) == self.end_index())]
-    pub fn end_at(&mut self, index: usize) -> Result<(), &'static str> {
-        if index < self.start_index() {
-            Err("Cannot set end index before start index")
-        } else {
-            self.span = Some(
-                self.src
-                    .get(self.start_index()..index)
-                    .ok_or("Invalid offset")?,
-            );
-            Ok(())
-        }
+    /// Set the index of the span end
+    pub fn end_at(&mut self, _src: &Source, _index: usize) -> Result<(), &'static str> {
+        unimplemented!()
+    }
+
+    #[debug_ensures(self.span.chars().last().unwrap() == c)]
+    #[debug_ensures(self.len() == old(self.len()) + 1)]
+    pub fn push_char(&mut self, c: char) {
+        self.span.push(c);
+    }
+
+    #[debug_ensures(self.span.ends_with(s.as_str()))]
+    pub fn push_str(&mut self, s: String) {
+        s.chars().for_each(|c| self.push_char(c));
     }
 
     /// Clear the span, effectively resetting it to an empty string.
-    /// The span will still reference the same source and start at the same offset.
-    ///
-    /// # Examples
-    /// ```
-    /// # use crustydrageon::src::{Source, Span};
-    /// # let src = Source::new("Hello, world!".to_string());
-    /// # let mut span = Span::empty(&src);
-    /// # span.advance_by(5).unwrap();
-    /// assert_eq!(span.as_str(), "Hello");
-    /// span.clear();
-    /// assert_eq!(span.as_str(), "");
-    /// ```
+    /// The span will still start at the same Location.
     #[debug_ensures(old(self.start_index()) == self.start_index())]
     #[ensures(self.is_empty())]
     pub fn clear(&mut self) {
-        self.span = Some(
-            self.src
-                .get(self.start_index()..self.start_index())
-                .unwrap(),
-        );
-    }
-
-    /// Completely reset the span. Unlike Span::clear(), the start index is not retained.
-    #[ensures(self.is_empty())]
-    pub fn reset(&mut self) {
-        self.span = None;
+        self.span = String::new();
     }
 
     /// Return the string slice that the span references.
     /// If the span is empty, return an empty string *which does not reference any part of the source*.
-    #[debug_ensures(ret.is_empty() -> self.is_empty())]
-    pub fn as_str(&self) -> &str {
-        self.span.map_or("", |s| s)
-    }
-
-    /// Advance the span by `n` bytes.
-    /// The span will be advanced from the end of the current span.
-    /// If the span is currently empty, it will be set to the first `n` characters of the source.
-    ///
-    /// ```
-    /// # use crustydrageon::src::{Source, Span};
-    /// let src = Source::new("Hello, world!".to_string());
-    /// let mut span = Span::empty(&src);
-    /// span.advance_by(5).unwrap();
-    /// assert_eq!(span.as_str(), "Hello");
-    /// ```
-    ///
-    /// Returns an error if the advancement would go out of bounds of the source string.
-    ///
-    /// ```
-    /// # use crustydrageon::src::{Source, Span};
-    /// # let src = Source::new("Hello, world!".to_string());
-    /// # let mut span = Span::empty(&src);
-    /// # span.advance_by(1).unwrap();
-    /// span.advance_by(100).expect_err("Advancing the span beyond the bounds of the source should return an error");
-    /// ```
-    #[debug_ensures(ret.is_ok() -> self.len() <= self.src.len())]
-    #[debug_ensures(ret.is_ok() -> self.start_index() < self.src.len())]
-    #[debug_ensures(ret.is_ok() -> self.end_index() <= self.src.len())]
-    #[debug_ensures(ret.is_ok() -> self.start_index() <= self.end_index())]
-    pub fn advance_by(&mut self, n: usize) -> Result<(), &'static str> {
-        let span = match self.span {
-            Some(span) => span,
-            None => {
-                self.span = Some(
-                    self.src
-                        .get(0..n)
-                        .ok_or("Attempted to create a larger span than the source")?,
-                );
-
-                return Ok(());
-            }
-        };
-
-        // get the index into self.src where the span starts
-        let start = self.start_index();
-        let new_len = span.len() + n;
-        let end: usize = start + new_len;
-
-        self.span = Some(
-            self.src
-                .get(start..end)
-                .ok_or("Attempted to advance span out of bounds")?,
-        );
-
-        Ok(())
+    #[ensures(ret.is_ok() -> ret.unwrap() == self.span)]
+    pub fn get<'src>(&self, src: &'src Source) -> Result<&'src str, &'static str> {
+        src.get(self.start_index()..self.end_index())
+            .ok_or("Failed to retrieve the Span text withinm a Source; was this Span created for this Source?")
     }
 }
 
-impl Display for Span<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.span.map_or("", |s| s))
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.span)
     }
-}
-
-pub struct Location {
-    pub line: usize,
-    pub column: usize,
-    pub offset: usize,
 }
 
 #[cfg(test)]
 mod tests {
+    use parameterized::ide;
+    use parameterized::parameterized;
+    use std::sync::LazyLock;
+
     use super::*;
 
-    #[test]
-    fn test_span_empty() {
-        let src = Source::new("Hello, world!".to_string());
-        let span = Span::empty(&src);
-        assert_eq!(span.as_str(), "");
+    #[allow(non_upper_case_globals)]
+    static hello_world: LazyLock<Source> =
+        LazyLock::new(|| Source::new("Hello, world!".to_owned()));
+
+    mod location {
+        use super::*;
+
+        macro_rules! test_location_at {
+            (
+                $($name:ident($src:literal) {
+                    $($index_ok:literal : ($line:literal, $column:literal), $c:literal),+
+                })+
+            ) => {
+                $(mod $name {
+                    use super::*;
+
+                    ide!();
+
+                    #[parameterized(index = { $($index_ok),+ }, line = { $($line),+ }, column = { $($column),+ }, c = { $($c),+ })]
+                    fn ok(index: usize, line: usize, column: usize, c: char) {
+                        let src = $src;
+                        let src = Source::new(src.to_owned());
+                        let loc = src.location_at(index).unwrap();
+
+                        assert_eq!(loc.index, index);
+                        assert_eq!(loc.column, column);
+                        assert_eq!(loc.line, line);
+                        assert_eq!(src.chars().nth(loc.index).unwrap(), c);
+                    }
+                })+
+            };
+        }
+
+        test_location_at! {
+            hello_world("Hello, world!") {
+                0 : (0, 0), 'H',
+                4 : (0, 4), 'o',
+                12 : (0, 12), '!'
+            }
+
+            int_foo_bar("int foo = 'a';\nint bar = 'b';") {
+                13 : (0, 13), ';',
+                14 : (0, 14), '\n',
+                15 : (1, 0), 'i'
+            }
+
+            question("?") {
+                0 : (0, 0), '?'
+            }
+
+            abc_multine("a\nb\nc") {
+                0 : (0, 0), 'a',
+                1 : (0, 1), '\n',
+                2 : (1, 0), 'b',
+                3 : (1, 1), '\n',
+                4 : (2, 0), 'c'
+            }
+        }
     }
 
-    #[test]
-    fn test_span_new() {
-        let src = Source::new("Hello, world!".to_string());
-        let span = Span::new(&src, 0, 5).unwrap();
-        assert_eq!(span.as_str(), "Hello");
-    }
+    mod span {
+        use super::*;
 
-    #[test]
-    fn test_span_new_unicode() {
-        let src = Source::new("👋, world!".to_string());
-        let span = Span::new(&src, 0, 4).unwrap();
-        assert_eq!(span.as_str(), "👋");
-        let span = Span::new(&src, 0, 5).unwrap();
-        assert_eq!(span.as_str(), "👋,");
-    }
+        #[test]
+        fn test_empty_at() {
+            let src = Source::new("char semicolon = ';';".to_owned());
+            let idx = 5;
+            let span = Span::empty_at(&src, idx).unwrap();
 
-    #[test]
-    fn test_span_new_unicode_boundary() {
-        let src = Source::new("👋, world!".to_string());
-        Span::new(&src, 0, 1).unwrap_err();
-        Span::new(&src, 0, 2).unwrap_err();
-        Span::new(&src, 0, 3).unwrap_err();
-    }
+            assert!(span.is_empty());
+            assert_eq!(span.len(), 0);
+            assert_eq!(span.span, "");
+            assert_eq!(span.loc.index, idx);
+        }
 
-    #[test]
-    fn test_span_advance() {
-        let src = Source::new("Hello, world!".to_string());
-        let mut span = Span::empty(&src);
-        span.advance_by(1).unwrap();
-        assert_eq!(span.as_str(), "H");
-        span.advance_by(4).unwrap();
-        assert_eq!(span.as_str(), "Hello");
-        span.advance_by(2).unwrap();
-        assert_eq!(span.as_str(), "Hello, ");
-    }
+        #[test]
+        fn test_span_push_char() {
+            let mut span = Span::empty_at(&hello_world, 0).unwrap();
 
-    #[test]
-    fn test_span_advance_utf8() {
-        let src = Source::new("👋, world!".to_string());
-        let mut span = Span::empty(&src);
-        span.advance_by(4).unwrap();
-        assert_eq!(span.as_str(), "👋");
-        span.advance_by(2).unwrap();
-        assert_eq!(span.as_str(), "👋, ");
-    }
+            span.push_char('H');
+            span.push_char('e');
+            span.push_char('l');
 
-    #[test]
-    fn test_span_advance_out_of_bounds() {
-        let src = Source::new("Hello".to_string());
-        let mut span = Span::empty(&src);
-        span.advance_by(10).expect_err(
-            "Advancing the span beyond the bounds of the source should return an error",
-        );
+            assert_eq!(span.to_string(), "Hel");
+
+            span.push_char('l');
+            span.push_char('o');
+
+            assert_eq!(span.to_string(), "Hello");
+        }
+
+        #[test]
+        fn test_span_simple() {
+            let mut span = Span::empty_at(&hello_world, 0).unwrap();
+
+            span.push_str("Hello".to_owned());
+            assert_eq!(span.to_string(), "Hello");
+            assert_eq!(span.get(&hello_world).unwrap(), "Hello");
+        }
     }
 }

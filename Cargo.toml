@@ -8,3 +8,4 @@ contracts = "0.6.7"
 
 [dev-dependencies]
 test_each_file = "0.3.4"
+parameterized = "2.1.0"

@@ -22,13 +22,13 @@ pub enum TokenKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Token<'src> {
+pub struct Token {
     kind: TokenKind,
-    lexeme: Span<'src>,
+    lexeme: Span,
 }
 
-impl<'src> Token<'src> {
-    pub fn new(kind: TokenKind, lexeme: Span<'src>) -> Self {
+impl Token {
+    pub fn new(kind: TokenKind, lexeme: Span) -> Self {
         Self { kind, lexeme }
     }
 
@@ -37,12 +37,12 @@ impl<'src> Token<'src> {
         self.kind
     }
 
-    pub fn value(&self) -> Span<'_> {
-        self.lexeme
+    pub fn value(&self) -> &Span {
+        &self.lexeme
     }
 
-    pub fn lexeme(&self) -> Span<'_> {
-        self.lexeme
+    pub fn lexeme(&self) -> &Span {
+        &self.lexeme
     }
 }
 
