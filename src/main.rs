@@ -13,7 +13,8 @@ fn main() -> Result<(), String> {
         driver::FinalCompilerStage::new(lex, parse, codegen),
         verbose,
     )
-    .map_err(|e| e.to_string())?
+    .inspect_err(|e| println!("{}", e))
+    .unwrap_or(None)
     {
         println!("{}", filename.display());
     }

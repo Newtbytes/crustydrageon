@@ -44,6 +44,10 @@ impl Token {
     pub fn lexeme(&self) -> &Span {
         &self.lexeme
     }
+
+    pub fn span(&self) -> &Span {
+        &self.lexeme
+    }
 }
 
 /// A C program

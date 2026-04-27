@@ -10,6 +10,31 @@ impl Source {
         Source(src)
     }
 
+    /// Returns the line number of the line containing index i
+    pub fn get_lineno(&self, i: usize) -> Result<usize, String> {
+        // count number of lines before index i
+        let all_before_idx = self.get(..i).ok_or(format!(
+            "Index {} out of bounds for Source of length {}",
+            i,
+            self.len()
+        ))?;
+        Ok(all_before_idx.matches("\n").count())
+    }
+
+    pub fn get_colno(&self, i: usize) -> Result<usize, String> {
+        let line = self.get_lineno(i)?;
+
+        if line > 0 {
+            let line_start_idx = self[..i]
+                .rfind("\n")
+                .expect("Should always find a newline if lineno > 0");
+
+            Ok(i - line_start_idx - 1)
+        } else {
+            Ok(i)
+        }
+    }
+
     #[ensures(index < self.len() -> ret.is_ok())]
     #[ensures(index >= self.len() -> ret.clone()
                 .expect_err("Out of bounds index should result in error").to_lowercase().contains("out of bounds"))]
@@ -22,22 +47,9 @@ impl Source {
             ));
         }
 
-        let all_before_idx = self.get(..index).unwrap();
-        // get line number by count newlines before idx
-        let line = all_before_idx.matches("\n").count();
-        let column = if line > 0 {
-            let line_start_idx = all_before_idx
-                .rfind("\n")
-                .expect("Should always find a newline if lineno > 0");
-
-            index - line_start_idx - 1
-        } else {
-            index
-        };
-
         return Ok(Location {
-            line,
-            column,
+            line: self.get_lineno(index)?,
+            column: self.get_colno(index)?,
             index,
         });
     }
@@ -71,6 +83,14 @@ pub struct Location {
 impl Location {
     pub fn try_new(src: &Source, index: usize) -> Result<Self, String> {
         src.location_at(index)
+    }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
+
+    pub fn column(&self) -> usize {
+        self.column
     }
 }
 
@@ -107,6 +127,10 @@ impl Span {
     #[ensures(self.span.chars().eq(ret))]
     pub fn chars(&self, _src: &Source) -> std::str::Chars<'_> {
         unimplemented!()
+    }
+
+    pub fn start(&self) -> Location {
+        self.loc
     }
 
     /// Return the index into the Source string that this span starts at

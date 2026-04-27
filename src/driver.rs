@@ -216,7 +216,8 @@ pub fn compile(
         return Ok(None);
     }
 
-    let ast = parser::parse(&mut tokens.peekable()).map_err(CompilerError::ParserError)?;
+    let ast = parser::parse(&mut tokens.peekable())
+        .map_err(|e| CompilerError::ParserError(src.clone(), e))?;
 
     if verbose || stop_at.parse {
         println!("{:#?}", ast);
