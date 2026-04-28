@@ -21,6 +21,7 @@ impl Source {
         Ok(all_before_idx.matches("\n").count())
     }
 
+    /// Returns the line number of the line containing index `i``.
     pub fn get_colno(&self, i: usize) -> Result<usize, String> {
         let line = self.get_lineno(i)?;
 
@@ -35,6 +36,7 @@ impl Source {
         }
     }
 
+    /// Returns a Location pointing to the character at index `i`.
     #[ensures(index < self.len() -> ret.is_ok())]
     #[ensures(index >= self.len() -> ret.clone()
                 .expect_err("Out of bounds index should result in error").to_lowercase().contains("out of bounds"))]
@@ -103,10 +105,16 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn new_between(_start: Location, _end: Location) -> Self {
-        unimplemented!()
-    }
-
+    /// Create an empty span starting at an index
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// # let src = Source::new("Hello, world!".to_owned());
+    /// let span = Span::empty_at(&src, 4).unwrap();
+    /// assert!(span.is_empty());
+    /// ```
     pub fn empty_at(src: &Source, index: usize) -> Result<Self, String> {
         Ok(Self {
             loc: src.location_at(index)?,
@@ -120,13 +128,13 @@ impl Span {
     }
 
     #[ensures(ret == self.span.is_empty())]
+    #[ensures(ret == (self.start_index() == self.end_index()))]
     pub fn is_empty(&self) -> bool {
         self.span.is_empty()
     }
 
-    #[ensures(self.span.chars().eq(ret))]
-    pub fn chars(&self, _src: &Source) -> std::str::Chars<'_> {
-        unimplemented!()
+    pub fn chars(&self) -> std::str::Chars<'_> {
+        self.span.chars()
     }
 
     pub fn start(&self) -> Location {
@@ -144,6 +152,20 @@ impl Span {
     }
 
     /// Set the start position of the span to the given index. The length is set to zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// # let src = Source::new("Hello, world!".to_owned());
+    /// # let mut span = Span::empty_at(&src, 0).unwrap();
+    /// # span.push_char('H');
+    /// assert_ne!(span.start_index(), 4);
+    /// assert_ne!(span.len(), 0);
+    /// span.point_to(&src, 4);
+    /// assert_eq!(span.start_index(), 4);
+    /// assert_eq!(span.len(), 0);
+    /// ```
     pub fn point_to(&mut self, src: &Source, index: usize) -> Result<(), String> {
         self.clear();
         self.loc = src.location_at(index)?;
@@ -265,41 +287,90 @@ mod tests {
     mod span {
         use super::*;
 
-        #[test]
-        fn test_empty_at() {
-            let src = Source::new("char semicolon = ';';".to_owned());
-            let idx = 5;
-            let span = Span::empty_at(&src, idx).unwrap();
+        mod init {
+            use super::*;
 
-            assert!(span.is_empty());
-            assert_eq!(span.len(), 0);
-            assert_eq!(span.span, "");
-            assert_eq!(span.loc.index, idx);
+            #[test]
+            fn test_empty_at() {
+                let src = Source::new("char semicolon = ';';".to_owned());
+                let idx = 5;
+                let span = Span::empty_at(&src, idx).unwrap();
+
+                assert!(span.is_empty());
+                assert_eq!(span.len(), 0);
+                assert_eq!(span.span, "");
+                assert_eq!(span.loc.index, idx);
+            }
+        }
+
+        mod mutate {
+            use super::*;
+
+            #[test]
+            fn test_point_to() {
+                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+
+                span.point_to(&hello_world, 5).unwrap();
+
+                assert!(span.is_empty());
+                assert_eq!(span.start_index(), 5);
+
+                span.point_to(&hello_world, hello_world.len()).unwrap_err();
+                span.point_to(&hello_world, 64).unwrap_err();
+            }
+
+            #[test]
+            fn test_push_char() {
+                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+
+                span.push_char('H');
+                span.push_char('e');
+                span.push_char('l');
+
+                assert_eq!(span.to_string(), "Hel");
+
+                span.push_char('l');
+                span.push_char('o');
+
+                assert_eq!(span.to_string(), "Hello");
+            }
+
+            #[test]
+            fn test_push_str() {
+                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+
+                span.push_str("Hello".to_owned());
+                assert_eq!(span.to_string(), "Hello");
+                assert_eq!(span.get(&hello_world).unwrap(), "Hello");
+            }
+
+            #[test]
+            fn test_clear() {
+                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+
+                span.clear();
+            }
         }
 
         #[test]
-        fn test_span_push_char() {
+        #[should_panic]
+        fn test_bad_get_panics_push_str() {
             let mut span = Span::empty_at(&hello_world, 0).unwrap();
 
-            span.push_char('H');
-            span.push_char('e');
-            span.push_char('l');
-
-            assert_eq!(span.to_string(), "Hel");
-
-            span.push_char('l');
-            span.push_char('o');
-
-            assert_eq!(span.to_string(), "Hello");
+            span.push_str("Hello, girlies! :3".to_owned());
+            // invalid! push_str pushed an invalid string...
+            span.get(&hello_world).unwrap();
         }
 
         #[test]
-        fn test_span_simple() {
+        #[should_panic]
+        fn test_bad_get_panics_push_char() {
             let mut span = Span::empty_at(&hello_world, 0).unwrap();
 
-            span.push_str("Hello".to_owned());
-            assert_eq!(span.to_string(), "Hello");
-            assert_eq!(span.get(&hello_world).unwrap(), "Hello");
+            span.push_char('O');
+            span.push_char('w');
+            span.push_char('O');
+            span.get(&hello_world).unwrap();
         }
     }
 }
