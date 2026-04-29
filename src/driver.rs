@@ -5,6 +5,8 @@ use std::{
     process,
 };
 
+use contracts::debug_ensures;
+
 use crate::{
     ast::Token,
     error::{CompilerError, CompilerResult},
@@ -67,10 +69,10 @@ impl<'a> CompilerFile<'a> {
         }
     }
 
+    #[debug_ensures(ret.extension().unwrap() == self.kind.extension())]
     pub fn filename(&self) -> PathBuf {
         if let Some(dir) = self.dir {
-            dir.with_file_name(self.name)
-                .with_extension(self.kind.extension())
+            dir.join(self.name).with_extension(self.kind.extension())
         } else {
             PathBuf::new()
                 .with_file_name(self.name)
@@ -248,4 +250,45 @@ pub fn compile(
         .map_err(CompilerError::sys_cc_err)?;
 
     Ok(Some(out.filename()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compiler_file_fn() {
+        let file = CompilerFile {
+            dir: None,
+            name: OsStr::new("test"),
+            kind: FileKind::Source,
+        };
+
+        let filename = file.filename();
+
+        assert_eq!(filename.file_name().unwrap(), "test.c");
+        assert_eq!(filename.extension().unwrap(), "c");
+    }
+
+    #[test]
+    fn test_compiler_file_fn_in_dir() {
+        let dir: &str = "some/directory/that/doesnt/exist/";
+
+        let file = CompilerFile {
+            dir: Some(Path::new(dir)),
+            name: OsStr::new("test"),
+            kind: FileKind::Source,
+        };
+
+        let filename = file.filename();
+
+        assert_eq!(filename.file_name().unwrap(), "test.c");
+        assert_eq!(filename.extension().unwrap(), "c");
+        assert!(
+            filename.starts_with(dir),
+            "{} should start with dir: {}",
+            filename.display(),
+            dir
+        );
+    }
 }
