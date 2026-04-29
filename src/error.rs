@@ -1,4 +1,4 @@
-use std::{error, fmt, process};
+use std::{fmt, process};
 
 use crate::{parser::ParserError, src::Source};
 
@@ -64,7 +64,7 @@ impl fmt::Display for CompilerError {
                             }
 
                             write!(f, "{}", " ".repeat(marker_start))?;
-                            write!(f, "{}\n", "^".repeat(marker_end - marker_start))?;
+                            writeln!(f, "{}", "^".repeat(marker_end - marker_start))?;
                         }
                     }
                 }
