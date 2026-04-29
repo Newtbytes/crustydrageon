@@ -9,6 +9,8 @@ pub struct Program {
 impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.func.fmt(f)?;
+
+        #[cfg(target_os = "linux")]
         f.write_str(".section .note.GNU-stack,\"\",@progbits")?;
 
         Ok(())
@@ -16,8 +18,23 @@ impl Display for Program {
 }
 
 pub struct Function {
-    pub name: ast::Identifier,
-    pub body: Vec<Instruction>,
+    name: ast::Identifier,
+    body: Vec<Instruction>,
+}
+
+impl Function {
+    pub fn new(name: ast::Identifier, body: Vec<Instruction>) -> Self {
+        if !cfg!(target_os = "macos") {
+            Self { name, body }
+        } else {
+            Self {
+                name: ast::Identifier {
+                    value: format!("_{}", name.value),
+                },
+                body,
+            }
+        }
+    }
 }
 
 impl Display for Function {
@@ -90,10 +107,7 @@ pub fn lower_stmt(stmt: ast::Stmt) -> Vec<Instruction> {
 }
 
 pub fn lower_func(func: ast::Function) -> Function {
-    Function {
-        name: func.name,
-        body: lower_stmt(func.body),
-    }
+    Function::new(func.name, lower_stmt(func.body))
 }
 
 pub fn lower_program(prg: ast::Program) -> Program {

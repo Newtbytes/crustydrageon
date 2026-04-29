@@ -162,8 +162,29 @@ impl SysCompiler {
 
         let compiled = file.with_kind(FileKind::Out);
 
+        #[cfg(target_os = "linux")]
+        let sys = "linux";
+
+        #[cfg(target_os = "macos")]
+        let sys = "darwin";
+
+        #[cfg(target_vendor = "unknown")]
+        let vendor = "unknown";
+
+        #[cfg(target_vendor = "apple")]
+        let vendor = "apple";
+
+        #[cfg(target_env = "gnu")]
+        let env = "gnu";
+
+        #[cfg(target_env = "")]
+        let env = "";
+
+        let target_triple = format!("x86_64-{}-{}-{}", vendor, sys, env);
+
         let status = self
             .command()
+            .args(["-target", &target_triple])
             .arg(file.filename())
             .arg("-o")
             .arg(compiled.filename())
