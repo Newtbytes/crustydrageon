@@ -1,6 +1,6 @@
-use crustydrageon::{cli, driver, error};
+use crustydrageon::{cli, driver};
 
-fn main() -> Result<(), error::CompilerError> {
+fn main() -> Result<(), String> {
     let src_fn = cli::positional_arg(0).expect("source filename should be first argument");
 
     let lex = cli::flag("lex");
@@ -12,7 +12,10 @@ fn main() -> Result<(), error::CompilerError> {
         &src_fn,
         driver::FinalCompilerStage::new(lex, parse, codegen),
         verbose,
-    )? {
+    )
+    .inspect_err(|e| println!("{}", e))
+    .unwrap_or(None)
+    {
         println!("{}", filename.display());
     }
 

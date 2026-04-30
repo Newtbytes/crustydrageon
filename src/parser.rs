@@ -1,30 +1,60 @@
-use std::iter;
+use std::{fmt, iter};
 
-use crate::ast::{self, Token, TokenKind};
+use crate::{
+    ast::{self, Token, TokenKind},
+    src,
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ParserError {
-    UnexpectedToken {
-        expected: TokenKind,
-        actual: TokenKind,
-    },
-    ErrorToken(String),
-    ReachedEOF,
+    UnexpectedToken { expected: TokenKind, actual: Token },
+    ErrorToken(Token, &'static str),
+    UnexpectedEOF,
     ExpectedEOF(Token),
 }
 
 type ParseResult<T> = Result<T, ParserError>;
 
-struct Parser<'a, I: Iterator<Item = Token>> {
-    tokens: &'a mut iter::Peekable<I>,
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParserError::UnexpectedToken { expected, actual } => {
+                write!(f, "Expected a {:?} but got a {:?}", expected, actual.kind())
+            }
+            ParserError::ErrorToken(tok, msg) => write!(f, "{}", msg),
+            ParserError::UnexpectedEOF => write!(f, "Unexpectedly reached end of file"),
+            ParserError::ExpectedEOF(tok) => {
+                write!(f, "Expected end of file but got a {:?}", tok.kind())
+            }
+        }
+    }
 }
 
-impl<I: iter::Iterator<Item = Token>> Parser<'_, I> {
-    fn take(&mut self) -> ParseResult<Token> {
-        let token = self.tokens.next().ok_or(ParserError::ReachedEOF)?;
+impl ParserError {
+    pub fn span(&self) -> Option<&src::Span> {
+        match self {
+            ParserError::UnexpectedToken {
+                expected: _,
+                actual,
+            } => Some(actual.span()),
+            ParserError::ErrorToken(token, _) => Some(token.span()),
+            ParserError::ExpectedEOF(token) => Some(token.span()),
 
-        if let TokenKind::Error = token.kind() {
-            Err(ParserError::ErrorToken(token.value().to_string()))
+            ParserError::UnexpectedEOF => None,
+        }
+    }
+}
+
+struct Parser<'iter, I: Iterator<Item = Token> + 'iter> {
+    tokens: &'iter mut iter::Peekable<I>,
+}
+
+impl<'iter, I: iter::Iterator<Item = Token> + 'iter> Parser<'iter, I> {
+    fn take(&mut self) -> ParseResult<Token> {
+        let token = self.tokens.next().ok_or(ParserError::UnexpectedEOF)?;
+
+        if let TokenKind::Error(msg) = token.kind() {
+            Err(ParserError::ErrorToken(token, msg))
         } else {
             Ok(token)
         }
@@ -35,7 +65,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<'_, I> {
             token if token.kind() == expected => Ok(token),
             actual => Err(ParserError::UnexpectedToken {
                 expected,
-                actual: actual.kind(),
+                actual: actual,
             }),
         }
     }
@@ -89,8 +119,8 @@ impl<I: iter::Iterator<Item = Token>> Parser<'_, I> {
     }
 }
 
-pub fn parse(
-    tokens: &mut iter::Peekable<impl iter::Iterator<Item = Token>>,
+pub fn parse<'src>(
+    tokens: &mut iter::Peekable<impl iter::Iterator<Item = Token> + 'src>,
 ) -> ParseResult<ast::Program> {
     let mut parser = Parser { tokens };
     parser.parse_program()

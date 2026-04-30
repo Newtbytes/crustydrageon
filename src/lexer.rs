@@ -1,35 +1,50 @@
 use std::{iter::Peekable, str::Chars};
 
-use crate::ast::{Token, TokenKind};
+use crate::{
+    ast::{Token, TokenKind},
+    src::{Source, Span},
+};
 
 pub struct Lexer<'src> {
-    src: Peekable<Chars<'src>>,
-    consumed: String,
-    offset: usize,
+    src: &'src Source,
+    chars: Peekable<Chars<'src>>,
+    consumed: Span,
 }
 
 impl<'src> Lexer<'src> {
-    pub fn new(src: Chars<'src>) -> Self {
+    pub fn new(src: &'src Source) -> Self {
         Lexer {
-            src: src.peekable(),
-            consumed: String::new(),
-            offset: 0,
+            src,
+            chars: src.chars().peekable(),
+            consumed: Span::empty_at(src, 0).expect(""),
         }
     }
 
-    fn clear_consumed(&mut self) {
-        self.offset += self.consumed.len();
-        self.consumed.clear();
+    fn get_consumed(&self) -> &str {
+        self.consumed
+            .get(self.src)
+            .expect("Consumed span should always be valid for the source string")
+    }
+
+    /// Reset the consumed token, setting it to start at the next character
+    fn end_token(&mut self) {
+        if self.one_ahead().is_some() {
+            self.consumed
+                .point_to(self.src, self.consumed.end_index())
+                .unwrap();
+        } else {
+            self.consumed.clear();
+        }
     }
 
     fn one_ahead(&mut self) -> Option<&char> {
-        self.src.peek()
+        self.chars.peek()
     }
 
     fn eat(&mut self) -> Option<char> {
-        let c = self.src.next()?;
+        let c = self.chars.next()?;
 
-        self.consumed.push(c);
+        self.consumed.push_char(c);
 
         Some(c)
     }
@@ -38,11 +53,11 @@ impl<'src> Lexer<'src> {
     where
         P: FnMut(&char) -> bool,
     {
-        let c = self.src.next_if(&mut predicate)?;
-
-        self.consumed.push(c);
-
-        Some(c)
+        if predicate(self.one_ahead()?) {
+            self.eat()
+        } else {
+            None
+        }
     }
 
     fn eat_while<P>(&mut self, mut predicate: P)
@@ -72,7 +87,7 @@ impl<'src> Lexer<'src> {
     fn emit(&mut self, kind: TokenKind) -> Token {
         let tok = Token::new(kind, self.consumed.clone());
 
-        self.clear_consumed();
+        self.end_token();
 
         tok
     }
@@ -84,9 +99,8 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn error(&mut self, msg: &str) -> TokenKind {
-        self.consumed = msg.to_owned();
-        TokenKind::Error
+    fn error(&mut self, msg: &'static str) -> TokenKind {
+        TokenKind::Error(msg)
     }
 }
 
@@ -102,7 +116,7 @@ impl<'src> Iterator for Lexer<'src> {
 
         // skip whitespace
         self.eat_while(|&c| c.is_whitespace());
-        self.clear_consumed();
+        self.end_token();
 
         let kind = match self.eat() {
             Some(c) => match c {
@@ -117,7 +131,7 @@ impl<'src> Iterator for Lexer<'src> {
 
                     if self.at_word_bound() {
                         // handle keywords
-                        match self.consumed.as_str() {
+                        match self.get_consumed() {
                             "void" => tk::Void,
                             "int" => tk::Int,
                             "return" => tk::Return,
@@ -140,13 +154,13 @@ impl<'src> Iterator for Lexer<'src> {
                     }
                 }
 
-                c => self.error(&format!("Unknown character: {}", c)),
+                _ => self.error("Unexpected character"),
             },
             None => return None,
         };
 
         // synchronize by eating until synchronization point
-        if let tk::Error = kind {
+        if let tk::Error(_) = kind {
             self.eat_until(|&c| !is_word(&c));
         }
 
@@ -154,6 +168,6 @@ impl<'src> Iterator for Lexer<'src> {
     }
 }
 
-pub fn tokenize(src: Chars) -> impl Iterator<Item = Token> {
+pub fn tokenize(src: &Source) -> impl Iterator<Item = Token> {
     Lexer::new(src)
 }

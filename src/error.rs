@@ -1,17 +1,77 @@
-use std::process;
+use std::{error, fmt, process};
 
-use crate::parser::ParserError;
+use crate::{parser::ParserError, src::Source};
 
 #[derive(Debug)]
 pub enum CompilerError {
     SysCompilerError(process::ExitStatus),
-    ParserError(ParserError),
+    ParserError(Source, ParserError),
     IoError,
 }
 
 impl CompilerError {
     pub fn sys_cc_err(status: process::ExitStatus) -> Self {
         CompilerError::SysCompilerError(status)
+    }
+}
+
+impl fmt::Display for CompilerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CompilerError::SysCompilerError(exit_status) => write!(
+                f,
+                "A system compiler exited with status code {} during the compilation",
+                exit_status
+            ),
+            CompilerError::ParserError(src, parser_error) => {
+                writeln!(f, "Error while parsing:")?;
+
+                if let Some(span) = parser_error.span() {
+                    writeln!(
+                        f,
+                        " at line {}, column {}:",
+                        span.start().line(),
+                        span.start().column()
+                    )?;
+
+                    let start_line = src.get_lineno(span.start_index()).unwrap();
+                    let end_line = src.get_lineno(span.end_index()).unwrap();
+                    let start_col = span.start().column();
+                    let end_col = src.get_colno(span.end_index()).unwrap();
+
+                    for i in start_line..=end_line {
+                        if let Some(line) = src.lines().nth(i) {
+                            writeln!(f, "{}", line)?;
+
+                            let marker_start: usize;
+                            let marker_end: usize;
+
+                            if i == start_line && i == end_line {
+                                marker_start = start_col;
+                                marker_end = end_col;
+                            } else if i == start_line {
+                                marker_start = start_col;
+                                marker_end = 0
+                            } else if i == end_line {
+                                marker_start = 0;
+                                marker_end = end_col;
+                            } else if start_line < i && i < end_line {
+                                marker_start = 0;
+                                marker_end = line.len() - 1;
+                            } else {
+                                marker_start = 0;
+                                marker_end = 0;
+                            }
+
+                            write!(f, "{}", " ".repeat(marker_start))?;
+                            write!(f, "{}\n", "^".repeat(marker_end - marker_start))?;
+                        }
+                    }
+                }
+                write!(f, "{}", parser_error)
+            }
+            CompilerError::IoError => todo!(),
+        }
     }
 }
 
