@@ -51,10 +51,10 @@ impl ParserError {
             | ParserError::ExpectedString {
                 expected: _,
                 actual,
-            } => Some(actual.span()),
+            }
+            | ParserError::ExpectedEOF(actual) => Some(actual.span()),
 
             ParserError::ErrorToken(token, _) => Some(token.span()),
-            ParserError::ExpectedEOF(token) => Some(token.span()),
 
             ParserError::UnexpectedEOF => None,
         }

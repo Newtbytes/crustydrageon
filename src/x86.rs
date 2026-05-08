@@ -93,7 +93,7 @@ impl Display for Instruction {
 pub fn lower_expr(expr: ast::Expr) -> Operand {
     match expr {
         ast::Expr::Const(val) => Operand::Imm(val),
-        ast::Expr::Unary(op, expr) => todo!(),
+        ast::Expr::Unary(_op, _expr) => todo!(),
     }
 }
 
