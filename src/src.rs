@@ -229,7 +229,7 @@ mod tests {
     use rstest::{fixture, rstest};
 
     #[fixture]
-    fn src() -> Source {
+    fn hello_world() -> Source {
         Source::new("Hello, world!".to_owned())
     }
 
@@ -311,7 +311,7 @@ mod tests {
             use super::*;
 
             #[rstest]
-            fn test_point_to(src: Source) {
+            fn test_point_to(#[from(hello_world)] src: Source) {
                 let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.point_to(&src, 5).unwrap();
@@ -324,7 +324,7 @@ mod tests {
             }
 
             #[rstest]
-            fn test_push_char(src: Source) {
+            fn test_push_char(#[from(hello_world)] src: Source) {
                 let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.push_char('H');
@@ -340,7 +340,7 @@ mod tests {
             }
 
             #[rstest]
-            fn test_push_str(src: Source) {
+            fn test_push_str(#[from(hello_world)] src: Source) {
                 let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.push_str("Hello".to_owned());
@@ -349,7 +349,7 @@ mod tests {
             }
 
             #[rstest]
-            fn test_clear(src: Source) {
+            fn test_clear(#[from(hello_world)] src: Source) {
                 let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.clear();
@@ -358,7 +358,7 @@ mod tests {
 
         #[rstest]
         #[should_panic]
-        fn test_bad_get_panics_push_str(src: Source) {
+        fn test_bad_get_panics_push_str(#[from(hello_world)] src: Source) {
             let mut span = Span::empty_at(&src, 0).unwrap();
 
             span.push_str("Hello, girlies! :3".to_owned());
@@ -368,7 +368,7 @@ mod tests {
 
         #[rstest]
         #[should_panic]
-        fn test_bad_get_panics_push_char(src: Source) {
+        fn test_bad_get_panics_push_char(#[from(hello_world)] src: Source) {
             let mut span = Span::empty_at(&src, 0).unwrap();
 
             span.push_char('O');
