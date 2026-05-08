@@ -224,14 +224,14 @@ impl fmt::Display for Span {
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
-    use std::sync::LazyLock;
-
     use super::*;
 
-    #[allow(non_upper_case_globals)]
-    static hello_world: LazyLock<Source> =
-        LazyLock::new(|| Source::new("Hello, world!".to_owned()));
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    fn src() -> Source {
+        Source::new("Hello, world!".to_owned())
+    }
 
     mod location {
         use super::*;
@@ -310,22 +310,22 @@ mod tests {
         mod mutate {
             use super::*;
 
-            #[test]
-            fn test_point_to() {
-                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+            #[rstest]
+            fn test_point_to(src: Source) {
+                let mut span = Span::empty_at(&src, 0).unwrap();
 
-                span.point_to(&hello_world, 5).unwrap();
+                span.point_to(&src, 5).unwrap();
 
                 assert!(span.is_empty());
                 assert_eq!(span.start_index(), 5);
 
-                span.point_to(&hello_world, hello_world.len()).unwrap_err();
-                span.point_to(&hello_world, 64).unwrap_err();
+                span.point_to(&src, src.len()).unwrap_err();
+                span.point_to(&src, 64).unwrap_err();
             }
 
-            #[test]
-            fn test_push_char() {
-                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+            #[rstest]
+            fn test_push_char(src: Source) {
+                let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.push_char('H');
                 span.push_char('e');
@@ -339,42 +339,42 @@ mod tests {
                 assert_eq!(span.to_string(), "Hello");
             }
 
-            #[test]
-            fn test_push_str() {
-                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+            #[rstest]
+            fn test_push_str(src: Source) {
+                let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.push_str("Hello".to_owned());
                 assert_eq!(span.to_string(), "Hello");
-                assert_eq!(span.get(&hello_world).unwrap(), "Hello");
+                assert_eq!(span.get(&src).unwrap(), "Hello");
             }
 
-            #[test]
-            fn test_clear() {
-                let mut span = Span::empty_at(&hello_world, 0).unwrap();
+            #[rstest]
+            fn test_clear(src: Source) {
+                let mut span = Span::empty_at(&src, 0).unwrap();
 
                 span.clear();
             }
         }
 
-        #[test]
+        #[rstest]
         #[should_panic]
-        fn test_bad_get_panics_push_str() {
-            let mut span = Span::empty_at(&hello_world, 0).unwrap();
+        fn test_bad_get_panics_push_str(src: Source) {
+            let mut span = Span::empty_at(&src, 0).unwrap();
 
             span.push_str("Hello, girlies! :3".to_owned());
             // invalid! push_str pushed an invalid string...
-            span.get(&hello_world).unwrap();
+            span.get(&src).unwrap();
         }
 
-        #[test]
+        #[rstest]
         #[should_panic]
-        fn test_bad_get_panics_push_char() {
-            let mut span = Span::empty_at(&hello_world, 0).unwrap();
+        fn test_bad_get_panics_push_char(src: Source) {
+            let mut span = Span::empty_at(&src, 0).unwrap();
 
             span.push_char('O');
             span.push_char('w');
             span.push_char('O');
-            span.get(&hello_world).unwrap();
+            span.get(&src).unwrap();
         }
     }
 }
