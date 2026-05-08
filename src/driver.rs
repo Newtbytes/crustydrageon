@@ -22,7 +22,7 @@ pub enum FileKind {
 }
 
 impl FileKind {
-    #[must_use] 
+    #[must_use]
     pub fn extension(&self) -> &'static str {
         match self {
             FileKind::Source => "c",
@@ -55,7 +55,7 @@ impl<'a> CompilerFile<'a> {
         fs::write(self.filename(), txt)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn from_path(path: &'a Path) -> Self {
         CompilerFile {
             dir: path.parent(),
@@ -69,7 +69,7 @@ impl<'a> CompilerFile<'a> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn filename(&self) -> PathBuf {
         if let Some(dir) = self.dir {
             dir.join(self.name).with_extension(self.kind.extension())
@@ -80,7 +80,7 @@ impl<'a> CompilerFile<'a> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn with_kind(&self, kind: FileKind) -> Self {
         CompilerFile {
             dir: self.dir,
@@ -200,32 +200,22 @@ impl SysCompiler {
     }
 }
 
-pub struct FinalCompilerStage {
-    lex: bool,
-    parse: bool,
-    codegen: bool,
-}
-
-impl FinalCompilerStage {
-    #[must_use] 
-    pub fn new(lex: bool, parse: bool, codegen: bool) -> Self {
-        Self {
-            lex,
-            parse,
-            codegen,
-        }
-    }
+#[derive(Clone, Copy, PartialEq)]
+pub enum CompilerStage {
+    Lex,
+    Parse,
+    Codegen,
 }
 
 pub fn compile(
     program: String,
-    stop_at: FinalCompilerStage,
+    stop_at: Option<CompilerStage>,
     verbose: bool,
 ) -> CompilerResult<Option<x86::Program>> {
     let src = Source::new(program);
     let tokens = lexer::tokenize(&src);
 
-    if stop_at.lex {
+    if stop_at == Some(CompilerStage::Lex) {
         println!("{:#?}", tokens.collect::<Vec<Token>>());
         return Ok(None);
     }
@@ -233,17 +223,15 @@ pub fn compile(
     let ast = parser::parse(&mut tokens.peekable())
         .map_err(|e| CompilerError::ParserError(src.clone(), e))?;
 
-    if verbose || stop_at.parse {
+    if verbose || stop_at == Some(CompilerStage::Parse) {
         println!("{ast:#?}");
-    }
 
-    if stop_at.parse {
         return Ok(None);
     }
 
     let asm: x86::Program = x86::lower_program(ast);
 
-    if verbose || stop_at.codegen {
+    if verbose || stop_at == Some(CompilerStage::Codegen) {
         println!("{asm}");
     }
 
@@ -252,7 +240,7 @@ pub fn compile(
 
 pub fn compile_file(
     filename: &str,
-    stop_at: FinalCompilerStage,
+    stop_at: Option<CompilerStage>,
     verbose: bool,
 ) -> CompilerResult<Option<PathBuf>> {
     let sys_cc = SysCompiler::CC;

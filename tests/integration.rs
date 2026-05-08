@@ -17,12 +17,8 @@ const FAIL_PARSE_INVALID: &str = "parsing an invalid program should never succee
 
 #[rstest]
 fn test_driver(#[files("tests/valid/**/*.c")] path: PathBuf) {
-    let filename = driver::compile_file(
-        path.to_str().unwrap(),
-        driver::FinalCompilerStage::new(false, false, false),
-        false,
-    )
-    .expect("Compilation should succeed for valid programs");
+    let filename = driver::compile_file(path.to_str().unwrap(), None, false)
+        .expect("Compilation should succeed for valid programs");
 
     if let Some(filename) = filename {
         fs::remove_file(filename)
@@ -83,6 +79,6 @@ fn test_parse_invalid(
 proptest! {
     #[test]
     fn doesnt_panic(program: String) {
-        let _ = driver::compile(program, driver::FinalCompilerStage::new(false, false, false), false);
+        let _ = driver::compile(program, None, false);
     }
 }
