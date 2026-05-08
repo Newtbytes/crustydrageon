@@ -26,7 +26,7 @@ pub enum TokenKind {
     Error(&'static str),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     kind: TokenKind,
     lexeme: Span,
@@ -87,10 +87,17 @@ impl Function {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum UnaryOp {
+    Complement,
+    Negate,
+}
+
 /// Expression
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Expr {
     Const(i32),
+    Unary(UnaryOp, Box<Expr>),
 }
 
 /// Statement

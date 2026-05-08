@@ -23,7 +23,7 @@ pub struct Function {
 }
 
 impl Function {
-    #[must_use] 
+    #[must_use]
     pub fn new(name: ast::Identifier, body: Vec<Instruction>) -> Self {
         if cfg!(target_os = "macos") {
             Self {
@@ -89,14 +89,15 @@ impl Display for Instruction {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_expr(expr: ast::Expr) -> Operand {
     match expr {
         ast::Expr::Const(val) => Operand::Imm(val),
+        ast::Expr::Unary(op, expr) => todo!(),
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_stmt(stmt: ast::Stmt) -> Vec<Instruction> {
     match stmt {
         ast::Stmt::Return(expr) => vec![
@@ -109,12 +110,12 @@ pub fn lower_stmt(stmt: ast::Stmt) -> Vec<Instruction> {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_func(func: ast::Function) -> Function {
     Function::new(func.name, lower_stmt(func.body))
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_program(prg: ast::Program) -> Program {
     Program {
         func: lower_func(prg.body),
