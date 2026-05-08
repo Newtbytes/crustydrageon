@@ -6,10 +6,11 @@ use crustydrageon::{
 fn main() -> Result<(), String> {
     let src_fn = cli::positional_arg(0).expect("source filename should be first argument");
 
-    let lex = cli::flag("lex");
-    let parse = cli::flag("parse");
-    let codegen = cli::flag("codegen");
-    let verbose = cli::flag("verbose");
+    let lex = cli::flag("--lex");
+    let parse = cli::flag("--parse");
+    let codegen = cli::flag("--codegen") || cli::flag("--assemble") || cli::flag("-S");
+
+    let verbose = cli::flag("--verbose");
 
     let stop_at = if lex {
         Some(CompilerStage::Lex)

@@ -7,9 +7,5 @@ pub fn positional_arg(pos: usize) -> Option<String> {
 
 #[must_use] 
 pub fn flag(name: &'static str) -> bool {
-    env::args().find(move |arg| {
-        arg.len() == name.len() + 2 // + 2 for leading '--'
-        && arg.starts_with("--")
-        && arg.ends_with(name)
-    }).is_some()
+    env::args().find(move |arg| arg == name).is_some()
 }
