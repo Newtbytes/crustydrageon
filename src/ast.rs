@@ -2,16 +2,21 @@ use crate::src::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
+    // Literals
+    Constant,
+    Ident,
+
+    // Operators
+    Complement,
+    Negate,
+    Decrement,
+
     // Structural
     LParen,
     RParen,
     LBrace,
     RBrace,
     Semicolon,
-
-    // Literals
-    Constant,
-    Ident,
 
     // Keywords
     Int,
@@ -28,28 +33,28 @@ pub struct Token {
 }
 
 impl Token {
-    #[must_use] 
+    #[must_use]
     pub fn new(kind: TokenKind, lexeme: Span) -> Self {
         Self { kind, lexeme }
     }
 
     /// Return the `TokenKind` of this Token
-    #[must_use] 
+    #[must_use]
     pub fn kind(&self) -> TokenKind {
         self.kind
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn value(&self) -> &Span {
         &self.lexeme
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn lexeme(&self) -> &Span {
         &self.lexeme
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn span(&self) -> &Span {
         &self.lexeme
     }
@@ -76,7 +81,7 @@ pub struct Function {
 }
 
 impl Function {
-    #[must_use] 
+    #[must_use]
     pub fn new(name: Identifier, body: Stmt) -> Self {
         Function { name, body }
     }
