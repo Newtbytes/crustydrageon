@@ -7,5 +7,4 @@ edition = "2024"
 contracts = "0.6.7"
 
 [dev-dependencies]
-test_each_file = "0.3.4"
-parameterized = "2.1.0"
+rstest = "0.26.1"

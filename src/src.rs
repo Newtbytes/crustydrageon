@@ -218,8 +218,7 @@ impl fmt::Display for Span {
 
 #[cfg(test)]
 mod tests {
-    use parameterized::ide;
-    use parameterized::parameterized;
+    use rstest::rstest;
     use std::sync::LazyLock;
 
     use super::*;
@@ -240,10 +239,9 @@ mod tests {
                 $(mod $name {
                     use super::*;
 
-                    ide!();
-
-                    #[parameterized(index = { $($index_ok),+ }, line = { $($line),+ }, column = { $($column),+ }, c = { $($c),+ })]
-                    fn ok(index: usize, line: usize, column: usize, c: char) {
+                    #[rstest]
+                    $(#[case($index_ok, $line, $column, $c)])+
+                    fn ok(#[case] index: usize, #[case] line: usize, #[case] column: usize, #[case] c: char) {
                         let src = $src;
                         let src = Source::new(src.to_owned());
                         let loc = src.location_at(index).unwrap();

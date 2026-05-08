@@ -1,6 +1,7 @@
-use std::{fs, path::Path};
+use std::fs;
+use std::path::PathBuf;
 
-use test_each_file::{test_each_file, test_each_path};
+use rstest::rstest;
 
 use crustydrageon::{
     ast::{Token, TokenKind},
@@ -13,8 +14,8 @@ use crustydrageon::{
 const FAIL_PARSE_VALID: &str = "parsing a valid program should never fail";
 const FAIL_PARSE_INVALID: &str = "parsing an invalid program should never succeed";
 
-test_each_path! { in "tests/valid/" as compile => test_driver }
-fn test_driver(path: &Path) {
+#[rstest]
+fn test_driver(#[files("tests/valid/**/*.c")] path: PathBuf) {
     let filename = driver::compile(
         path.to_str().unwrap(),
         driver::FinalCompilerStage::new(false, false, false),
@@ -23,19 +24,28 @@ fn test_driver(path: &Path) {
     .expect("Compilation should succeed for valid programs");
 
     if let Some(filename) = filename {
-        fs::remove_file(filename);
+        fs::remove_file(filename)
+            .expect("Failed to remove temporary binay. This test may be broken");
     }
 }
 
-test_each_file! { in "tests/valid/" => test_parse_valid }
-fn test_parse_valid(program: &str) {
+#[rstest]
+fn test_parse_valid(
+    #[files("tests/valid/**/*.c")]
+    #[mode = str]
+    program: &str,
+) {
     let src = Source::new(program.to_owned());
     let tokens = tokenize(&src);
     parse(&mut tokens.peekable()).expect(FAIL_PARSE_VALID);
 }
 
-test_each_file! { in "tests/invalid/lex" => test_lex_invalid }
-fn test_lex_invalid(program: &str) {
+#[rstest]
+fn test_lex_invalid(
+    #[files("tests/invalid/lex/**/*.c")]
+    #[mode = str]
+    program: &str,
+) {
     let src = Source::new(program.to_owned());
     let mut tokens = tokenize(&src);
     assert!(
@@ -51,8 +61,12 @@ fn test_lex_invalid(program: &str) {
     );
 }
 
-test_each_file! { in "tests/invalid/parse" => test_parse_invalid }
-fn test_parse_invalid(program: &str) {
+#[rstest]
+fn test_parse_invalid(
+    #[files("tests/invalid/parse/**/*.c")]
+    #[mode = str]
+    program: &str,
+) {
     let src = Source::new(program.to_owned());
     let tokens = tokenize(&src).collect::<Vec<Token>>();
     let ast = parse(&mut tokens.iter().cloned().peekable());
