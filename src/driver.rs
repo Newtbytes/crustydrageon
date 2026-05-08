@@ -5,8 +5,6 @@ use std::{
     process,
 };
 
-use contracts::debug_ensures;
-
 use crate::{
     ast::Token,
     error::{CompilerError, CompilerResult},
@@ -69,7 +67,6 @@ impl<'a> CompilerFile<'a> {
         }
     }
 
-    #[debug_ensures(ret.extension().unwrap() == self.kind.extension())]
     pub fn filename(&self) -> PathBuf {
         if let Some(dir) = self.dir {
             dir.join(self.name).with_extension(self.kind.extension())
