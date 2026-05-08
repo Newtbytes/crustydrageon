@@ -189,7 +189,7 @@ impl Span {
     }
 
     #[debug_ensures(self.span.chars().last().unwrap() == c)]
-    #[debug_ensures(self.len() == old(self.len()) + 1)]
+    #[debug_ensures(self.chars().count() == old(self.chars().count()) + 1)]
     pub fn push_char(&mut self, c: char) {
         self.span.push(c);
     }
