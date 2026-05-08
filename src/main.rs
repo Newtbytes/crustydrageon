@@ -8,7 +8,7 @@ fn main() -> Result<(), String> {
     let codegen = cli::flag("codegen");
     let verbose = cli::flag("verbose");
 
-    if let Some(filename) = driver::compile(
+    if let Some(filename) = driver::compile_file(
         &src_fn,
         driver::FinalCompilerStage::new(lex, parse, codegen),
         verbose,

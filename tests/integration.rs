@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use proptest::prelude::*;
 use rstest::rstest;
 
 use crustydrageon::{
@@ -16,7 +17,7 @@ const FAIL_PARSE_INVALID: &str = "parsing an invalid program should never succee
 
 #[rstest]
 fn test_driver(#[files("tests/valid/**/*.c")] path: PathBuf) {
-    let filename = driver::compile(
+    let filename = driver::compile_file(
         path.to_str().unwrap(),
         driver::FinalCompilerStage::new(false, false, false),
         false,
@@ -77,4 +78,11 @@ fn test_parse_invalid(
         tokens,
         ast
     );
+}
+
+proptest! {
+    #[test]
+    fn doesnt_panic(program: String) {
+        let _ = driver::compile(program, driver::FinalCompilerStage::new(false, false, false), false);
+    }
 }

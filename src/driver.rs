@@ -218,22 +218,11 @@ impl FinalCompilerStage {
 }
 
 pub fn compile(
-    filename: &str,
+    program: String,
     stop_at: FinalCompilerStage,
     verbose: bool,
-) -> CompilerResult<Option<PathBuf>> {
-    let sys_cc = SysCompiler::CC;
-
-    let source = CompilerFile::from_path(Path::new(filename));
-
-    let preprocessed = sys_cc
-        .preprocess(source)
-        .map_err(CompilerError::sys_cc_err)?;
-
-    let preprocessed_src =
-        fs::read_to_string(preprocessed.filename()).map_err(|_| CompilerError::IoError)?;
-
-    let src = Source::new(preprocessed_src);
+) -> CompilerResult<Option<x86::Program>> {
+    let src = Source::new(program);
     let tokens = lexer::tokenize(&src);
 
     if stop_at.lex {
@@ -258,21 +247,40 @@ pub fn compile(
         println!("{asm}");
     }
 
-    if stop_at.codegen {
-        return Ok(None);
-    }
+    Ok(Some(asm))
+}
 
-    let mut asm_file: CompilerFile = preprocessed.with_kind(FileKind::ASM);
+pub fn compile_file(
+    filename: &str,
+    stop_at: FinalCompilerStage,
+    verbose: bool,
+) -> CompilerResult<Option<PathBuf>> {
+    let sys_cc = SysCompiler::CC;
 
-    asm_file
-        .write(asm.to_string())
-        .expect("Writing to intermediate file shouldn't fail");
+    let source = CompilerFile::from_path(Path::new(filename));
 
-    let out = sys_cc
-        .assemble(asm_file)
+    let preprocessed = sys_cc
+        .preprocess(source)
         .map_err(CompilerError::sys_cc_err)?;
 
-    Ok(Some(out.filename()))
+    let preprocessed_src =
+        fs::read_to_string(preprocessed.filename()).map_err(|_| CompilerError::IoError)?;
+
+    if let Some(asm) = compile(preprocessed_src, stop_at, verbose)? {
+        let mut asm_file: CompilerFile = preprocessed.with_kind(FileKind::ASM);
+
+        asm_file
+            .write(asm.to_string())
+            .expect("Writing to intermediate file shouldn't fail");
+
+        let out = sys_cc
+            .assemble(asm_file)
+            .map_err(CompilerError::sys_cc_err)?;
+
+        Ok(Some(out.filename()))
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
