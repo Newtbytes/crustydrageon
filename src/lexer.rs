@@ -1,4 +1,7 @@
-use std::{iter::Peekable, str::Chars};
+use std::{
+    iter::{self, Peekable},
+    str::Chars,
+};
 
 use crate::{
     ast::{Token, TokenKind},
@@ -17,7 +20,7 @@ impl<'src> Lexer<'src> {
         Lexer {
             src,
             chars: src.chars().peekable(),
-            consumed: Span::empty_at(src, 0).expect(""),
+            consumed: Span::empty_at(src, 0).unwrap(),
         }
     }
 
@@ -169,6 +172,27 @@ impl Iterator for Lexer<'_> {
     }
 }
 
-pub fn tokenize(src: &Source) -> impl Iterator<Item = Token> {
-    Lexer::new(src)
+/// Tokenize a [`Source`] into an iterator of [`Token`]s using the frontend's lexical analysis
+///
+/// # Returns
+/// An iterator of tokens, or an empty iterator if src is empty.
+pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
+    if !src.is_empty() {
+        Box::new(Lexer::new(src))
+    } else {
+        Box::new(iter::empty::<Token>())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tokenize_returns_empty() {
+        let src = Source::new("".to_owned());
+        let tokens = tokenize(&src);
+
+        assert_eq!(tokens.count(), 0);
+    }
 }
