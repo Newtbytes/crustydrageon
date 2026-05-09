@@ -107,6 +107,7 @@ impl Drop for CompilerFile<'_> {
     }
 }
 
+#[derive(PartialEq, Eq)]
 enum SysCompiler {
     CC,
     GCC,
@@ -114,12 +115,37 @@ enum SysCompiler {
 }
 
 impl SysCompiler {
-    pub fn command(&self) -> process::Command {
-        process::Command::new(match self {
+    pub fn try_new() -> Result<Self, &'static str> {
+        if SysCompiler::Clang.installed() {
+            Ok(SysCompiler::Clang)
+        } else if SysCompiler::GCC.installed() {
+            Ok(SysCompiler::GCC)
+        } else if SysCompiler::CC.installed() {
+            Ok(SysCompiler::CC)
+        } else {
+            Err(
+                "Neither `clang`, `gcc`, nor `cc` commands were able to be executed. Are they installed and in a directory in PATH?",
+            )
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        match self {
             SysCompiler::CC => "cc",
             SysCompiler::GCC => "gcc",
             SysCompiler::Clang => "clang",
-        })
+        }
+    }
+
+    fn installed(&self) -> bool {
+        match process::Command::new(self.name()).arg("-v").status() {
+            Ok(status) => status.success(),
+            Err(_) => false,
+        }
+    }
+
+    pub fn command(&self) -> process::Command {
+        process::Command::new(self.name())
     }
 
     fn can_preprocess(&self, kind: FileKind) -> bool {
@@ -155,14 +181,7 @@ impl SysCompiler {
         }
     }
 
-    pub fn assemble<'a>(
-        &self,
-        file: CompilerFile<'a>,
-    ) -> Result<CompilerFile<'a>, process::ExitStatus> {
-        assert!(self.can_assemble(file.kind));
-
-        let compiled = file.with_kind(FileKind::Out);
-
+    fn target_triple(&self) -> String {
         #[cfg(target_os = "linux")]
         let sys = "linux";
 
@@ -181,16 +200,31 @@ impl SysCompiler {
         #[cfg(target_env = "")]
         let env = "";
 
-        let target_triple = format!("x86_64-{vendor}-{sys}-{env}");
+        format!("x86_64-{vendor}-{sys}-{env}")
+    }
 
-        let status = self
-            .command()
-            .args(["-target", &target_triple])
-            .arg(file.filename())
-            .arg("-o")
-            .arg(compiled.filename())
-            .status()
-            .expect("command should successfully run to completion");
+    pub fn assemble<'a>(
+        &self,
+        file: CompilerFile<'a>,
+    ) -> Result<CompilerFile<'a>, process::ExitStatus> {
+        assert!(self.can_assemble(file.kind));
+
+        let compiled = file.with_kind(FileKind::Out);
+
+        let status = {
+            let mut status = &mut self.command();
+
+            if !cfg!(target_arch = "x86_64") && self == &SysCompiler::Clang {
+                status = status.args(["-target", &self.target_triple()]);
+            }
+
+            status
+                .arg(file.filename())
+                .arg("-o")
+                .arg(compiled.filename())
+                .status()
+                .expect("command should successfully run to completion")
+        };
 
         if status.success() {
             Ok(compiled)
@@ -243,7 +277,7 @@ pub fn compile_file(
     stop_at: Option<CompilerStage>,
     verbose: bool,
 ) -> CompilerResult<Option<PathBuf>> {
-    let sys_cc = SysCompiler::CC;
+    let sys_cc = SysCompiler::try_new().map_err(CompilerError::SysCompilerNotFound)?;
 
     let source = CompilerFile::from_path(Path::new(filename));
 

@@ -4,13 +4,14 @@ use crate::{parser::ParserError, src::Source};
 
 #[derive(Debug)]
 pub enum CompilerError {
+    SysCompilerNotFound(&'static str),
     SysCompilerError(process::ExitStatus),
     ParserError(Source, ParserError),
     IoError,
 }
 
 impl CompilerError {
-    #[must_use] 
+    #[must_use]
     pub fn sys_cc_err(status: process::ExitStatus) -> Self {
         CompilerError::SysCompilerError(status)
     }
@@ -71,6 +72,7 @@ impl fmt::Display for CompilerError {
                 write!(f, "{parser_error}")
             }
             CompilerError::IoError => todo!(),
+            CompilerError::SysCompilerNotFound(msg) => write!(f, "{msg}"),
         }
     }
 }
