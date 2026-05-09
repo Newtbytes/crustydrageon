@@ -21,7 +21,7 @@ impl fmt::Display for ParserError {
             ParserError::UnexpectedToken { expected, actual } => {
                 write!(f, "Expected a {:?} but got a {:?}", expected, actual.kind())
             }
-            ParserError::ErrorToken(_tok, msg) => write!(f, "{}", msg),
+            ParserError::ErrorToken(_tok, msg) => write!(f, "{msg}"),
             ParserError::UnexpectedEOF => write!(f, "Unexpectedly reached end of file"),
             ParserError::ExpectedEOF(tok) => {
                 write!(f, "Expected end of file but got a {:?}", tok.kind())
@@ -31,6 +31,7 @@ impl fmt::Display for ParserError {
 }
 
 impl ParserError {
+    #[must_use] 
     pub fn span(&self) -> Option<&src::Span> {
         match self {
             ParserError::UnexpectedToken {

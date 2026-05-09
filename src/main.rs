@@ -13,7 +13,7 @@ fn main() -> Result<(), String> {
         driver::FinalCompilerStage::new(lex, parse, codegen),
         verbose,
     )
-    .inspect_err(|e| println!("{}", e))
+    .inspect_err(|e| println!("{e}"))
     .unwrap_or(None)
     {
         println!("{}", filename.display());

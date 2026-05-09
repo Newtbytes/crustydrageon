@@ -6,6 +6,7 @@ use contracts::{debug_ensures, ensures};
 pub struct Source(String);
 
 impl Source {
+    #[must_use] 
     pub fn new(src: String) -> Self {
         Source(src)
     }
@@ -18,7 +19,7 @@ impl Source {
             i,
             self.len()
         ))?;
-        Ok(all_before_idx.matches("\n").count())
+        Ok(all_before_idx.matches('\n').count())
     }
 
     /// Returns the line number of the line containing index `i``.
@@ -27,7 +28,7 @@ impl Source {
 
         if line > 0 {
             let line_start_idx = self[..i]
-                .rfind("\n")
+                .rfind('\n')
                 .expect("Should always find a newline if lineno > 0");
 
             Ok(i - line_start_idx - 1)
@@ -87,10 +88,12 @@ impl Location {
         src.location_at(index)
     }
 
+    #[must_use] 
     pub fn line(&self) -> usize {
         self.line
     }
 
+    #[must_use] 
     pub fn column(&self) -> usize {
         self.column
     }
@@ -137,16 +140,19 @@ impl Span {
         self.span.chars()
     }
 
+    #[must_use] 
     pub fn start(&self) -> Location {
         self.loc
     }
 
     /// Return the index into the Source string that this span starts at
+    #[must_use] 
     pub fn start_index(&self) -> usize {
         self.loc.index
     }
 
     /// Return the index into the Source string that this span ends at
+    #[must_use] 
     pub fn end_index(&self) -> usize {
         self.loc.index + self.len()
     }

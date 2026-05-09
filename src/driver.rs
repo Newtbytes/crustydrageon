@@ -22,6 +22,7 @@ pub enum FileKind {
 }
 
 impl FileKind {
+    #[must_use] 
     pub fn extension(&self) -> &'static str {
         match self {
             FileKind::Source => "c",
@@ -54,6 +55,7 @@ impl<'a> CompilerFile<'a> {
         fs::write(self.filename(), txt)
     }
 
+    #[must_use] 
     pub fn from_path(path: &'a Path) -> Self {
         CompilerFile {
             dir: path.parent(),
@@ -67,6 +69,7 @@ impl<'a> CompilerFile<'a> {
         }
     }
 
+    #[must_use] 
     pub fn filename(&self) -> PathBuf {
         if let Some(dir) = self.dir {
             dir.join(self.name).with_extension(self.kind.extension())
@@ -77,6 +80,7 @@ impl<'a> CompilerFile<'a> {
         }
     }
 
+    #[must_use] 
     pub fn with_kind(&self, kind: FileKind) -> Self {
         CompilerFile {
             dir: self.dir,
@@ -144,10 +148,10 @@ impl SysCompiler {
             .status()
             .expect("command should successfully run to completion");
 
-        if !status.success() {
-            Err(status)
-        } else {
+        if status.success() {
             Ok(preprocessed)
+        } else {
+            Err(status)
         }
     }
 
@@ -177,7 +181,7 @@ impl SysCompiler {
         #[cfg(target_env = "")]
         let env = "";
 
-        let target_triple = format!("x86_64-{}-{}-{}", vendor, sys, env);
+        let target_triple = format!("x86_64-{vendor}-{sys}-{env}");
 
         let status = self
             .command()
@@ -188,10 +192,10 @@ impl SysCompiler {
             .status()
             .expect("command should successfully run to completion");
 
-        if !status.success() {
-            Err(status)
-        } else {
+        if status.success() {
             Ok(compiled)
+        } else {
+            Err(status)
         }
     }
 }
@@ -203,6 +207,7 @@ pub struct FinalCompilerStage {
 }
 
 impl FinalCompilerStage {
+    #[must_use] 
     pub fn new(lex: bool, parse: bool, codegen: bool) -> Self {
         Self {
             lex,
@@ -240,7 +245,7 @@ pub fn compile(
         .map_err(|e| CompilerError::ParserError(src.clone(), e))?;
 
     if verbose || stop_at.parse {
-        println!("{:#?}", ast);
+        println!("{ast:#?}");
     }
 
     if stop_at.parse {

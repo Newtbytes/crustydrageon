@@ -23,16 +23,17 @@ pub struct Function {
 }
 
 impl Function {
+    #[must_use] 
     pub fn new(name: ast::Identifier, body: Vec<Instruction>) -> Self {
-        if !cfg!(target_os = "macos") {
-            Self { name, body }
-        } else {
+        if cfg!(target_os = "macos") {
             Self {
                 name: ast::Identifier {
                     value: format!("_{}", name.value),
                 },
                 body,
             }
+        } else {
+            Self { name, body }
         }
     }
 }
@@ -42,7 +43,7 @@ impl Display for Function {
         f.write_str(&format!("\t.globl {}\n", self.name.value))?;
         f.write_str(&format!("{}:\n", self.name.value))?;
         for inst in &self.body {
-            f.write_str(&format!("\t{}\n", inst))?;
+            f.write_str(&format!("\t{inst}\n"))?;
         }
         Ok(())
     }
@@ -68,8 +69,8 @@ pub enum Operand {
 impl Display for Operand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Imm(val) => f.write_str(&format!("${}", val)),
-            Operand::Reg(reg) => f.write_str(&format!("%{}", reg)),
+            Operand::Imm(val) => f.write_str(&format!("${val}")),
+            Operand::Reg(reg) => f.write_str(&format!("%{reg}")),
         }
     }
 }
@@ -82,18 +83,20 @@ pub enum Instruction {
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Instruction::Mov { src, dst } => f.write_str(&format!("movl {}, {}", src, dst)),
+            Instruction::Mov { src, dst } => f.write_str(&format!("movl {src}, {dst}")),
             Instruction::Ret => f.write_str("ret"),
         }
     }
 }
 
+#[must_use] 
 pub fn lower_expr(expr: ast::Expr) -> Operand {
     match expr {
         ast::Expr::Const(val) => Operand::Imm(val),
     }
 }
 
+#[must_use] 
 pub fn lower_stmt(stmt: ast::Stmt) -> Vec<Instruction> {
     match stmt {
         ast::Stmt::Return(expr) => vec![
@@ -106,10 +109,12 @@ pub fn lower_stmt(stmt: ast::Stmt) -> Vec<Instruction> {
     }
 }
 
+#[must_use] 
 pub fn lower_func(func: ast::Function) -> Function {
     Function::new(func.name, lower_stmt(func.body))
 }
 
+#[must_use] 
 pub fn lower_program(prg: ast::Program) -> Program {
     Program {
         func: lower_func(prg.body),

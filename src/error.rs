@@ -10,6 +10,7 @@ pub enum CompilerError {
 }
 
 impl CompilerError {
+    #[must_use] 
     pub fn sys_cc_err(status: process::ExitStatus) -> Self {
         CompilerError::SysCompilerError(status)
     }
@@ -20,8 +21,7 @@ impl fmt::Display for CompilerError {
         match self {
             CompilerError::SysCompilerError(exit_status) => write!(
                 f,
-                "A system compiler exited with status code {} during the compilation",
-                exit_status
+                "A system compiler exited with status code {exit_status} during the compilation"
             ),
             CompilerError::ParserError(src, parser_error) => {
                 writeln!(f, "Error while parsing:")?;
@@ -41,7 +41,7 @@ impl fmt::Display for CompilerError {
 
                     for i in start_line..=end_line {
                         if let Some(line) = src.lines().nth(i) {
-                            writeln!(f, "{}", line)?;
+                            writeln!(f, "{line}")?;
 
                             let marker_start: usize;
                             let marker_end: usize;
@@ -51,7 +51,7 @@ impl fmt::Display for CompilerError {
                                 marker_end = end_col;
                             } else if i == start_line {
                                 marker_start = start_col;
-                                marker_end = 0
+                                marker_end = 0;
                             } else if i == end_line {
                                 marker_start = 0;
                                 marker_end = end_col;
@@ -68,7 +68,7 @@ impl fmt::Display for CompilerError {
                         }
                     }
                 }
-                write!(f, "{}", parser_error)
+                write!(f, "{parser_error}")
             }
             CompilerError::IoError => todo!(),
         }

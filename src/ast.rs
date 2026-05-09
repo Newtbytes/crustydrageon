@@ -28,23 +28,28 @@ pub struct Token {
 }
 
 impl Token {
+    #[must_use] 
     pub fn new(kind: TokenKind, lexeme: Span) -> Self {
         Self { kind, lexeme }
     }
 
-    /// Return the TokenKind of this Token
+    /// Return the `TokenKind` of this Token
+    #[must_use] 
     pub fn kind(&self) -> TokenKind {
         self.kind
     }
 
+    #[must_use] 
     pub fn value(&self) -> &Span {
         &self.lexeme
     }
 
+    #[must_use] 
     pub fn lexeme(&self) -> &Span {
         &self.lexeme
     }
 
+    #[must_use] 
     pub fn span(&self) -> &Span {
         &self.lexeme
     }
@@ -71,6 +76,7 @@ pub struct Function {
 }
 
 impl Function {
+    #[must_use] 
     pub fn new(name: Identifier, body: Stmt) -> Self {
         Function { name, body }
     }

@@ -12,6 +12,7 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
+    #[must_use] 
     pub fn new(src: &'src Source) -> Self {
         Lexer {
             src,
@@ -108,7 +109,7 @@ fn is_word(c: &char) -> bool {
     matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
 }
 
-impl<'src> Iterator for Lexer<'src> {
+impl Iterator for Lexer<'_> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
