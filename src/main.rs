@@ -8,6 +8,7 @@ fn main() -> Result<(), String> {
 
     let lex = cli::flag("--lex");
     let parse = cli::flag("--parse");
+    let ir = cli::flag("--tacky");
     let codegen = cli::flag("--codegen") || cli::flag("--assemble") || cli::flag("-S");
 
     let verbose = cli::flag("--verbose");
@@ -16,6 +17,8 @@ fn main() -> Result<(), String> {
         Some(CompilerStage::Lex)
     } else if parse {
         Some(CompilerStage::Parse)
+    } else if ir {
+        Some(CompilerStage::IR)
     } else if codegen {
         Some(CompilerStage::Codegen)
     } else {

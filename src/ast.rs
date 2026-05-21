@@ -71,6 +71,7 @@ pub struct Program {
 #[derive(Debug)]
 pub struct Identifier {
     pub value: String,
+    pub span: Span,
 }
 
 /// Function definition

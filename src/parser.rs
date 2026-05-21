@@ -141,9 +141,18 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         Ok(ast::Stmt::Return(ret_val))
     }
 
+    fn parse_identifier(&mut self) -> ParseResult<ast::Identifier> {
+        let tok = self.expect(TokenKind::Ident)?;
+
+        Ok(ast::Identifier {
+            value: tok.lexeme().to_string(),
+            span: tok.span().clone(),
+        })
+    }
+
     fn parse_function(&mut self) -> ParseResult<ast::Function> {
         self.expect(TokenKind::Int)?;
-        let name = self.expect(TokenKind::Ident)?;
+        let name = self.parse_identifier()?;
 
         self.expect(TokenKind::LParen)?;
         self.expect(TokenKind::Void)?;
@@ -153,12 +162,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         let body = self.parse_stmt()?;
         self.expect(TokenKind::RBrace)?;
 
-        Ok(ast::Function::new(
-            ast::Identifier {
-                value: name.value().to_string(),
-            },
-            body,
-        ))
+        Ok(ast::Function::new(name, body))
     }
 
     fn parse_program(&mut self) -> ParseResult<ast::Program> {
