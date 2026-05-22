@@ -8,7 +8,7 @@ use std::{
 use crate::{
     ast::Token,
     error::{CompilerError, CompilerResult},
-    lexer, parser,
+    ir, lexer, parser,
     src::Source,
     x86,
 };
@@ -243,6 +243,7 @@ impl SysCompiler {
 pub enum CompilerStage {
     Lex,
     Parse,
+    IR,
     Codegen,
 }
 
@@ -259,19 +260,26 @@ pub fn compile(
         return Ok(None);
     }
 
-    let ast = parser::parse(&mut tokens.peekable())
-        .map_err(|e| CompilerError::ParserError(src.clone(), e))?;
+    let ast =
+        parser::parse(tokens.peekable()).map_err(|e| CompilerError::ParserError(src.clone(), e))?;
 
     if verbose || stop_at == Some(CompilerStage::Parse) {
         println!("{ast:#?}");
-
         return Ok(None);
     }
 
-    let asm: x86::Program = x86::lower_program(ast);
+    let ir = ir::lower_program(ast);
+
+    if verbose || stop_at == Some(CompilerStage::IR) {
+        println!("{ir:#?}");
+        return Ok(None);
+    }
+
+    let asm: x86::Program = x86::lower_program(ir);
 
     if verbose || stop_at == Some(CompilerStage::Codegen) {
         println!("{asm}");
+        return Ok(None);
     }
 
     Ok(Some(asm))

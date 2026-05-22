@@ -15,7 +15,7 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
-    #[must_use] 
+    #[must_use]
     pub fn new(src: &'src Source) -> Self {
         Lexer {
             src,
@@ -129,6 +129,14 @@ impl Iterator for Lexer<'_> {
                 '{' => tk::LBrace,
                 '}' => tk::RBrace,
                 ';' => tk::Semicolon,
+                '~' => tk::Complement,
+                '-' => {
+                    if self.eat_if(|c| matches!(c, '-')).is_some() {
+                        tk::Decrement
+                    } else {
+                        tk::Negate
+                    }
+                }
 
                 'a'..='z' | 'A'..='Z' | '_' => {
                     self.eat_identifier();
@@ -176,11 +184,12 @@ impl Iterator for Lexer<'_> {
 ///
 /// # Returns
 /// An iterator of tokens, or an empty iterator if src is empty.
+#[must_use]
 pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
-    if !src.is_empty() {
-        Box::new(Lexer::new(src))
-    } else {
+    if src.is_empty() {
         Box::new(iter::empty::<Token>())
+    } else {
+        Box::new(Lexer::new(src))
     }
 }
 

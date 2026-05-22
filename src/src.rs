@@ -6,7 +6,7 @@ use contracts::{debug_ensures, ensures};
 pub struct Source(String);
 
 impl Source {
-    #[must_use] 
+    #[must_use]
     pub fn new(src: String) -> Self {
         Source(src)
     }
@@ -76,7 +76,7 @@ impl From<String> for Source {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Location {
     line: usize,
     column: usize,
@@ -88,12 +88,12 @@ impl Location {
         src.location_at(index)
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn line(&self) -> usize {
         self.line
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn column(&self) -> usize {
         self.column
     }
@@ -101,7 +101,7 @@ impl Location {
 
 /// A reference to a contiguous range of characters in a source string.
 /// Used to track the source spans.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Span {
     loc: Location,
     span: String,
@@ -140,19 +140,19 @@ impl Span {
         self.span.chars()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn start(&self) -> Location {
         self.loc
     }
 
     /// Return the index into the Source string that this span starts at
-    #[must_use] 
+    #[must_use]
     pub fn start_index(&self) -> usize {
         self.loc.index
     }
 
     /// Return the index into the Source string that this span ends at
-    #[must_use] 
+    #[must_use]
     pub fn end_index(&self) -> usize {
         self.loc.index + self.len()
     }

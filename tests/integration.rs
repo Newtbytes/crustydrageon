@@ -34,7 +34,7 @@ fn test_parse_valid(
 ) {
     let src = Source::new(program.to_owned());
     let tokens = tokenize(&src);
-    parse(&mut tokens.peekable()).expect(FAIL_PARSE_VALID);
+    parse(tokens.peekable()).expect(FAIL_PARSE_VALID);
 }
 
 #[rstest]
@@ -66,7 +66,7 @@ fn test_parse_invalid(
 ) {
     let src = Source::new(program.to_owned());
     let tokens = tokenize(&src).collect::<Vec<Token>>();
-    let ast = parse(&mut tokens.iter().cloned().peekable());
+    let ast = parse(tokens.iter().cloned().peekable());
     assert!(
         ast.is_err(),
         "{}:\nTOKENS:\n{:#?}\nAST:\n{:#?}",
