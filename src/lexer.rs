@@ -184,7 +184,7 @@ impl Iterator for Lexer<'_> {
 ///
 /// # Returns
 /// An iterator of tokens, or an empty iterator if src is empty.
-#[must_use] 
+#[must_use]
 pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
     if src.is_empty() {
         Box::new(iter::empty::<Token>())
