@@ -138,7 +138,12 @@ impl SysCompiler {
     }
 
     fn installed(&self) -> bool {
-        match process::Command::new(self.name()).arg("-v").status() {
+        match process::Command::new(self.name())
+            .arg("-v")
+            .stdout(process::Stdio::null())
+            .stderr(process::Stdio::null())
+            .status()
+        {
             Ok(status) => status.success(),
             Err(_) => false,
         }
