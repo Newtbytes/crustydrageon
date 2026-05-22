@@ -235,9 +235,9 @@ mod tests {
                 let mut actual_ops = Vec::new();
                 lower_stmt(&mut actual_ops, stmt);
 
-                assert_eq!(actual_ops.last(), Some(&Operation::Return(expected_val)));
-                assert_eq!(actual_ops.len(), expected_ops.len() + 1);
-                assert_eq!(actual_ops[..actual_ops.len() - 1], expected_ops[..]);
+                prop_assert_eq!(actual_ops.last(), Some(&Operation::Return(expected_val)));
+                prop_assert_eq!(actual_ops.len(), expected_ops.len() + 1);
+                prop_assert_eq!(&actual_ops[..actual_ops.len() - 1], &expected_ops[..]);
             }
         }
     }

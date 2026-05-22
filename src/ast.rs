@@ -68,7 +68,7 @@ pub struct Program {
 }
 
 /// User-defined identifier (function names, variable names, etc.)
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identifier {
     pub value: String,
     pub span: Span,

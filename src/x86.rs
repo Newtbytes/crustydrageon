@@ -17,6 +17,7 @@ impl Display for Program {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Function {
     name: ast::Identifier,
     body: Vec<Instruction>,
@@ -39,8 +40,8 @@ impl Display for Function {
         f.write_str(&format!("{}:\n", self.name.value))?;
         // TODO: make adding the function prologue a part of legalization perhaps?
         // alternatively it could be a part of lowering alloca instructions
-        f.write_str(&format!("\tpushq %rbp\n"))?;
-        f.write_str(&format!("\tmovq %rsp, %rbp\n"))?;
+        f.write_str(&"\tpushq %rbp\n".to_string())?;
+        f.write_str(&"\tmovq %rsp, %rbp\n".to_string())?;
         for inst in &self.body {
             f.write_str(&format!("\t{inst}\n"))?;
         }
@@ -48,6 +49,7 @@ impl Display for Function {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Register {
     AX,
     R10,
@@ -62,6 +64,7 @@ impl Display for Register {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operand {
     Imm(i32),
     Reg(Register),
@@ -73,7 +76,7 @@ impl Operand {
     pub fn size_bytes(&self) -> usize {
         match self {
             Operand::Imm(_) => todo!(),
-            Operand::Reg(register) => todo!(),
+            Operand::Reg(_register) => todo!(),
             Operand::Pseudo(_) => 4,
             Operand::Stack(_) => todo!(),
         }
@@ -106,6 +109,7 @@ impl Display for Operand {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Alloca(usize),
     Mov { src: Operand, dst: Operand },
@@ -142,6 +146,7 @@ impl Display for Instruction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnaryOp {
     Neg,
     Not,
@@ -251,11 +256,11 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
             if let Operand::Pseudo(id) = operand {
                 let id = *id;
 
-                if !stack_map.contains_key(&id) {
+                stack_map.entry(id).or_insert_with(|| {
                     // allocate new stack slot
                     stack_size += operand.size_bytes() as u64;
-                    stack_map.insert(id, -(stack_size as i32));
-                }
+                    -(stack_size as i32)
+                });
 
                 *operand = Operand::Stack(*stack_map.get(&id).unwrap());
             }
@@ -278,5 +283,157 @@ pub fn lower_func(func: ir::Function) -> Function {
 pub fn lower_program(prg: ir::Program) -> Program {
     Program {
         func: lower_func(prg.body),
+    }
+}
+
+#[cfg(test)]
+mod strategy {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    pub fn arb_register() -> impl Strategy<Value = Register> {
+        prop_oneof![Just(Register::AX), Just(Register::R10)]
+    }
+
+    pub fn arb_unary_op() -> impl Strategy<Value = UnaryOp> {
+        prop_oneof![Just(UnaryOp::Neg), Just(UnaryOp::Not)]
+    }
+
+    pub fn arb_operand() -> impl Strategy<Value = Operand> {
+        prop_oneof![
+            any::<i32>().prop_map(Operand::Imm),
+            arb_register().prop_map(Operand::Reg),
+            (0..100 as usize).prop_map(Operand::Pseudo),
+            (-128..128).prop_map(Operand::Stack),
+        ]
+    }
+
+    pub fn arb_instruction() -> impl Strategy<Value = Instruction> {
+        prop_oneof![
+            Just(Instruction::Ret),
+            (1..1000 as usize).prop_map(Instruction::Alloca),
+            (arb_operand(), arb_operand()).prop_map(|(src, dst)| Instruction::Mov { src, dst }),
+            (arb_unary_op(), arb_operand())
+                .prop_map(|(op, operand)| Instruction::Unary(op, operand)),
+        ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    use self::strategy::*;
+
+    proptest! {
+        #[test]
+        fn test_instruction_fmt(inst in arb_instruction()) {
+            let fmt = format!("{}", inst);
+
+            // emitted code should contain the correct instruction mnemonic
+            match inst {
+                Instruction::Ret => prop_assert!(fmt.contains("ret")),
+                Instruction::Alloca(size) => {
+                    let expected = format!("subq ${size}, %rsp");
+                    prop_assert!(fmt.contains(&expected));
+                }
+                Instruction::Mov { src, dst } => prop_assert!(
+                    fmt.contains("mov")
+                    && fmt.contains(&src.to_string())
+                    && fmt.contains(&dst.to_string())
+                ),
+                Instruction::Unary(op, operand) => prop_assert!(
+                    fmt.contains(&op.to_string())
+                    && fmt.contains(&operand.to_string())
+                ),
+            }
+        }
+    }
+
+    mod function {
+        use super::*;
+
+        proptest! {
+            /// On macOS, function names must be prefixed with an underscore
+            #[test]
+            fn test_macos_name_prefix(id in ast::arb_identifier()) {
+                let func = Function::new(id.clone(), Vec::new());
+
+                if cfg!(target_os = "macos") {
+                    assert_eq!(func.name.value, format!("_{}", id.value));
+                } else {
+                    assert_eq!(func.name.value, id.value);
+                }
+            }
+
+            #[test]
+            fn test_function_fmt(id in ast::arb_identifier(), block in prop::collection::vec(arb_instruction(), 0..10)) {
+                let func = Function::new(id.clone(), block.clone());
+                let fmt = format!("{}", func);
+
+                // emitted code should contain the correct global directive and label for the function
+                assert!(fmt.contains(&format!(".globl {}", func.name.value)));
+                assert!(fmt.contains(&format!("{}:", func.name.value)));
+
+                // emitted code should contain the function prologue
+                assert!(fmt.contains("pushq %rbp"));
+                assert!(fmt.contains("movq %rsp, %rbp"));
+            }
+        }
+    }
+
+    mod legalization {
+        use super::*;
+
+        fn check_legalized(inst: Instruction) -> bool {
+            match inst {
+                Instruction::Mov {
+                    src: Operand::Stack(_),
+                    dst: Operand::Stack(_),
+                } => false,
+                _ => true,
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn test_mov_stack_to_stack(offset_a in -128..128, offset_b in -128..128) {
+                let inst = Instruction::Mov {
+                    src: Operand::Stack(offset_a),
+                    dst: Operand::Stack(offset_b),
+                };
+
+                let mut insts = Vec::new();
+                legalize_inst(&mut insts, inst);
+
+                assert_eq!(insts.len(), 2);
+                assert_eq!(
+                    insts[0],
+                    Instruction::Mov {
+                        src: Operand::Stack(offset_a),
+                        dst: Register::R10.into(),
+                    }
+                );
+                assert_eq!(
+                    insts[1],
+                    Instruction::Mov {
+                        src: Register::R10.into(),
+                        dst: Operand::Stack(offset_b),
+                    }
+                );
+
+                assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
+            }
+
+            #[test]
+            fn test_other_instructions(inst in arb_instruction()) {
+                let mut insts = Vec::new();
+                legalize_inst(&mut insts, inst.clone());
+                assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
+            }
+        }
     }
 }
