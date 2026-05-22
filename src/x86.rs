@@ -328,31 +328,6 @@ mod tests {
 
     use self::strategy::*;
 
-    proptest! {
-        #[test]
-        fn test_instruction_fmt(inst in arb_instruction()) {
-            let fmt = format!("{}", inst);
-
-            // emitted code should contain the correct instruction mnemonic
-            match inst {
-                Instruction::Ret => prop_assert!(fmt.contains("ret")),
-                Instruction::Alloca(size) => {
-                    let expected = format!("subq ${size}, %rsp");
-                    prop_assert!(fmt.contains(&expected));
-                }
-                Instruction::Mov { src, dst } => prop_assert!(
-                    fmt.contains("mov")
-                    && fmt.contains(&src.to_string())
-                    && fmt.contains(&dst.to_string())
-                ),
-                Instruction::Unary(op, operand) => prop_assert!(
-                    fmt.contains(&op.to_string())
-                    && fmt.contains(&operand.to_string())
-                ),
-            }
-        }
-    }
-
     mod function {
         use super::*;
 
@@ -433,6 +408,35 @@ mod tests {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
                 assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
+            }
+        }
+    }
+
+    mod emission {
+        use super::*;
+
+        proptest! {
+            #[test]
+            fn test_instruction_fmt(inst in arb_instruction()) {
+                let fmt = format!("{}", inst);
+
+                // emitted code should contain the correct instruction mnemonic
+                match inst {
+                    Instruction::Ret => prop_assert!(fmt.contains("ret")),
+                    Instruction::Alloca(size) => {
+                        let expected = format!("subq ${size}, %rsp");
+                        prop_assert!(fmt.contains(&expected));
+                    }
+                    Instruction::Mov { src, dst } => prop_assert!(
+                        fmt.contains("mov")
+                        && fmt.contains(&src.to_string())
+                        && fmt.contains(&dst.to_string())
+                    ),
+                    Instruction::Unary(op, operand) => prop_assert!(
+                        fmt.contains(&op.to_string())
+                        && fmt.contains(&operand.to_string())
+                    ),
+                }
             }
         }
     }
