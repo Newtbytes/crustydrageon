@@ -155,7 +155,7 @@ pub enum UnaryOp {
 impl From<ir::UnaryOp> for UnaryOp {
     fn from(op: ir::UnaryOp) -> Self {
         match op {
-            ir::UnaryOp::Complement => UnaryOp::Neg,
+            ir::UnaryOp::Complement => UnaryOp::Not,
             ir::UnaryOp::Negate => UnaryOp::Neg,
         }
     }
@@ -357,6 +357,16 @@ mod tests {
                 assert!(fmt.contains("pushq %rbp"));
                 assert!(fmt.contains("movq %rsp, %rbp"));
             }
+        }
+    }
+
+    mod lowering {
+        use super::*;
+
+        #[test]
+        fn test_from_ir_unary_op() {
+            assert_eq!(UnaryOp::from(ir::UnaryOp::Complement), UnaryOp::Not);
+            assert_eq!(UnaryOp::from(ir::UnaryOp::Negate), UnaryOp::Neg);
         }
     }
 
