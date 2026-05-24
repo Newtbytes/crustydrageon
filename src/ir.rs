@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::ast;
 
 #[derive(Debug)]
@@ -5,10 +7,30 @@ pub struct Program {
     pub body: Function,
 }
 
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.body)
+    }
+}
+
 #[derive(Debug)]
 pub struct Function {
     pub id: ast::Identifier,
     pub body: Vec<Operation>,
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "fn {}() {{", self.id.value)?;
+
+        for op in &self.body {
+            writeln!(f, "   {}", op)?;
+        }
+
+        writeln!(f, "}}")?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -27,6 +49,20 @@ pub enum Operation {
     },
 }
 
+impl Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Operation::Return(value) => format!("return {}", value),
+                Operation::Unary { op, src, dst } => format!("{} = {} {}", dst, op, src),
+                Operation::Binary { op, a, b, dst } => format!("{} = {} {}, {}", dst, op, a, b),
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum UnaryOp {
     Complement,
@@ -42,6 +78,19 @@ impl From<ast::UnaryOp> for UnaryOp {
     }
 }
 
+impl Display for UnaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UnaryOp::Complement => "not",
+                UnaryOp::Negate => "neg",
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum BinaryOp {
     Add,
@@ -49,6 +98,22 @@ pub enum BinaryOp {
     Mul,
     Div,
     Rem,
+}
+
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOp::Add => "add",
+                BinaryOp::Sub => "sub",
+                BinaryOp::Mul => "mul",
+                BinaryOp::Div => "div",
+                BinaryOp::Rem => "rem",
+            }
+        )
+    }
 }
 
 impl From<ast::BinaryOp> for BinaryOp {
@@ -95,6 +160,19 @@ impl Value {
     #[must_use]
     pub fn new_var() -> Self {
         Self::Var(VarID::new())
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Value::Constant(val) => val.to_string(),
+                Value::Var(id) => format!("${}", id),
+            }
+        )
     }
 }
 
