@@ -92,7 +92,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
         match tok.kind() {
             TokenKind::Complement => Ok(UnaryOp::Complement),
-            TokenKind::Negate => Ok(UnaryOp::Negate),
+            TokenKind::Minus => Ok(UnaryOp::Negate),
             _ => Err(ParserError::ExpectedToken {
                 expected: TokenKind::Complement,
                 actual: tok,
@@ -111,7 +111,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                         ),
                     )
                 }
-                TokenKind::Complement | TokenKind::Negate => {
+                TokenKind::Complement | TokenKind::Minus => {
                     let op = self.parse_unary_op()?;
                     Expr::Unary(op, Box::new(self.parse_expr()?))
                 }
@@ -216,7 +216,7 @@ mod tests {
         Expr::Unary(UnaryOp::Complement, Box::new(Expr::Unary(UnaryOp::Complement, Box::new(Expr::Const(42)))))
     )]
     #[case(
-        &[tok(TokenKind::Negate, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
+        &[tok(TokenKind::Minus, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
         Expr::Unary(UnaryOp::Negate, Box::new(Expr::Const(69)))
     )]
     fn test_parse_expr_matches_expected(

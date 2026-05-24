@@ -8,8 +8,14 @@ pub enum TokenKind {
 
     // Operators
     Complement,
-    Negate,
+    Minus,
+    Plus,
+    Divide,
+    Star,
+    Modulo,
+
     Decrement,
+    Increment,
 
     // Structural
     LParen,
