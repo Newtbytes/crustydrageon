@@ -110,7 +110,7 @@ impl Drop for CompilerFile<'_> {
 #[derive(PartialEq, Eq)]
 enum SysCompiler {
     CC,
-    GCC,
+    Gcc,
     Clang,
 }
 
@@ -118,8 +118,8 @@ impl SysCompiler {
     pub fn try_new() -> Result<Self, &'static str> {
         if SysCompiler::Clang.installed() {
             Ok(SysCompiler::Clang)
-        } else if SysCompiler::GCC.installed() {
-            Ok(SysCompiler::GCC)
+        } else if SysCompiler::Gcc.installed() {
+            Ok(SysCompiler::Gcc)
         } else if SysCompiler::CC.installed() {
             Ok(SysCompiler::CC)
         } else {
@@ -132,7 +132,7 @@ impl SysCompiler {
     fn name(&self) -> &'static str {
         match self {
             SysCompiler::CC => "cc",
-            SysCompiler::GCC => "gcc",
+            SysCompiler::Gcc => "gcc",
             SysCompiler::Clang => "clang",
         }
     }

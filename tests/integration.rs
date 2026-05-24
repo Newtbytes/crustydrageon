@@ -46,12 +46,7 @@ fn test_lex_invalid(
     let src = Source::new(program.to_owned());
     let mut tokens = tokenize(&src);
     assert!(
-        tokens.any(|tok| {
-            match tok.kind() {
-                TokenKind::Error(_) => true,
-                _ => false,
-            }
-        }),
+        tokens.any(|tok| { matches!(tok.kind(), TokenKind::Error(_)) }),
         "{}:\n{:#?}",
         FAIL_PARSE_INVALID,
         tokens.collect::<Vec<Token>>()

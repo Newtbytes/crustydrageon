@@ -40,8 +40,8 @@ impl Display for Function {
         f.write_str(&format!("{}:\n", self.name.value))?;
         // TODO: make adding the function prologue a part of legalization perhaps?
         // alternatively it could be a part of lowering alloca instructions
-        f.write_str(&"\tpushq %rbp\n".to_string())?;
-        f.write_str(&"\tmovq %rsp, %rbp\n".to_string())?;
+        f.write_str("\tpushq %rbp\n")?;
+        f.write_str("\tmovq %rsp, %rbp\n")?;
         for inst in &self.body {
             f.write_str(&format!("\t{inst}\n"))?;
         }
@@ -304,7 +304,7 @@ mod strategy {
         prop_oneof![
             any::<i32>().prop_map(Operand::Imm),
             arb_register().prop_map(Operand::Reg),
-            (0..100 as usize).prop_map(Operand::Pseudo),
+            (0..100_usize).prop_map(Operand::Pseudo),
             (-128..128).prop_map(Operand::Stack),
         ]
     }
@@ -312,7 +312,7 @@ mod strategy {
     pub fn arb_instruction() -> impl Strategy<Value = Instruction> {
         prop_oneof![
             Just(Instruction::Ret),
-            (1..1000 as usize).prop_map(Instruction::Alloca),
+            (1..1000_usize).prop_map(Instruction::Alloca),
             (arb_operand(), arb_operand()).prop_map(|(src, dst)| Instruction::Mov { src, dst }),
             (arb_unary_op(), arb_operand())
                 .prop_map(|(op, operand)| Instruction::Unary(op, operand)),
@@ -334,7 +334,7 @@ mod tests {
         proptest! {
             /// On macOS, function names must be prefixed with an underscore
             #[test]
-            fn test_macos_name_prefix(id in ast::arb_identifier()) {
+            fn test_macos_name_prefix(id in ast::strategy::arb_identifier()) {
                 let func = Function::new(id.clone(), Vec::new());
 
                 if cfg!(target_os = "macos") {
@@ -345,7 +345,7 @@ mod tests {
             }
 
             #[test]
-            fn test_function_fmt(id in ast::arb_identifier(), block in prop::collection::vec(arb_instruction(), 0..10)) {
+            fn test_function_fmt(id in ast::strategy::arb_identifier(), block in prop::collection::vec(arb_instruction(), 0..10)) {
                 let func = Function::new(id.clone(), block.clone());
                 let fmt = format!("{}", func);
 
@@ -374,13 +374,13 @@ mod tests {
         use super::*;
 
         fn check_legalized(inst: Instruction) -> bool {
-            match inst {
+            !matches!(
+                inst,
                 Instruction::Mov {
                     src: Operand::Stack(_),
                     dst: Operand::Stack(_),
-                } => false,
-                _ => true,
-            }
+                }
+            )
         }
 
         proptest! {

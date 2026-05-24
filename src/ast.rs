@@ -108,7 +108,7 @@ pub enum Stmt {
 }
 
 #[cfg(test)]
-mod strategy {
+pub mod strategy {
     use super::*;
 
     use crate::src::{Source, Span};
@@ -156,6 +156,3 @@ mod strategy {
         arb_function().prop_map(|body| Program { body })
     }
 }
-
-#[cfg(test)]
-pub use strategy::*;

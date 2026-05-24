@@ -48,6 +48,7 @@ mod VarID {
 
     /// Reset the variable ID counter to zero.
     #[inline]
+    #[allow(dead_code)] // currently only used in tests
     pub fn reset() {
         COUNTER.store(0, atomic::Ordering::Relaxed);
     }
@@ -224,7 +225,7 @@ mod tests {
 
         proptest! {
             #[test]
-            fn test_lower_stmt(expr in ast::arb_expr()) {
+            fn test_lower_stmt(expr in ast::strategy::arb_expr()) {
                 let stmt = ast::Stmt::Return(expr.clone());
 
                 VarID::reset();
