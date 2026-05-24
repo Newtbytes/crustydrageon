@@ -11,7 +11,7 @@ env:
   RUSTFLAGS: "-Dwarnings"
 
 jobs:
-  format:
+  check-style:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,12 +19,6 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --all -- --check
-
-  clippy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
 
       - name: Check clippy lints
         run: cargo clippy --all-targets --all-features
