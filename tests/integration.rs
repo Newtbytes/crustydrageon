@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{error::Error, fs, path::PathBuf, process};
 
 use proptest::prelude::*;
 use rstest::rstest;
@@ -10,6 +10,44 @@ fn cleanup_out(out: Option<PathBuf>) {
         fs::remove_file(out)
             .expect("Failed to remove temporary output file; this test might be broken");
     }
+}
+
+struct TestOutput(Option<PathBuf>);
+
+impl Drop for TestOutput {
+    fn drop(&mut self) {
+        cleanup_out(self.0.clone())
+    }
+}
+
+/// Parse the expected status given the CHECK STATUS directives in a program
+fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
+    let directive = "//$ CHECK STATUS";
+
+    // parse the expected status
+    if let Some(idx) = src.find(directive) {
+        let expected_status = {
+            let status = src[idx..].trim_start_matches(directive);
+            let status = status.lines().nth(0).unwrap().trim();
+            let status = status.trim_start_matches(":").trim();
+            status.parse::<i32>()?
+        };
+
+        Ok(Some(expected_status))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Run a program and compare its output to the CHECK directives defined in its source code
+fn check_program(src: String, out: &PathBuf) -> Result<(), Box<dyn Error>> {
+    if let Some(expected_status) = expected_status(&src)? {
+        let actual_status = process::Command::new(out.clone()).status()?.code();
+
+        assert_eq!(actual_status, Some(expected_status));
+    }
+
+    Ok(())
 }
 
 #[rstest]
@@ -37,7 +75,7 @@ fn test_invalid(
         _ => panic!("Invalid stage component in test file path: {stage_str}"),
     };
 
-    let out = driver::compile_file(path.to_str().unwrap(), Some(final_stage), false);
+    let out = driver::compile_file(path.clone().to_str().unwrap(), Some(final_stage), false);
 
     match out {
         Ok(out) => {
@@ -65,10 +103,15 @@ fn test_valid(
     #[mode = path]
     path: PathBuf,
 ) {
-    let out = driver::compile_file(path.to_str().unwrap(), None, false)
-        .expect("Compilation should succeed for valid programs");
+    let out = TestOutput(
+        driver::compile_file(path.to_str().unwrap(), None, false)
+            .expect("Compilation should succeed for valid programs"),
+    );
 
-    cleanup_out(out);
+    if let Some(ref out) = out.0 {
+        let src = fs::read_to_string(&path).unwrap();
+        check_program(src, out).unwrap();
+    }
 }
 
 proptest! {

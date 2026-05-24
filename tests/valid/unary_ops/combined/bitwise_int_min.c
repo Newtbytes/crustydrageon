@@ -4,3 +4,5 @@ int main(void) {
     // construct it b/c the constant 2147483648 is out of bounds)
     return ~-2147483647;
 }
+
+//$ CHECK STATUS : 1
