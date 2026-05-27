@@ -5,4 +5,4 @@ int main(void) {
     return ~-2147483647;
 }
 
-//$ CHECK STATUS : 1
+//$ CHECK STATUS : 254

@@ -2,4 +2,4 @@ int main(void) {
     return 1 - 2;
 }
 
-//$ CHECK STATUS : -1
+//$ CHECK STATUS : 255
