@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use crate::{ast, ir, x86::Operand::Reg};
+use crate::{ast, ir};
 
 pub struct Program {
     pub func: Function,
@@ -145,8 +145,8 @@ impl Display for Instruction {
                 Instruction::Ret => {
                     // TODO: make adding the function epilogue a part of legalization perhaps?
                     // alternatively it could be a part of lowering alloca instructions
-                    write!(f, "movq %rbp, %rsp\n")?;
-                    write!(f, "\tpopq %rbp\n")?;
+                    writeln!(f, "movq %rbp, %rsp")?;
+                    writeln!(f, "\tpopq %rbp")?;
                     write!(f, "\tret")?;
                     return Ok(());
                 }
@@ -320,7 +320,7 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
         }
         Instruction::Idiv(Operand::Imm(val)) => insts.extend([
             Instruction::Mov {
-                src: Operand::Imm(val).into(),
+                src: Operand::Imm(val),
                 dst: Register::R10.into(),
             },
             Instruction::Idiv(Register::R10.into()),
