@@ -92,7 +92,7 @@ pub enum Value {
 }
 
 impl Value {
-    #[must_use] 
+    #[must_use]
     pub fn new_var() -> Self {
         Self::Var(VarID::new())
     }
@@ -139,7 +139,7 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_func(func: ast::Function) -> Function {
     let mut ops = Vec::new();
 
@@ -151,7 +151,7 @@ pub fn lower_func(func: ast::Function) -> Function {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_program(program: ast::Program) -> Program {
     Program {
         body: lower_func(program.body),

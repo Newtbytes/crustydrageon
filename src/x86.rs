@@ -77,7 +77,7 @@ pub enum Operand {
 }
 
 impl Operand {
-    #[must_use] 
+    #[must_use]
     pub fn size_bytes(&self) -> usize {
         match self {
             Operand::Imm(_) => todo!(),
@@ -269,7 +269,7 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn lower_block(block: Vec<ir::Operation>) -> Vec<Instruction> {
     let mut insts = Vec::new();
 
@@ -331,7 +331,7 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
     }
 }
 
-#[must_use] 
+#[must_use]
 pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
     let mut insts = Vec::new();
 
