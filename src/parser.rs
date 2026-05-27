@@ -1,7 +1,9 @@
 use std::{fmt, iter};
 
 use crate::{
-    ast::{BinaryOp, Expr, Function, Identifier, Program, Stmt, Token, TokenKind, UnaryOp},
+    ast::{
+        BinaryOp, Expr, Function, Identifier, Precedence, Program, Stmt, Token, TokenKind, UnaryOp,
+    },
     src,
 };
 
@@ -76,13 +78,22 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn peek(&mut self) -> Option<&Token> {
-        self.tokens.peek()
+    fn peek(&mut self) -> &Token {
+        use std::sync;
+
+        static EOF: sync::LazyLock<Token> =
+            sync::LazyLock::new(|| Token::new(TokenKind::EOF, src::Span::default()));
+
+        match self.tokens.peek() {
+            Some(t) => t,
+            None => &EOF,
+        }
     }
 
     fn expect(&mut self, expected: TokenKind) -> ParseResult<Token> {
         match self.take()? {
             token if token.kind() == expected => Ok(token),
+            token if token.kind() == TokenKind::EOF => Err(ParserError::UnexpectedEOF),
             actual => Err(ParserError::ExpectedToken { expected, actual }),
         }
     }
@@ -109,6 +120,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         match tok.kind() {
             TokenKind::Plus => Ok(BinaryOp::Add),
             TokenKind::Minus => Ok(BinaryOp::Subtract),
+            TokenKind::Star => Ok(BinaryOp::Multiply),
+            TokenKind::Divide => Ok(BinaryOp::Divide),
+            TokenKind::Modulo => Ok(BinaryOp::Modulo),
             kind if kind.is_binary_op() => {
                 todo!("parsing binary operator of kind {:?}", kind)
             }
@@ -119,14 +133,18 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn parse_expr(&mut self) -> ParseResult<Expr> {
+    fn parse_expr(&mut self, min_prec: Precedence) -> ParseResult<Expr> {
         let mut left = self.parse_factor()?;
 
-        while self.peek().map_or(false, |t| t.kind().is_binary_op()) {
+        let mut next_kind = self.peek().kind();
+
+        while next_kind.is_binary_op() && next_kind.precedence() >= Some(min_prec) {
             let op = self.parse_binary_op()?;
-            let right = self.parse_factor()?;
+            let right = self.parse_expr(min_prec + 1)?;
 
             left = Expr::Binary(op, Box::new(left), Box::new(right));
+
+            next_kind = self.peek().kind();
         }
 
         Ok(left)
@@ -134,7 +152,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
     fn parse_factor(&mut self) -> ParseResult<Expr> {
         let expr =
-            match self.peek().ok_or(ParserError::UnexpectedEOF)?.kind() {
+            match self.peek().kind() {
                 TokenKind::Constant => {
                     let constant = self.expect(TokenKind::Constant)?;
                     Expr::Const(
@@ -149,7 +167,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                 }
                 TokenKind::LParen => {
                     self.expect(TokenKind::LParen)?;
-                    let inner_expr = self.parse_expr()?;
+                    let inner_expr = self.parse_expr(Precedence::default())?;
                     self.expect(TokenKind::RParen)?;
                     inner_expr
                 }
@@ -167,7 +185,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         self.expect(TokenKind::Return)?;
-        let ret_val = self.parse_expr()?;
+        let ret_val = self.parse_expr(Precedence::default())?;
         self.expect(TokenKind::Semicolon)?;
 
         Ok(Stmt::Return(ret_val))
@@ -257,11 +275,35 @@ mod tests {
     )]
     #[case(
         &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Minus, "+"), tok(TokenKind::Constant, "6")],
-        Expr::Binary(BinaryOp::Subtract, Box::new(Expr::Binary(BinaryOp::Add, Box::new(Expr::Const(4)), Box::new(Expr::Const(2)))), Box::new(Expr::Const(6)))
+        Expr::Binary(BinaryOp::Add, Expr::Const(4).into(), Expr::Binary(BinaryOp::Subtract, Expr::Const(2).into(), Expr::Const(6).into()).into())
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3")],
+        Expr::Binary(
+            BinaryOp::Add,
+            Expr::Const(4).into(),
+            Expr::Binary(BinaryOp::Multiply, Expr::Const(2).into(), Expr::Const(3).into()).into(),
+        )
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "2"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "3")],
+        Expr::Binary(
+            BinaryOp::Add,
+            Expr::Binary(BinaryOp::Multiply, Expr::Const(4).into(), Expr::Const(2).into()).into(),
+            Expr::Const(3).into(),
+        )
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "7"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3"), tok(TokenKind::Minus, "-"), tok(TokenKind::Constant, "1")],
+        Expr::Binary(
+            BinaryOp::Subtract,
+            Expr::Binary(BinaryOp::Multiply, Expr::Const(7).into(), Expr::Const(3).into()).into(),
+            Expr::Const(1).into(),
+        )
     )]
     fn test_parse_expr_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
         let mut parser = parser(tokens);
-        let actual_expr = parser.parse_expr().unwrap();
+        let actual_expr = parser.parse_expr(Precedence::default()).unwrap();
 
         assert_eq!(expected_expr, actual_expr);
     }
@@ -275,6 +317,6 @@ mod tests {
     tok(TokenKind::RParen, ")")])]
     fn test_parse_expr_err(#[case] tokens: &[Token]) {
         let mut parser = parser(tokens);
-        parser.parse_expr().unwrap_err();
+        parser.parse_expr(Precedence::default()).unwrap_err();
     }
 }

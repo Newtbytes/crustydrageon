@@ -1,3 +1,5 @@
+use std::ops;
+
 use crate::src::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +31,19 @@ pub enum TokenKind {
     Void,
     Return,
 
+    EOF,
     Error(&'static str),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct Precedence(usize);
+
+impl ops::Add<usize> for Precedence {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
 }
 
 impl TokenKind {
@@ -41,6 +55,18 @@ impl TokenKind {
     pub fn is_binary_op(&self) -> bool {
         use TokenKind::*;
         matches!(self, Plus | Minus | Divide | Star | Modulo)
+    }
+
+    // TODO: this really should be a method of BinaryOp
+    pub fn precedence(&self) -> Option<Precedence> {
+        use TokenKind::*;
+
+        Some(Precedence(match self {
+            Star | Divide | Modulo => 50,
+            Plus | Minus => 45,
+            kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
+            _ => return None,
+        }))
     }
 }
 

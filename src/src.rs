@@ -76,7 +76,7 @@ impl From<String> for Source {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Location {
     line: usize,
     column: usize,
@@ -101,7 +101,7 @@ impl Location {
 
 /// A reference to a contiguous range of characters in a source string.
 /// Used to track the source spans.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Span {
     loc: Location,
     span: String,
