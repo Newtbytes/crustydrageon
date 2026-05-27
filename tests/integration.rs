@@ -1,4 +1,9 @@
-use std::{error::Error, fs, path::PathBuf, process};
+use std::{
+    error::Error,
+    fs,
+    path::{Path, PathBuf},
+    process,
+};
 
 use proptest::prelude::*;
 use rstest::rstest;
@@ -28,7 +33,7 @@ fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
     if let Some(idx) = src.find(directive) {
         let expected_status = {
             let status = src[idx..].trim_start_matches(directive);
-            let status = status.lines().nth(0).unwrap().trim();
+            let status = status.lines().next().unwrap().trim();
             let status = status.trim_start_matches(":").trim();
             status.parse::<i32>()?
         };
@@ -40,9 +45,9 @@ fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
 }
 
 /// Run a program and compare its output to the CHECK directives defined in its source code
-fn check_program(src: String, out: &PathBuf) -> Result<(), Box<dyn Error>> {
+fn check_program(src: String, out: &Path) -> Result<(), Box<dyn Error>> {
     if let Some(expected_status) = expected_status(&src)? {
-        let actual_status = process::Command::new(out.clone()).status()?.code();
+        let actual_status = process::Command::new(out).status()?.code();
 
         assert_eq!(actual_status, Some(expected_status));
     }
