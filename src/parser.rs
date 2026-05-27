@@ -140,7 +140,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
         while next_kind.is_binary_op() && next_kind.precedence() >= Some(min_prec) {
             let op = self.parse_binary_op()?;
-            let right = self.parse_expr(min_prec + 1)?;
+            let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
 
             left = Expr::Binary(op, Box::new(left), Box::new(right));
 
@@ -161,7 +161,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                         ),
                     )
                 }
-                _kind if _kind.is_unary_op() => {
+                kind if kind.is_unary_op() => {
                     let op = self.parse_unary_op()?;
                     Expr::Unary(op, Box::new(self.parse_factor()?))
                 }
@@ -275,7 +275,11 @@ mod tests {
     )]
     #[case(
         &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Minus, "+"), tok(TokenKind::Constant, "6")],
-        Expr::Binary(BinaryOp::Add, Expr::Const(4).into(), Expr::Binary(BinaryOp::Subtract, Expr::Const(2).into(), Expr::Const(6).into()).into())
+        Expr::Binary(
+            BinaryOp::Subtract,
+            Expr::Binary(BinaryOp::Add, Expr::Const(4).into(), Expr::Const(2).into()).into(),
+            Expr::Const(6).into(),
+        ),
     )]
     #[case(
         &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3")],
