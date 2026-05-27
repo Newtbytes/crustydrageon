@@ -47,23 +47,29 @@ impl ops::Add<usize> for Precedence {
 }
 
 impl TokenKind {
+    #[must_use]
     pub fn is_unary_op(&self) -> bool {
-        use TokenKind::*;
+        use TokenKind::{Complement, Minus};
         matches!(self, Minus | Complement)
     }
 
+    #[must_use]
     pub fn is_binary_op(&self) -> bool {
-        use TokenKind::*;
-        matches!(self, Plus | Minus | Divide | Star | Modulo)
+        use TokenKind as tk;
+        matches!(
+            self,
+            tk::Plus | tk::Minus | tk::Divide | tk::Star | tk::Modulo
+        )
     }
 
     // TODO: this really should be a method of BinaryOp
+    #[must_use]
     pub fn precedence(&self) -> Option<Precedence> {
-        use TokenKind::*;
+        use TokenKind as tk;
 
         Some(Precedence(match self {
-            Star | Divide | Modulo => 50,
-            Plus | Minus => 45,
+            tk::Star | tk::Divide | tk::Modulo => 50,
+            tk::Plus | tk::Minus => 45,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
             _ => return None,
         }))
