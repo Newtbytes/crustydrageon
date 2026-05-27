@@ -240,6 +240,7 @@ mod tests {
     use super::*;
 
     use rstest::rstest;
+    use rstest_reuse::{self, *};
 
     fn src(content: &'static str) -> Source {
         Source::new(content.to_owned())
@@ -257,6 +258,7 @@ mod tests {
         }
     }
 
+    #[template]
     #[rstest]
     #[case(
         &[tok(TokenKind::Complement, "~"), tok(TokenKind::Constant, "5")],
@@ -270,6 +272,17 @@ mod tests {
         &[tok(TokenKind::Minus, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
         Expr::Unary(UnaryOp::Negate, Box::new(Expr::Const(69)))
     )]
+    fn factors(#[case] tokens: &[Token], #[case] expected_expr: Expr) {}
+
+    #[apply(factors)]
+    fn test_parse_factor_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
+        let mut parser = parser(tokens);
+        let actual_expr = parser.parse_factor().unwrap();
+
+        assert_eq!(expected_expr, actual_expr);
+    }
+
+    #[apply(factors)]
     #[case(
         &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2")],
         Expr::Binary(BinaryOp::Add, Box::new(Expr::Const(4)), Box::new(Expr::Const(2)))
