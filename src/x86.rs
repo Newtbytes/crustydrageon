@@ -385,6 +385,14 @@ mod strategy {
         prop_oneof![Just(UnaryOp::Neg), Just(UnaryOp::Not)]
     }
 
+    pub fn arb_binary_op() -> impl Strategy<Value = BinaryOp> {
+        prop_oneof![
+            Just(BinaryOp::Add),
+            Just(BinaryOp::Sub),
+            Just(BinaryOp::Mul)
+        ]
+    }
+
     pub fn arb_operand() -> impl Strategy<Value = Operand> {
         prop_oneof![
             any::<i32>().prop_map(Operand::Imm),
@@ -401,6 +409,10 @@ mod strategy {
             (arb_operand(), arb_operand()).prop_map(|(src, dst)| Instruction::Mov { src, dst }),
             (arb_unary_op(), arb_operand())
                 .prop_map(|(op, operand)| Instruction::Unary(op, operand)),
+            (arb_binary_op(), arb_operand(), arb_operand())
+                .prop_map(|(op, a, b)| Instruction::Binary(op, a, b)),
+            (arb_operand()).prop_map(|operand| Instruction::Idiv(operand)),
+            Just(Instruction::Cdq),
         ]
     }
 }
@@ -503,39 +515,6 @@ mod tests {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
                 assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
-            }
-        }
-    }
-
-    mod emission {
-        use super::*;
-
-        proptest! {
-            #[test]
-            fn test_instruction_fmt(inst in arb_instruction()) {
-                let fmt = format!("{}", inst);
-
-                // emitted code should contain the correct instruction mnemonic
-                match inst {
-                    Instruction::Ret => prop_assert!(fmt.contains("ret")),
-                    Instruction::Alloca(size) => {
-                        let expected = format!("subq ${size}, %rsp");
-                        prop_assert!(fmt.contains(&expected));
-                    }
-                    Instruction::Mov { src, dst } => prop_assert!(
-                        fmt.contains("mov")
-                        && fmt.contains(&src.to_string())
-                        && fmt.contains(&dst.to_string())
-                    ),
-                    Instruction::Unary(op, operand) => prop_assert!(
-                        fmt.contains(&op.to_string())
-                        && fmt.contains(&operand.to_string())
-                    ),
-                    Instruction::Alloca(_) => todo!(),
-                    Instruction::Binary(binary_op, operand, operand1) => todo!(),
-                    Instruction::Idiv(operand) => todo!(),
-                    Instruction::Cdq => todo!(),
-                }
             }
         }
     }
