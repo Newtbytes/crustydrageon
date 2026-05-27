@@ -148,6 +148,12 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             next_kind = self.peek().kind();
         }
 
+        if min_prec == Precedence::default() {
+            cov_mark::hit!(parser_expr_parsed)
+        } else {
+            cov_mark::hit!(parser_sub_expr_parsed)
+        }
+
         Ok(left)
     }
 
@@ -156,11 +162,14 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             match self.peek().kind() {
                 TokenKind::Constant => {
                     let constant = self.expect(TokenKind::Constant)?;
-                    Expr::Const(
-                        constant.value().to_string().parse().expect(
+                    let expr =
+                        Expr::Const(constant.value().to_string().parse().expect(
                             "Constant token should always contain a parseable integer value",
-                        ),
-                    )
+                        ));
+
+                    cov_mark::hit!(parser_constant_expr_parsed);
+
+                    expr
                 }
                 kind if kind.is_unary_op() => {
                     let op = self.parse_unary_op()?;
@@ -170,6 +179,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                     self.expect(TokenKind::LParen)?;
                     let inner_expr = self.parse_expr(Precedence::default())?;
                     self.expect(TokenKind::RParen)?;
+
+                    cov_mark::hit!(parser_paren_pair_parsed);
+
                     inner_expr
                 }
 
@@ -180,6 +192,8 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                     });
                 }
             };
+
+        cov_mark::hit!(parser_factor_parsed);
 
         Ok(expr)
     }
@@ -276,10 +290,21 @@ mod tests {
 
     #[apply(factors)]
     fn test_parse_factor_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
+        cov_mark::check!(parser_factor_parsed);
+
         let mut parser = parser(tokens);
         let actual_expr = parser.parse_factor().unwrap();
 
         assert_eq!(expected_expr, actual_expr);
+    }
+
+    #[apply(factors)]
+    fn test_parse_expr_parses_factors(#[case] tokens: &[Token], _expected_expr: Expr) {
+        cov_mark::check!(parser_factor_parsed);
+        cov_mark::check!(parser_expr_parsed);
+
+        let mut parser = parser(tokens);
+        let _ = parser.parse_expr(Precedence::default());
     }
 
     #[apply(factors)]

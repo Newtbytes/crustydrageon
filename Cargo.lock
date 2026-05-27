@@ -62,10 +62,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cov-mark"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90863d8442510cddf7f46618c4f92413774635771a3e80830c8b30d183420b14"
+
+[[package]]
 name = "crustydrageon"
 version = "0.1.0"
 dependencies = [
  "contracts",
+ "cov-mark",
  "proptest",
  "rstest",
  "rstest_reuse",

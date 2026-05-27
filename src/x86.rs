@@ -277,10 +277,14 @@ pub fn lower_block(block: Vec<ir::Operation>) -> Vec<Instruction> {
         lower_op(&mut insts, op);
     }
 
+    cov_mark::hit!(x86_block_lowered);
+
     insts
 }
 
 pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
+    cov_mark::hit!(x86_inst_legalized);
+
     match inst {
         Instruction::Mov {
             src: Operand::Stack(a),
@@ -295,6 +299,8 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                 src: Register::R10.into(),
                 dst: Operand::Stack(b),
             });
+
+            cov_mark::hit!(x86_stack_to_stack_mov_legalized);
         }
         Instruction::Binary(op, Operand::Stack(a), Operand::Stack(b))
             if op == BinaryOp::Add || op == BinaryOp::Sub =>
@@ -351,6 +357,8 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
                 });
 
                 *operand = Operand::Stack(*stack_map.get(&id).unwrap());
+
+                cov_mark::hit!(x86_pseudo_register_replaced_with_stack);
             }
         }
 
@@ -358,6 +366,8 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
     }
 
     insts.insert(0, Instruction::Alloca(stack_size as usize));
+
+    cov_mark::hit!(x86_block_legalized);
 
     insts
 }
@@ -483,9 +493,14 @@ mod tests {
             )
         }
 
+        // TODO: test that pseudo registers replacement
+
         proptest! {
             #[test]
             fn test_mov_stack_to_stack(offset_a in -128..128, offset_b in -128..128) {
+                cov_mark::check_count!(x86_inst_legalized, 1);
+                cov_mark::check_count!(x86_stack_to_stack_mov_legalized, 1);
+
                 let inst = Instruction::Mov {
                     src: Operand::Stack(offset_a),
                     dst: Operand::Stack(offset_b),
