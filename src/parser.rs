@@ -328,11 +328,16 @@ mod tests {
 
     #[rstest]
     #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::LParen, ")")])]
-    #[case(&[tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, ")")])]
-    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, ")")])]
+    #[case(&[tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "(")])]
+    #[case(&[tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::LParen, ")")])]
+    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "(")])]
+    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), tok(TokenKind::LParen, ")")])]
     #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), 
-        tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, ")"), 
-    tok(TokenKind::RParen, ")")])]
+        tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::LParen, ")"), 
+    tok(TokenKind::LParen, ")")])]
+    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), 
+        tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "("), 
+    tok(TokenKind::RParen, "(")])]
     fn test_parse_expr_err(#[case] tokens: &[Token]) {
         let mut parser = parser(tokens);
         parser.parse_expr(Precedence::default()).unwrap_err();
