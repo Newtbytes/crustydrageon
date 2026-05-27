@@ -24,7 +24,7 @@ impl Display for Function {
         writeln!(f, "fn {}() {{", self.id.value)?;
 
         for op in &self.body {
-            writeln!(f, "   {}", op)?;
+            writeln!(f, "   {op}")?;
         }
 
         writeln!(f, "}}")?;
@@ -55,9 +55,9 @@ impl Display for Operation {
             f,
             "{}",
             match self {
-                Operation::Return(value) => format!("return {}", value),
-                Operation::Unary { op, src, dst } => format!("{} = {} {}", dst, op, src),
-                Operation::Binary { op, a, b, dst } => format!("{} = {} {}, {}", dst, op, a, b),
+                Operation::Return(value) => format!("return {value}"),
+                Operation::Unary { op, src, dst } => format!("{dst} = {op} {src}"),
+                Operation::Binary { op, a, b, dst } => format!("{dst} = {op} {a}, {b}"),
             }
         )
     }
@@ -170,7 +170,7 @@ impl Display for Value {
             "{}",
             match self {
                 Value::Constant(val) => val.to_string(),
-                Value::Var(id) => format!("${}", id),
+                Value::Var(id) => format!("${id}"),
             }
         )
     }
@@ -410,7 +410,7 @@ mod tests {
                     let v = Value::Var(id);
                     let s = v.to_string();
 
-                    prop_assert!(s.starts_with("$"));
+                    prop_assert!(s.starts_with('$'));
                     prop_assert!(s.contains(&id.to_string()));
                 }
             }

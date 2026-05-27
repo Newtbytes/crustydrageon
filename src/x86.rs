@@ -447,7 +447,7 @@ mod tests {
             #[test]
             fn test_function_fmt(id in ast::strategy::arb_identifier(), block in prop::collection::vec(arb_instruction(), 0..10)) {
                 let func = Function::new(id.clone(), block.clone());
-                let fmt = format!("{}", func);
+                let fmt = format!("{func}");
 
                 // emitted code should contain the correct global directive and label for the function
                 assert!(fmt.contains(&format!(".globl {}", func.name.value)));
