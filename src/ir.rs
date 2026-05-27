@@ -416,7 +416,6 @@ mod tests {
             }
         }
 
-
         mod op {
             use super::*;
 
@@ -425,7 +424,7 @@ mod tests {
                 Operation::Binary {
                     op: BinaryOp::Add,
                     a: Value::Constant(5), b: Value::Var(3),
-                    dst: Value::Var(3) 
+                    dst: Value::Var(3)
                 }
             )]
             #[case(
@@ -444,19 +443,18 @@ mod tests {
                         assert!(op_pp.contains(&dst.to_string()));
 
                         assert!(op_pp.contains('='));
-                    },
+                    }
                     Operation::Binary { op, a, b, dst } => {
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&a.to_string()));
                         assert!(op_pp.contains(&b.to_string()));
                         assert!(op_pp.contains(&dst.to_string()));
-                        
+
                         assert!(op_pp.contains('='));
-                    },
+                    }
                 }
             }
         }
-
 
         // TODO: test Function pretty printing
 
