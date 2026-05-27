@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use crate::{ast, ir};
+use crate::{ast, ir, x86::Operand::Reg};
 
 pub struct Program {
     pub func: Function,
@@ -52,14 +52,18 @@ impl Display for Function {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Register {
     AX,
+    DX,
     R10,
+    R11,
 }
 
 impl Display for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Register::AX => "eax",
+            Register::DX => "edx",
             Register::R10 => "r10d",
+            Register::R11 => "r11d",
         })
     }
 }
@@ -114,6 +118,9 @@ pub enum Instruction {
     Alloca(usize),
     Mov { src: Operand, dst: Operand },
     Unary(UnaryOp, Operand),
+    Binary(BinaryOp, Operand, Operand),
+    Idiv(Operand),
+    Cdq,
     Ret,
 }
 
@@ -121,28 +128,36 @@ impl Instruction {
     fn get_operands_mut(&mut self) -> Vec<&mut Operand> {
         match self {
             Instruction::Mov { src, dst } => vec![src, dst],
-            Instruction::Unary(_unary_op, operand) => vec![operand],
-            _ => Vec::new(),
+            Instruction::Unary(_, operand) | Instruction::Idiv(operand) => vec![operand],
+            Instruction::Binary(_, a, b) => vec![a, b],
+            Instruction::Alloca(_) | Instruction::Ret | Instruction::Cdq => Vec::new(),
         }
     }
 }
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Instruction::Mov { src, dst } => f.write_str(&format!("movl {src}, {dst}")),
-            Instruction::Ret => {
-                // TODO: make adding the function epilogue a part of legalization perhaps?
-                // alternatively it could be a part of lowering alloca instructions
-                f.write_str("movq %rbp, %rsp\n")?;
-                f.write_str("\tpopq %rbp\n")?;
-                f.write_str("\tret")?;
-                Ok(())
+        write!(
+            f,
+            "{}",
+            match self {
+                Instruction::Mov { src, dst } => format!("movl {src}, {dst}"),
+                Instruction::Ret => {
+                    // TODO: make adding the function epilogue a part of legalization perhaps?
+                    // alternatively it could be a part of lowering alloca instructions
+                    write!(f, "movq %rbp, %rsp\n")?;
+                    write!(f, "\tpopq %rbp\n")?;
+                    write!(f, "\tret")?;
+                    return Ok(());
+                }
+                // TODO: add a alloca lowering pass instead of doing this during emission?
+                Instruction::Alloca(size) => format!("subq ${size}, %rsp"),
+                Instruction::Unary(unary_op, operand) => format!("{unary_op} {operand}"),
+                Instruction::Binary(binary_op, a, b) => format!("{binary_op} {a}, {b}"),
+                Instruction::Idiv(operand) => format!("idivl {operand}"),
+                Instruction::Cdq => "cdq".to_string(),
             }
-            // TODO: add a alloca lowering pass instead of doing this during emission?
-            Instruction::Alloca(size) => f.write_str(&format!("subq ${size}, %rsp")),
-            Instruction::Unary(unary_op, operand) => f.write_str(&format!("{unary_op} {operand}")),
-        }
+        )
     }
 }
 
@@ -174,30 +189,24 @@ impl Display for UnaryOp {
     }
 }
 
-#[must_use]
-pub fn lower_expr(expr: ast::Expr) -> Operand {
-    match expr {
-        ast::Expr::Const(val) => Operand::Imm(val),
-        ast::Expr::Unary(_op, _expr) => todo!(),
-        ast::Expr::Binary(binary_op, expr, expr1) => {
-            todo!(
-                "IR -> x86 lowering of intermediate {:?} binary operator expressions",
-                binary_op
-            )
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
 }
 
-#[must_use]
-pub fn lower_stmt(stmt: ast::Stmt) -> Vec<Instruction> {
-    match stmt {
-        ast::Stmt::Return(expr) => vec![
-            Instruction::Mov {
-                src: lower_expr(expr),
-                dst: Operand::Reg(Register::AX),
-            },
-            Instruction::Ret,
-        ],
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOp::Add => "addl",
+                BinaryOp::Sub => "subl",
+                BinaryOp::Mul => "imull",
+            }
+        )
     }
 }
 
@@ -217,7 +226,45 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             });
             insts.push(Instruction::Unary(op.into(), dst.into()));
         }
-        ir::Operation::Binary { op, a, b, dst } => todo!("IR -> x86 binary operator lowering"),
+        ir::Operation::Binary { op, a, b, dst } => match op {
+            ir::BinaryOp::Add | ir::BinaryOp::Sub | ir::BinaryOp::Mul => {
+                insts.extend([
+                    Instruction::Mov {
+                        src: a.into(),
+                        dst: dst.into(),
+                    },
+                    Instruction::Binary(
+                        match op {
+                            ir::BinaryOp::Add => BinaryOp::Add,
+                            ir::BinaryOp::Sub => BinaryOp::Sub,
+                            ir::BinaryOp::Mul => BinaryOp::Mul,
+                            _ => unreachable!(),
+                        },
+                        b.into(),
+                        dst.into(),
+                    ),
+                ]);
+            }
+            ir::BinaryOp::Div | ir::BinaryOp::Rem => {
+                insts.extend([
+                    Instruction::Mov {
+                        src: a.into(),
+                        dst: Register::AX.into(),
+                    },
+                    Instruction::Cdq,
+                    Instruction::Idiv(b.into()),
+                    Instruction::Mov {
+                        src: if op == ir::BinaryOp::Div {
+                            Register::AX
+                        } else {
+                            Register::DX
+                        }
+                        .into(),
+                        dst: dst.into(),
+                    },
+                ]);
+            }
+        },
     }
 }
 
@@ -247,6 +294,37 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                 dst: Operand::Stack(b),
             });
         }
+        Instruction::Binary(op, Operand::Stack(a), Operand::Stack(b))
+            if op == BinaryOp::Add || op == BinaryOp::Sub =>
+        {
+            insts.extend([
+                Instruction::Mov {
+                    src: Operand::Stack(a),
+                    dst: Register::R10.into(),
+                },
+                Instruction::Binary(op, Register::R10.into(), Operand::Stack(b)),
+            ]);
+        }
+        Instruction::Binary(BinaryOp::Mul, a, Operand::Stack(b)) => {
+            insts.extend([
+                Instruction::Mov {
+                    src: Operand::Stack(b),
+                    dst: Register::R11.into(),
+                },
+                Instruction::Binary(BinaryOp::Mul, a, Register::R11.into()),
+                Instruction::Mov {
+                    src: Register::R11.into(),
+                    dst: Operand::Stack(b),
+                },
+            ]);
+        }
+        Instruction::Idiv(Operand::Imm(val)) => insts.extend([
+            Instruction::Mov {
+                src: Operand::Imm(val).into(),
+                dst: Register::R10.into(),
+            },
+            Instruction::Idiv(Register::R10.into()),
+        ]),
         _ => insts.push(inst),
     }
 }
@@ -453,6 +531,10 @@ mod tests {
                         fmt.contains(&op.to_string())
                         && fmt.contains(&operand.to_string())
                     ),
+                    Instruction::Alloca(_) => todo!(),
+                    Instruction::Binary(binary_op, operand, operand1) => todo!(),
+                    Instruction::Idiv(operand) => todo!(),
+                    Instruction::Cdq => todo!(),
                 }
             }
         }
