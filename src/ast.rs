@@ -35,7 +35,7 @@ pub enum TokenKind {
     Error(&'static str),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
 pub struct Precedence(usize);
 
 impl ops::Add<usize> for Precedence {
@@ -174,7 +174,34 @@ pub mod strategy {
         Span::empty_at(&src, 0).unwrap()
     }
 
-    fn arb_unary_op() -> impl Strategy<Value = UnaryOp> {
+    pub fn arb_token_kind() -> impl Strategy<Value = TokenKind> {
+        use TokenKind::*;
+
+        prop_oneof![
+            Just(Constant),
+            Just(Ident),
+            Just(Complement),
+            Just(Minus),
+            Just(Plus),
+            Just(Divide),
+            Just(Star),
+            Just(Modulo),
+            Just(Decrement),
+            Just(Increment),
+            Just(LParen),
+            Just(RParen),
+            Just(LBrace),
+            Just(RBrace),
+            Just(Semicolon),
+            Just(Int),
+            Just(Void),
+            Just(Return),
+            Just(EOF),
+            // Just(Error(&'static str)),
+        ]
+    }
+
+    pub fn arb_unary_op() -> impl Strategy<Value = UnaryOp> {
         prop_oneof![Just(UnaryOp::Complement), Just(UnaryOp::Negate),]
     }
 
@@ -208,5 +235,55 @@ pub mod strategy {
 
     pub fn arb_program() -> impl Strategy<Value = Program> {
         arb_function().prop_map(|body| Program { body })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    mod precedence {
+        use super::*;
+
+        #[test]
+        fn test_groups() {
+            // Check that precedence of *, /, % are equal
+            assert_eq!(TokenKind::Star.precedence(), TokenKind::Divide.precedence());
+            assert_eq!(
+                TokenKind::Divide.precedence(),
+                TokenKind::Modulo.precedence()
+            );
+
+            // Check that precedence of the above precedence group is greater than the below group
+            assert!(TokenKind::Star.precedence() > TokenKind::Plus.precedence());
+
+            // Check that precedence of +, - are equal
+            assert_eq!(TokenKind::Minus.precedence(), TokenKind::Plus.precedence());
+        }
+
+        proptest! {
+            #[test]
+            fn test_symmetric(a in strategy::arb_token_kind(), b in strategy::arb_token_kind()) {
+                prop_assert_eq!(a == b, b == a);
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn test_reflexive(kind in strategy::arb_token_kind()) {
+                prop_assert_eq!(kind.precedence(), kind.precedence());
+            }
+        }
+
+        proptest! {
+            #[test]
+            fn test_substitution(a in strategy::arb_token_kind(), b in strategy::arb_token_kind(), c in strategy::arb_token_kind()) {
+                if (a == c) && (a == b) {
+                    prop_assert_eq!( b , c);
+                }
+            }
+        }
     }
 }
