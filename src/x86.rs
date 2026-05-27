@@ -179,6 +179,9 @@ pub fn lower_expr(expr: ast::Expr) -> Operand {
     match expr {
         ast::Expr::Const(val) => Operand::Imm(val),
         ast::Expr::Unary(_op, _expr) => todo!(),
+        ast::Expr::Binary(binary_op, expr, expr1) => {
+            todo!("lowering from IR binary ops to x86 binary ops")
+        }
     }
 }
 

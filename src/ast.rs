@@ -32,6 +32,18 @@ pub enum TokenKind {
     Error(&'static str),
 }
 
+impl TokenKind {
+    pub fn is_unary_op(&self) -> bool {
+        use TokenKind::*;
+        matches!(self, Minus | Complement)
+    }
+
+    pub fn is_binary_op(&self) -> bool {
+        use TokenKind::*;
+        matches!(self, Plus | Minus | Divide | Star | Modulo)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     kind: TokenKind,
@@ -100,11 +112,21 @@ pub enum UnaryOp {
     Negate,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BinaryOp {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+}
+
 /// Expression
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
     Const(i32),
     Unary(UnaryOp, Box<Expr>),
+    Binary(BinaryOp, Box<Expr>, Box<Expr>),
 }
 
 /// Statement
