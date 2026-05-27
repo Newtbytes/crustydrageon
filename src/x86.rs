@@ -217,6 +217,7 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             });
             insts.push(Instruction::Unary(op.into(), dst.into()));
         }
+        ir::Operation::Binary { op, a, b, dst } => todo!("IR -> x86 binary operator lowering"),
     }
 }
 
