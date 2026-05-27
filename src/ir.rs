@@ -81,7 +81,9 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::Expr::Binary(binary_op, expr, expr1) => todo!("lowering to IR binary ops"),
+        ast::Expr::Binary(binary_op, expr, expr1) => {
+            todo!("AST -> IR lowering of {:?} binary operations", binary_op)
+        }
     }
 }
 

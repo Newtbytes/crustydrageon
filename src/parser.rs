@@ -93,6 +93,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         match tok.kind() {
             TokenKind::Complement => Ok(UnaryOp::Complement),
             TokenKind::Minus => Ok(UnaryOp::Negate),
+            kind if kind.is_unary_op() => {
+                todo!("parsing unary operator of kind {:?}", kind)
+            }
             _ => Err(ParserError::ExpectedString {
                 expected: "unary operator",
                 actual: tok,
@@ -107,7 +110,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             TokenKind::Plus => Ok(BinaryOp::Add),
             TokenKind::Minus => Ok(BinaryOp::Subtract),
             kind if kind.is_binary_op() => {
-                todo!("parsing binary expressions using operators other than + or -")
+                todo!("parsing binary operator of kind {:?}", kind)
             }
             _ => Err(ParserError::ExpectedString {
                 expected: "binary operator",
