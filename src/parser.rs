@@ -264,7 +264,7 @@ mod tests {
 
     use super::*;
 
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
     use rstest_reuse::{self, *};
 
     fn src(content: &'static str) -> Source {
@@ -277,7 +277,8 @@ mod tests {
         Token::new(kind, span)
     }
 
-    fn parser(tokens: &[Token]) -> Parser<impl Iterator<Item = Token>> {
+    #[fixture]
+    fn parser(#[default(&[])] tokens: &[Token]) -> Parser<impl Iterator<Item = Token>> {
         Parser {
             tokens: tokens.iter().cloned().peekable(),
         }
@@ -361,8 +362,11 @@ mod tests {
             Expr::Const(1).into(),
         )
     )]
-    fn test_parse_expr_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
-        let mut parser = parser(tokens);
+    fn test_parse_expr_matches_expected(
+        #[case] _tokens: &[Token],
+        #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+        #[case] expected_expr: Expr,
+    ) {
         let actual_expr = parser.parse_expr(Precedence::default()).unwrap();
 
         assert_eq!(expected_expr, actual_expr);
@@ -380,8 +384,10 @@ mod tests {
     #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), 
         tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "("), 
     tok(TokenKind::RParen, "(")])]
-    fn test_parse_expr_err(#[case] tokens: &[Token]) {
-        let mut parser = parser(tokens);
+    fn test_parse_expr_err(
+        #[case] _tokens: &[Token],
+        #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+    ) {
         parser.parse_expr(Precedence::default()).unwrap_err();
     }
 }
