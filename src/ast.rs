@@ -203,7 +203,7 @@ pub mod strategy {
             Just(Void),
             Just(Return),
             Just(EOF),
-            // Just(Error(&'static str)),
+            // TODO: implement Just(Error(&'static str)),
         ]
     }
 

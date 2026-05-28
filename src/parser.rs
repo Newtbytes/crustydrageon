@@ -81,6 +81,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     fn peek(&mut self) -> &Token {
         use std::sync;
 
+        // FIXME: hacky way to return a ref without creating a temporary
         static EOF: sync::LazyLock<Token> =
             sync::LazyLock::new(|| Token::new(TokenKind::EOF, src::Span::default()));
 
