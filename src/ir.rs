@@ -78,6 +78,7 @@ impl From<ast::UnaryOp> for UnaryOp {
         match op {
             ast::UnaryOp::Complement => Self::Complement,
             ast::UnaryOp::Negate => Self::Negate,
+            ast::UnaryOp::Not => todo!("AST -> IR logical not operator"),
         }
     }
 }
@@ -132,6 +133,16 @@ impl From<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::Multiply => Self::Mul,
             ast::BinaryOp::Divide => Self::Div,
             ast::BinaryOp::Modulo => Self::Rem,
+            ast::BinaryOp::And
+            | ast::BinaryOp::Or
+            | ast::BinaryOp::Equal
+            | ast::BinaryOp::NotEqual
+            | ast::BinaryOp::LessThan
+            | ast::BinaryOp::LessOrEqual
+            | ast::BinaryOp::GreaterThan
+            | ast::BinaryOp::GreaterOrEqual => {
+                todo!("AST -> IR lowering for binary operator of kind")
+            }
         }
     }
 }
