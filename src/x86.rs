@@ -414,7 +414,7 @@ mod strategy {
                 .prop_map(|(op, operand)| Instruction::Unary(op, operand)),
             (arb_binary_op(), arb_operand(), arb_operand())
                 .prop_map(|(op, a, b)| Instruction::Binary(op, a, b)),
-            (arb_operand()).prop_map(|operand| Instruction::Idiv(operand)),
+            (arb_operand()).prop_map(Instruction::Idiv),
             Just(Instruction::Cdq),
         ]
     }

@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use proptest::prelude::*;
 use rstest::rstest;
 
-use crustydrageon::{driver, error};
+use crustydrageon::driver;
 
 fn cleanup_out(out: Option<PathBuf>) {
     if let Some(out) = out {
