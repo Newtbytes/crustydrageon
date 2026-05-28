@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::ast;
 
 #[derive(Debug)]
@@ -5,10 +7,30 @@ pub struct Program {
     pub body: Function,
 }
 
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.body)
+    }
+}
+
 #[derive(Debug)]
 pub struct Function {
     pub id: ast::Identifier,
     pub body: Vec<Operation>,
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "fn {}() {{", self.id.value)?;
+
+        for op in &self.body {
+            writeln!(f, "   {op}")?;
+        }
+
+        writeln!(f, "}}")?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -27,6 +49,20 @@ pub enum Operation {
     },
 }
 
+impl Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Operation::Return(value) => format!("return {value}"),
+                Operation::Unary { op, src, dst } => format!("{dst} = {op} {src}"),
+                Operation::Binary { op, a, b, dst } => format!("{dst} = {op} {a}, {b}"),
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum UnaryOp {
     Complement,
@@ -42,6 +78,19 @@ impl From<ast::UnaryOp> for UnaryOp {
     }
 }
 
+impl Display for UnaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UnaryOp::Complement => "not",
+                UnaryOp::Negate => "neg",
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum BinaryOp {
     Add,
@@ -49,6 +98,22 @@ pub enum BinaryOp {
     Mul,
     Div,
     Rem,
+}
+
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOp::Add => "add",
+                BinaryOp::Sub => "sub",
+                BinaryOp::Mul => "mul",
+                BinaryOp::Div => "div",
+                BinaryOp::Rem => "rem",
+            }
+        )
+    }
 }
 
 impl From<ast::BinaryOp> for BinaryOp {
@@ -95,6 +160,19 @@ impl Value {
     #[must_use]
     pub fn new_var() -> Self {
         Self::Var(VarID::new())
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Value::Constant(val) => val.to_string(),
+                Value::Var(id) => format!("${id}"),
+            }
+        )
     }
 }
 
@@ -158,6 +236,8 @@ pub fn lower_program(program: ast::Program) -> Program {
     }
 }
 
+// TODO: implement proptest strategies
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +297,8 @@ mod tests {
             assert_eq!(VarID::new(), 1);
         }
     }
+
+    // TODO: use rstest_reuse to consolidate all operation test cases into a template
 
     mod lower {
         use super::*;
@@ -289,5 +371,93 @@ mod tests {
                 prop_assert_eq!(&actual_ops[..actual_ops.len() - 1], &expected_ops[..]);
             }
         }
+    }
+
+    /// Test pretty printing & Display implementations
+    mod pretty {
+        use super::*;
+
+        mod value {
+            use super::*;
+
+            proptest! {
+                #[test]
+                fn test_no_whitespace(val in any::<i32>(), id in any::<usize>()) {
+                    let c = Value::Constant(val).to_string();
+                    let v = Value::Var(id).to_string();
+
+                    prop_assert_eq!(c.trim(), &c);
+                    prop_assert_eq!(v.trim(), &v);
+                }
+
+                #[test]
+                fn test_variants_differ(val in any::<u16>() /* u16 so it fits in usize & i32 */) {
+                    let c = Value::Constant(val.into()).to_string();
+                    let v = Value::Var(val.into()).to_string();
+
+                    prop_assert_ne!(c, v);
+                }
+
+                #[test]
+                fn test_value_const_pretty(val in any::<i32>()) {
+                    let c = Value::Constant(val);
+
+                    prop_assert_eq!(c.to_string(), val.to_string());
+                }
+
+                #[test]
+                fn test_value_var_pretty(id in any::<usize>()) {
+                    let v = Value::Var(id);
+                    let s = v.to_string();
+
+                    prop_assert!(s.starts_with('$'));
+                    prop_assert!(s.contains(&id.to_string()));
+                }
+            }
+        }
+
+        mod op {
+            use super::*;
+
+            #[rstest]
+            #[case(
+                Operation::Binary {
+                    op: BinaryOp::Add,
+                    a: Value::Constant(5), b: Value::Var(3),
+                    dst: Value::Var(3)
+                }
+            )]
+            #[case(
+                Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2), dst: Value::Var(5) }
+            )]
+            fn test_op_contains_info(#[case] op: Operation) {
+                let op_pp = op.to_string();
+
+                // TODO: once rstest_reuse is used for making templates of operation cases, separate checks for the presence of '=' into a separate test
+
+                match op {
+                    Operation::Return(value) => assert!(op_pp.contains(&value.to_string())),
+                    Operation::Unary { op, src, dst } => {
+                        assert!(op_pp.contains(&op.to_string()));
+                        assert!(op_pp.contains(&src.to_string()));
+                        assert!(op_pp.contains(&dst.to_string()));
+
+                        assert!(op_pp.contains('='));
+                    }
+                    Operation::Binary { op, a, b, dst } => {
+                        assert!(op_pp.contains(&op.to_string()));
+                        assert!(op_pp.contains(&a.to_string()));
+                        assert!(op_pp.contains(&b.to_string()));
+                        assert!(op_pp.contains(&dst.to_string()));
+
+                        assert!(op_pp.contains('='));
+                    }
+                }
+            }
+        }
+
+        // TODO: test Function pretty printing
+
+        // TODO: test Program pretty printing
     }
 }

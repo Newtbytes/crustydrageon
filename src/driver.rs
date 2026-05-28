@@ -271,7 +271,7 @@ pub fn compile(
     let ir = ir::lower_program(ast);
 
     if verbose || stop_at == Some(CompilerStage::IR) {
-        println!("{ir:#?}");
+        println!("{ir}");
         return Ok(None);
     }
 
