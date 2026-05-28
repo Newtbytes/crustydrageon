@@ -124,20 +124,35 @@ impl Iterator for Lexer<'_> {
 
         let kind = match self.eat() {
             Some(c) => match c {
+                // structural tokens
                 '(' => tk::LParen,
                 ')' => tk::RParen,
                 '{' => tk::LBrace,
                 '}' => tk::RBrace,
                 ';' => tk::Semicolon,
+
+                // operators
                 '~' => tk::Complement,
-                '-' => {
-                    if self.eat_if(|c| matches!(c, '-')).is_some() {
-                        tk::Decrement
+                '*' => tk::Star,
+                '/' => tk::Divide,
+                '%' => tk::Modulo,
+                '-' | '+' => {
+                    if self.eat_if(|c| matches!(c, '-' | '+')).is_some() {
+                        match c {
+                            '-' => tk::Decrement,
+                            '+' => tk::Increment,
+                            _ => unreachable!(),
+                        }
                     } else {
-                        tk::Negate
+                        match c {
+                            '-' => tk::Minus,
+                            '+' => tk::Plus,
+                            _ => unreachable!(),
+                        }
                     }
                 }
 
+                // identifiers and keywords
                 'a'..='z' | 'A'..='Z' | '_' => {
                     self.eat_identifier();
 
@@ -156,6 +171,7 @@ impl Iterator for Lexer<'_> {
                     }
                 }
 
+                // integer literals
                 c if c.is_ascii_digit() => {
                     self.eat_int_literal();
 
@@ -197,11 +213,101 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 mod tests {
     use super::*;
 
+    use rstest::rstest;
+
     #[test]
     fn test_tokenize_returns_empty() {
         let src = Source::new("".to_owned());
         let tokens = tokenize(&src);
 
         assert_eq!(tokens.count(), 0);
+    }
+
+    #[rstest]
+    // plus, minus, increment, decrement, and their combinations
+    #[case("-", [TokenKind::Minus])]
+    #[case("+", [TokenKind::Plus])]
+    #[case("--", [TokenKind::Decrement])]
+    #[case("++", [TokenKind::Increment])]
+    #[case("-a", [TokenKind::Minus, TokenKind::Ident])]
+    #[case("- a", [TokenKind::Minus, TokenKind::Ident])]
+    #[case("+a", [TokenKind::Plus, TokenKind::Ident])]
+    #[case("--a", [TokenKind::Decrement, TokenKind::Ident])]
+    #[case("++b", [TokenKind::Increment, TokenKind::Ident])]
+    #[case("a--", [TokenKind::Ident, TokenKind::Decrement])]
+    #[case("b++", [TokenKind::Ident, TokenKind::Increment])]
+    // more complex combinations
+    #[case("+++++", [
+        TokenKind::Increment,
+        TokenKind::Increment,
+        TokenKind::Plus,
+    ])]
+    #[case("+++++", [
+        TokenKind::Increment,
+        TokenKind::Increment,
+        TokenKind::Plus,
+    ])]
+    #[case("+ + +++", [
+        TokenKind::Plus,
+        TokenKind::Plus,
+        TokenKind::Increment,
+        TokenKind::Plus,
+    ])]
+    #[case("+ + + +", [
+        TokenKind::Plus,
+        TokenKind::Plus,
+        TokenKind::Plus,
+        TokenKind::Plus,
+    ])]
+    #[case("-----", [
+        TokenKind::Decrement,
+        TokenKind::Decrement,
+        TokenKind::Minus,
+    ])]
+    #[case("- - ---", [
+        TokenKind::Minus,
+        TokenKind::Minus,
+        TokenKind::Decrement,
+        TokenKind::Minus,
+    ])]
+    #[case("- - - -", [
+        TokenKind::Minus,
+        TokenKind::Minus,
+        TokenKind::Minus,
+        TokenKind::Minus,
+    ])]
+    #[case("++++%-*---", [
+        TokenKind::Increment,
+        TokenKind::Increment,
+        TokenKind::Modulo,
+        TokenKind::Minus,
+        TokenKind::Star,
+        TokenKind::Decrement,
+        TokenKind::Minus,
+    ])]
+    // multiply, divide, and modulo
+    #[case("*", [TokenKind::Star])]
+    #[case("/", [TokenKind::Divide])]
+    #[case("%", [TokenKind::Modulo])]
+    #[case("*a", [TokenKind::Star, TokenKind::Ident])]
+    #[case("/b", [TokenKind::Divide, TokenKind::Ident])]
+    #[case("%c", [TokenKind::Modulo, TokenKind::Ident])]
+    // repeated operators
+    #[case("****", [TokenKind::Star, TokenKind::Star, TokenKind::Star, TokenKind::Star])]
+    #[case("////", [TokenKind::Divide, TokenKind::Divide, TokenKind::Divide, TokenKind::Divide])]
+    #[case("%%%%", [TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo])]
+    fn test_tokenize_operators<const S: usize>(
+        #[case] src: &str,
+        #[case] expected: [TokenKind; S],
+    ) {
+        let src = Source::new(src.to_owned());
+        let tokens = tokenize(&src).collect::<Vec<Token>>();
+
+        assert_eq!(tokens.len(), S);
+
+        // check that the token kinds match the expected kinds
+        for (tok, &kind) in tokens.iter().zip(expected.iter()) {
+            assert_eq!(tok.kind(), kind);
+        }
     }
 }

@@ -14,7 +14,17 @@ pub struct Function {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
     Return(Value),
-    Unary { op: UnaryOp, src: Value, dst: Value },
+    Unary {
+        op: UnaryOp,
+        src: Value,
+        dst: Value,
+    },
+    Binary {
+        op: BinaryOp,
+        a: Value,
+        b: Value,
+        dst: Value,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -28,6 +38,27 @@ impl From<ast::UnaryOp> for UnaryOp {
         match op {
             ast::UnaryOp::Complement => Self::Complement,
             ast::UnaryOp::Negate => Self::Negate,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Rem,
+}
+
+impl From<ast::BinaryOp> for BinaryOp {
+    fn from(op: ast::BinaryOp) -> Self {
+        match op {
+            ast::BinaryOp::Add => Self::Add,
+            ast::BinaryOp::Subtract => Self::Sub,
+            ast::BinaryOp::Multiply => Self::Mul,
+            ast::BinaryOp::Divide => Self::Div,
+            ast::BinaryOp::Modulo => Self::Rem,
         }
     }
 }
@@ -61,6 +92,7 @@ pub enum Value {
 }
 
 impl Value {
+    #[must_use]
     pub fn new_var() -> Self {
         Self::Var(VarID::new())
     }
@@ -81,6 +113,20 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
+        ast::Expr::Binary(binary_op, a, b) => {
+            let a = lower_expr(ops, *a);
+            let b = lower_expr(ops, *b);
+            let dst = Value::new_var();
+
+            ops.push(Operation::Binary {
+                op: binary_op.into(),
+                a,
+                b,
+                dst,
+            });
+
+            dst
+        }
     }
 }
 
@@ -93,6 +139,7 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
     }
 }
 
+#[must_use]
 pub fn lower_func(func: ast::Function) -> Function {
     let mut ops = Vec::new();
 
@@ -104,6 +151,7 @@ pub fn lower_func(func: ast::Function) -> Function {
     }
 }
 
+#[must_use]
 pub fn lower_program(program: ast::Program) -> Program {
     Program {
         body: lower_func(program.body),

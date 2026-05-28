@@ -1,7 +1,9 @@
 use std::{fmt, iter};
 
 use crate::{
-    ast::{self, Expr, Token, TokenKind, UnaryOp},
+    ast::{
+        BinaryOp, Expr, Function, Identifier, Precedence, Program, Stmt, Token, TokenKind, UnaryOp,
+    },
     src,
 };
 
@@ -76,13 +78,23 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn peek(&mut self) -> Option<&Token> {
-        self.tokens.peek()
+    fn peek(&mut self) -> &Token {
+        use std::sync;
+
+        // FIXME: hacky way to return a ref without creating a temporary
+        static EOF: sync::LazyLock<Token> =
+            sync::LazyLock::new(|| Token::new(TokenKind::EOF, src::Span::default()));
+
+        match self.tokens.peek() {
+            Some(t) => t,
+            None => &EOF,
+        }
     }
 
     fn expect(&mut self, expected: TokenKind) -> ParseResult<Token> {
         match self.take()? {
             token if token.kind() == expected => Ok(token),
+            token if token.kind() == TokenKind::EOF => Err(ParserError::UnexpectedEOF),
             actual => Err(ParserError::ExpectedToken { expected, actual }),
         }
     }
@@ -92,39 +104,78 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
         match tok.kind() {
             TokenKind::Complement => Ok(UnaryOp::Complement),
-            TokenKind::Negate => Ok(UnaryOp::Negate),
-            _ => Err(ParserError::ExpectedToken {
-                expected: TokenKind::Complement,
+            TokenKind::Minus => Ok(UnaryOp::Negate),
+            kind if kind.is_unary_op() => {
+                todo!("parsing unary operator of kind {:?}", kind)
+            }
+            _ => Err(ParserError::ExpectedString {
+                expected: "unary operator",
                 actual: tok,
             }),
         }
     }
 
-    fn parse_expr(&mut self) -> ParseResult<ast::Expr> {
+    fn parse_binary_op(&mut self) -> ParseResult<BinaryOp> {
+        let tok = self.take()?;
+
+        match tok.kind() {
+            TokenKind::Plus => Ok(BinaryOp::Add),
+            TokenKind::Minus => Ok(BinaryOp::Subtract),
+            TokenKind::Star => Ok(BinaryOp::Multiply),
+            TokenKind::Divide => Ok(BinaryOp::Divide),
+            TokenKind::Modulo => Ok(BinaryOp::Modulo),
+            kind if kind.is_binary_op() => {
+                todo!("parsing binary operator of kind {:?}", kind)
+            }
+            _ => Err(ParserError::ExpectedString {
+                expected: "binary operator",
+                actual: tok,
+            }),
+        }
+    }
+
+    fn parse_expr(&mut self, min_prec: Precedence) -> ParseResult<Expr> {
+        let mut left = self.parse_factor()?;
+
+        let mut next_kind = self.peek().kind();
+
+        while next_kind.is_binary_op() && next_kind.precedence() >= Some(min_prec) {
+            let op = self.parse_binary_op()?;
+            let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
+
+            left = Expr::Binary(op, Box::new(left), Box::new(right));
+
+            next_kind = self.peek().kind();
+        }
+
+        Ok(left)
+    }
+
+    fn parse_factor(&mut self) -> ParseResult<Expr> {
         let expr =
-            match self.peek().ok_or(ParserError::UnexpectedEOF)?.kind() {
+            match self.peek().kind() {
                 TokenKind::Constant => {
                     let constant = self.expect(TokenKind::Constant)?;
-                    ast::Expr::Const(
+                    Expr::Const(
                         constant.value().to_string().parse().expect(
                             "Constant token should always contain a parseable integer value",
                         ),
                     )
                 }
-                TokenKind::Complement | TokenKind::Negate => {
+                kind if kind.is_unary_op() => {
                     let op = self.parse_unary_op()?;
-                    Expr::Unary(op, Box::new(self.parse_expr()?))
+                    Expr::Unary(op, Box::new(self.parse_factor()?))
                 }
                 TokenKind::LParen => {
                     self.expect(TokenKind::LParen)?;
-                    let inner_expr = self.parse_expr()?;
+                    let inner_expr = self.parse_expr(Precedence::default())?;
                     self.expect(TokenKind::RParen)?;
                     inner_expr
                 }
 
                 _ => {
                     return Err(ParserError::ExpectedString {
-                        expected: "expression",
+                        expected: "factor",
                         actual: self.take()?,
                     });
                 }
@@ -133,24 +184,24 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         Ok(expr)
     }
 
-    fn parse_stmt(&mut self) -> ParseResult<ast::Stmt> {
+    fn parse_stmt(&mut self) -> ParseResult<Stmt> {
         self.expect(TokenKind::Return)?;
-        let ret_val = self.parse_expr()?;
+        let ret_val = self.parse_expr(Precedence::default())?;
         self.expect(TokenKind::Semicolon)?;
 
-        Ok(ast::Stmt::Return(ret_val))
+        Ok(Stmt::Return(ret_val))
     }
 
-    fn parse_identifier(&mut self) -> ParseResult<ast::Identifier> {
+    fn parse_identifier(&mut self) -> ParseResult<Identifier> {
         let tok = self.expect(TokenKind::Ident)?;
 
-        Ok(ast::Identifier {
+        Ok(Identifier {
             value: tok.lexeme().to_string(),
             span: tok.span().clone(),
         })
     }
 
-    fn parse_function(&mut self) -> ParseResult<ast::Function> {
+    fn parse_function(&mut self) -> ParseResult<Function> {
         self.expect(TokenKind::Int)?;
         let name = self.parse_identifier()?;
 
@@ -162,22 +213,22 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         let body = self.parse_stmt()?;
         self.expect(TokenKind::RBrace)?;
 
-        Ok(ast::Function::new(name, body))
+        Ok(Function::new(name, body))
     }
 
-    fn parse_program(&mut self) -> ParseResult<ast::Program> {
+    fn parse_program(&mut self) -> ParseResult<Program> {
         let func = self.parse_function()?;
 
         match self.tokens.next() {
             Some(token) => Err(ParserError::ExpectedEOF(token)),
-            None => Ok(ast::Program { body: func }),
+            None => Ok(Program { body: func }),
         }
     }
 }
 
 pub fn parse<'src>(
     tokens: iter::Peekable<impl iter::Iterator<Item = Token> + 'src>,
-) -> ParseResult<ast::Program> {
+) -> ParseResult<Program> {
     let mut parser = Parser { tokens };
     parser.parse_program()
 }
@@ -216,15 +267,48 @@ mod tests {
         Expr::Unary(UnaryOp::Complement, Box::new(Expr::Unary(UnaryOp::Complement, Box::new(Expr::Const(42)))))
     )]
     #[case(
-        &[tok(TokenKind::Negate, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
+        &[tok(TokenKind::Minus, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
         Expr::Unary(UnaryOp::Negate, Box::new(Expr::Const(69)))
     )]
-    fn test_parse_expr_matches_expected(
-        #[case] tokens: &[Token],
-        #[case] expected_expr: ast::Expr,
-    ) {
+    #[case(
+        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2")],
+        Expr::Binary(BinaryOp::Add, Box::new(Expr::Const(4)), Box::new(Expr::Const(2)))
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Minus, "+"), tok(TokenKind::Constant, "6")],
+        Expr::Binary(
+            BinaryOp::Subtract,
+            Expr::Binary(BinaryOp::Add, Expr::Const(4).into(), Expr::Const(2).into()).into(),
+            Expr::Const(6).into(),
+        ),
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3")],
+        Expr::Binary(
+            BinaryOp::Add,
+            Expr::Const(4).into(),
+            Expr::Binary(BinaryOp::Multiply, Expr::Const(2).into(), Expr::Const(3).into()).into(),
+        )
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "2"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "3")],
+        Expr::Binary(
+            BinaryOp::Add,
+            Expr::Binary(BinaryOp::Multiply, Expr::Const(4).into(), Expr::Const(2).into()).into(),
+            Expr::Const(3).into(),
+        )
+    )]
+    #[case(
+        &[tok(TokenKind::Constant, "7"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3"), tok(TokenKind::Minus, "-"), tok(TokenKind::Constant, "1")],
+        Expr::Binary(
+            BinaryOp::Subtract,
+            Expr::Binary(BinaryOp::Multiply, Expr::Const(7).into(), Expr::Const(3).into()).into(),
+            Expr::Const(1).into(),
+        )
+    )]
+    fn test_parse_expr_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
         let mut parser = parser(tokens);
-        let actual_expr = parser.parse_expr().unwrap();
+        let actual_expr = parser.parse_expr(Precedence::default()).unwrap();
 
         assert_eq!(expected_expr, actual_expr);
     }
@@ -238,6 +322,6 @@ mod tests {
     tok(TokenKind::RParen, ")")])]
     fn test_parse_expr_err(#[case] tokens: &[Token]) {
         let mut parser = parser(tokens);
-        parser.parse_expr().unwrap_err();
+        parser.parse_expr(Precedence::default()).unwrap_err();
     }
 }
