@@ -136,17 +136,28 @@ impl Iterator for Lexer<'_> {
                 '*' => tk::Star,
                 '/' => tk::Divide,
                 '%' => tk::Modulo,
-                '-' | '+' => {
-                    if self.eat_if(|c| matches!(c, '-' | '+')).is_some() {
+                '&' => tk::Ampersand,
+                '|' => tk::Pipe,
+                '^' => tk::UpArrow,
+                '-' | '+' | '<' | '>' => {
+                    if self
+                        .eat_if(|c| matches!(c, '-' | '+' | '<' | '>'))
+                        .is_some()
+                    {
                         match c {
                             '-' => tk::Decrement,
                             '+' => tk::Increment,
+                            '<' => tk::LShift,
+                            '>' => tk::RShift,
                             _ => unreachable!(),
                         }
                     } else {
                         match c {
                             '-' => tk::Minus,
                             '+' => tk::Plus,
+                            '<' | '>' => {
+                                self.error("not yet implemented: tokenizing comparison operators")
+                            }
                             _ => unreachable!(),
                         }
                     }

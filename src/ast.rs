@@ -15,6 +15,11 @@ pub enum TokenKind {
     Divide,
     Star,
     Modulo,
+    Ampersand,
+    Pipe,
+    UpArrow,
+    LShift,
+    RShift,
 
     Decrement,
     Increment,
