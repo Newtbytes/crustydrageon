@@ -11,15 +11,24 @@ pub enum TokenKind {
     Ident,
 
     // Operators
-    Complement,
-    Minus,
-    Plus,
-    Divide,
-    Star,
-    Modulo,
+    Complement, // ~
+    Minus,      // -
+    Plus,       // +
+    Divide,     // /
+    Star,       // *
+    Modulo,     // %
+    LogicNot,   // !
+    And,        // &&
+    Or,         // ||
+    Equal,      // ==
+    NotEqual,   // !=
+    LT,         // <
+    GT,         // >
+    LTE,        // <=
+    GTE,        // >=
 
-    Decrement,
-    Increment,
+    Decrement, // ++
+    Increment, // --
 
     // Structural
     LParen,
