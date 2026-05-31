@@ -247,9 +247,21 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 }
 
 #[cfg(test)]
+mod strategy {
+    use proptest::prelude::*;
+
+    pub fn identifier() -> impl Strategy<Value = String> {
+        "[a-zA-Z_][a-zA-Z0-9_]*".prop_filter("Should not generate keywords", |s| {
+            s != "void" && s != "int" && s != "return"
+        })
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    use proptest::prelude::*;
     use rstest::rstest;
 
     #[test]
@@ -355,6 +367,18 @@ mod tests {
         // check that the token kinds match the expected kinds
         for (tok, &kind) in tokens.iter().zip(expected.iter()) {
             assert_eq!(tok.kind(), kind);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_tokenize_identifiers(s in strategy::identifier()) {
+            let src = Source::new(s.clone());
+            let tokens = tokenize(&src).collect::<Vec<Token>>();
+
+            assert_eq!(tokens.len(), 1);
+            assert_eq!(tokens[0].kind(), TokenKind::Ident);
+            assert_eq!(tokens[0].span().get(&src).unwrap(), s);
         }
     }
 }
