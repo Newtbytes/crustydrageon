@@ -273,11 +273,19 @@ mod tests {
     }
 
     #[rstest]
-    // plus, minus, increment, decrement, and their combinations
+    // single tokens
     #[case("-", [TokenKind::Minus])]
     #[case("+", [TokenKind::Plus])]
     #[case("--", [TokenKind::Decrement])]
     #[case("++", [TokenKind::Increment])]
+    #[case("*", [TokenKind::Star])]
+    #[case("/", [TokenKind::Divide])]
+    #[case("%", [TokenKind::Modulo])]
+    #[case("void", [TokenKind::Void])]
+    #[case("int", [TokenKind::Int])]
+    #[case("return", [TokenKind::Return])]
+    #[case("a", [TokenKind::Ident])]
+    // plus, minus, increment, decrement, and their combinations
     #[case("-a", [TokenKind::Minus, TokenKind::Ident])]
     #[case("- a", [TokenKind::Minus, TokenKind::Ident])]
     #[case("+a", [TokenKind::Plus, TokenKind::Ident])]
@@ -285,7 +293,6 @@ mod tests {
     #[case("++b", [TokenKind::Increment, TokenKind::Ident])]
     #[case("a--", [TokenKind::Ident, TokenKind::Decrement])]
     #[case("b++", [TokenKind::Ident, TokenKind::Increment])]
-    // more complex combinations
     #[case("+++++", [
         TokenKind::Increment,
         TokenKind::Increment,
@@ -334,10 +341,7 @@ mod tests {
         TokenKind::Decrement,
         TokenKind::Minus,
     ])]
-    // multiply, divide, and modulo
-    #[case("*", [TokenKind::Star])]
-    #[case("/", [TokenKind::Divide])]
-    #[case("%", [TokenKind::Modulo])]
+    // multiply, divide, and modulo and their combinations
     #[case("*a", [TokenKind::Star, TokenKind::Ident])]
     #[case("/b", [TokenKind::Divide, TokenKind::Ident])]
     #[case("%c", [TokenKind::Modulo, TokenKind::Ident])]
@@ -355,6 +359,12 @@ mod tests {
     #[case(">", [TokenKind::GT])]
     #[case("<=", [TokenKind::LTE])]
     #[case(">=", [TokenKind::GTE])]
+    // identifiers and keywords
+    #[case("voidx", [TokenKind::Ident])]
+    #[case("int_", [TokenKind::Ident])]
+    #[case("a0aaaa", [TokenKind::Ident])]
+    // error cases
+    #[case("0aaaaa", [TokenKind::Error("Invalid constant")])]
     fn test_tokenize_operators<const S: usize>(
         #[case] src: &str,
         #[case] expected: [TokenKind; S],
