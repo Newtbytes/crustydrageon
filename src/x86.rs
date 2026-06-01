@@ -115,6 +115,45 @@ impl Display for Operand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Cond {
+    E,
+    NE,
+    G,
+    GE,
+    L,
+    LE,
+}
+
+impl Display for Cond {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Cond::E => "e",
+            Cond::NE => "ne",
+            Cond::G => "g",
+            Cond::GE => "ge",
+            Cond::L => "l",
+            Cond::LE => "le",
+        })
+    }
+}
+
+impl TryFrom<ir::BinaryOp> for Cond {
+    type Error = ();
+
+    fn try_from(value: ir::BinaryOp) -> Result<Self, Self::Error> {
+        Ok(match value {
+            ir::BinaryOp::Eq => Cond::E,
+            ir::BinaryOp::Neq => Cond::NE,
+            ir::BinaryOp::Gt => Cond::G,
+            ir::BinaryOp::Gte => Cond::GE,
+            ir::BinaryOp::Lt => Cond::L,
+            ir::BinaryOp::Lte => Cond::LE,
+            _ => return Err(()),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Instruction {
     Alloca(usize),
     Mov { src: Operand, dst: Operand },
@@ -123,6 +162,11 @@ pub enum Instruction {
     Idiv(Operand),
     Cdq,
     Ret,
+    Cmp(Operand, Operand),
+    Jmp(String),
+    JmpIf(Cond, String),
+    Set(Cond, Operand),
+    Label(String),
 }
 
 impl Instruction {
@@ -130,8 +174,14 @@ impl Instruction {
         match self {
             Instruction::Mov { src, dst } => vec![src, dst],
             Instruction::Unary(_, operand) | Instruction::Idiv(operand) => vec![operand],
-            Instruction::Binary(_, a, b) => vec![a, b],
-            Instruction::Alloca(_) | Instruction::Ret | Instruction::Cdq => Vec::new(),
+            Instruction::Binary(_, a, b) | Instruction::Cmp(a, b) => vec![a, b],
+            Instruction::Alloca(_)
+            | Instruction::Ret
+            | Instruction::Cdq
+            | Instruction::Jmp(_)
+            | Instruction::JmpIf(_, _)
+            | Instruction::Label(_) => Vec::new(),
+            Instruction::Set(_, dst) => vec![dst],
         }
     }
 }
@@ -157,6 +207,11 @@ impl Display for Instruction {
                 Instruction::Binary(binary_op, a, b) => format!("{binary_op} {a}, {b}"),
                 Instruction::Idiv(operand) => format!("idivl {operand}"),
                 Instruction::Cdq => "cdq".to_string(),
+                Instruction::Cmp(a, b) => format!("cmpl {a}, {b}"),
+                Instruction::Jmp(label) => format!("jmp .L{label}"),
+                Instruction::JmpIf(cond, label) => format!("j{cond} .L{label}"),
+                Instruction::Set(cond, operand) => format!("set{cond} {operand}"),
+                Instruction::Label(label) => format!(".L{label}:"),
             }
         )
     }
@@ -173,7 +228,7 @@ impl From<ir::UnaryOp> for UnaryOp {
         match op {
             ir::UnaryOp::Complement => UnaryOp::Not,
             ir::UnaryOp::Negate => UnaryOp::Neg,
-            ir::UnaryOp::Not => todo!(),
+            ir::UnaryOp::Not => UnaryOp::Not,
         }
     }
 }
@@ -221,6 +276,18 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             });
             insts.push(Instruction::Ret);
         }
+        ir::Operation::Unary {
+            op: ir::UnaryOp::Not,
+            src,
+            dst,
+        } => insts.extend([
+            Instruction::Cmp(Operand::Imm(0), src.into()),
+            Instruction::Mov {
+                src: Operand::Imm(0),
+                dst: dst.into(),
+            },
+            Instruction::Set(Cond::E, dst.into()),
+        ]),
         ir::Operation::Unary { op, src, dst } => {
             insts.push(Instruction::Mov {
                 src: src.into(),
@@ -266,21 +333,47 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                     },
                 ]);
             }
-            ir::BinaryOp::Eq => todo!(),
-            ir::BinaryOp::Neq => todo!(),
-            ir::BinaryOp::Lt => todo!(),
-            ir::BinaryOp::Lte => todo!(),
-            ir::BinaryOp::Gt => todo!(),
-            ir::BinaryOp::Gte => todo!(),
+            ir::BinaryOp::Eq
+            | ir::BinaryOp::Neq
+            | ir::BinaryOp::Lt
+            | ir::BinaryOp::Lte
+            | ir::BinaryOp::Gt
+            | ir::BinaryOp::Gte => {
+                insts.extend([
+                    Instruction::Cmp(b.into(), a.into()),
+                    Instruction::Mov {
+                        src: Operand::Imm(0),
+                        dst: dst.into(),
+                    },
+                    Instruction::Set(Cond::try_from(op).unwrap(), dst.into()),
+                ]);
+            }
         },
-        ir::Operation::Copy { src, dst } => todo!(),
-        ir::Operation::Branch(label) => todo!(),
+        ir::Operation::Copy { src, dst } => {
+            insts.push(Instruction::Mov {
+                src: src.into(),
+                dst: dst.into(),
+            });
+        }
+        ir::Operation::Branch(label) => insts.push(Instruction::Jmp(label.to_string())),
         ir::Operation::BranchIf {
             cond,
             then_label,
             else_label,
-        } => todo!(),
-        ir::Operation::Label(label) => todo!(),
+        } => {
+            insts.extend([
+                Instruction::Cmp(Operand::Imm(1), cond.into()),
+                Instruction::JmpIf(Cond::E, then_label.to_string()),
+                Instruction::Jmp(else_label.to_string()),
+            ]);
+        }
+        ir::Operation::BranchWhen { cond, when_label } => {
+            insts.extend([
+                Instruction::Cmp(Operand::Imm(1), cond.into()),
+                Instruction::JmpIf(Cond::E, when_label.to_string()),
+            ]);
+        }
+        ir::Operation::Label(label) => insts.push(Instruction::Label(label.to_string())),
     }
 }
 
@@ -326,6 +419,24 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                     dst: Register::R10.into(),
                 },
                 Instruction::Binary(op, Register::R10.into(), Operand::Stack(b)),
+            ]);
+        }
+        Instruction::Cmp(Operand::Stack(a), Operand::Stack(b)) => {
+            insts.extend([
+                Instruction::Mov {
+                    src: Operand::Stack(a),
+                    dst: Register::R10.into(),
+                },
+                Instruction::Cmp(Register::R10.into(), Operand::Stack(b)),
+            ]);
+        }
+        Instruction::Cmp(a, Operand::Imm(b)) => {
+            insts.extend([
+                Instruction::Mov {
+                    src: Operand::Imm(b),
+                    dst: Register::R10.into(),
+                },
+                Instruction::Cmp(a, Register::R10.into()),
             ]);
         }
         Instruction::Binary(BinaryOp::Mul, a, Operand::Stack(b)) => {

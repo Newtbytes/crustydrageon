@@ -26,7 +26,11 @@ impl Display for Function {
         writeln!(f, "fn {}() {{", self.id.value)?;
 
         for op in &self.body {
-            writeln!(f, "   {op}")?;
+            if !matches!(op, Operation::Label(_)) {
+                writeln!(f, "  {op}")?;
+            } else {
+                writeln!(f, "{op}")?;
+            }
         }
 
         writeln!(f, "}}")?;
@@ -39,6 +43,12 @@ impl Display for Function {
 pub enum Label {
     Named(Identifier),
     Anon(usize),
+}
+
+impl Label {
+    fn new() -> Self {
+        Self::Anon(VarID::new())
+    }
 }
 
 impl Display for Label {
@@ -74,6 +84,10 @@ pub enum Operation {
         then_label: Label,
         else_label: Label,
     },
+    BranchWhen {
+        cond: Value,
+        when_label: Label,
+    },
     Label(Label),
 }
 
@@ -95,6 +109,8 @@ impl Display for Operation {
                     then_label,
                     else_label,
                 } => format!("branchif {cond} then {then_label} else {else_label}"),
+                Operation::BranchWhen { cond, when_label } =>
+                    format!("branch {when_label} when {cond}"),
                 Operation::Label(label) => format!("{label}:"),
             }
         )
@@ -113,7 +129,7 @@ impl From<ast::UnaryOp> for UnaryOp {
         match op {
             ast::UnaryOp::Complement => Self::Complement,
             ast::UnaryOp::Negate => Self::Negate,
-            ast::UnaryOp::Not => todo!("AST -> IR logical not operator"),
+            ast::UnaryOp::Not => Self::Not,
         }
     }
 }
@@ -245,6 +261,28 @@ impl Display for Value {
     }
 }
 
+fn binary(ops: &mut Vec<Operation>, op: BinaryOp, a: Value, b: Value) -> Value {
+    let dst = Value::new_var();
+    ops.push(Operation::Binary { op, a, b, dst });
+    dst
+}
+
+fn jeq(ops: &mut Vec<Operation>, a: Value, b: Value, label: Label) {
+    let eq = binary(ops, BinaryOp::Eq, a, b);
+    ops.push(Operation::BranchWhen {
+        cond: eq,
+        when_label: label,
+    });
+}
+
+fn jneq(ops: &mut Vec<Operation>, a: Value, b: Value, label: Label) {
+    let neq = binary(ops, BinaryOp::Neq, a, b);
+    ops.push(Operation::BranchWhen {
+        cond: neq,
+        when_label: label,
+    });
+}
+
 pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
     let dst = match expr {
         ast::Expr::Const(val) => Value::Constant(val),
@@ -262,34 +300,34 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::Expr::Binary(ast::BinaryOp::And | ast::BinaryOp::Or, a, b) => {
-            let false_label = Label::Anon(VarID::new());
-            let end_label = Label::Anon(VarID::new());
+        ast::Expr::Binary(op, a, b) if op == ast::BinaryOp::And || op == ast::BinaryOp::Or => {
+            let skip_label = Label::new();
+            let end_label = Label::new();
             let result = Value::new_var();
 
             let a = lower_expr(ops, *a);
-            ops.push(Operation::BranchIf {
-                cond: a,
-                then_label: false_label.clone(),
-                else_label: end_label.clone(),
-            });
+            if op == ast::BinaryOp::And {
+                jeq(ops, a, Value::Constant(0), skip_label.clone());
+            } else {
+                jneq(ops, a, Value::Constant(0), skip_label.clone());
+            }
 
             let b = lower_expr(ops, *b);
-            ops.push(Operation::BranchIf {
-                cond: b,
-                then_label: false_label.clone(),
-                else_label: end_label.clone(),
-            });
+            if op == ast::BinaryOp::And {
+                jeq(ops, b, Value::Constant(0), skip_label.clone());
+            } else {
+                jneq(ops, b, Value::Constant(0), skip_label.clone());
+            }
 
             ops.extend([
                 Operation::Copy {
-                    src: Value::Constant(1),
+                    src: Value::Constant(if op == ast::BinaryOp::And { 1 } else { 0 }),
                     dst: result,
                 },
                 Operation::Branch(end_label.clone()),
-                Operation::Label(false_label),
+                Operation::Label(skip_label),
                 Operation::Copy {
-                    src: Value::Constant(0),
+                    src: Value::Constant(if op == ast::BinaryOp::And { 0 } else { 1 }),
                     dst: result,
                 },
                 Operation::Label(end_label),
@@ -607,6 +645,7 @@ mod tests {
                         else_label,
                     } => todo!(),
                     Operation::Label(label) => todo!(),
+                    Operation::BranchWhen { cond, when_label } => todo!(),
                 }
             }
         }
