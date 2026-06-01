@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::ast;
+use crate::ast::{self, Identifier};
 
 #[derive(Debug)]
 pub struct Program {
@@ -35,6 +35,21 @@ impl Display for Function {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Label {
+    Named(Identifier),
+    Anon(usize),
+}
+
+impl Display for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Label::Named(id) => write!(f, "{}", id.value),
+            Label::Anon(id) => write!(f, "{id}"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operation {
     Return(Value),
@@ -49,6 +64,17 @@ pub enum Operation {
         b: Value,
         dst: Value,
     },
+    Copy {
+        src: Value,
+        dst: Value,
+    },
+    Branch(Label),
+    BranchIf {
+        cond: Value,
+        then_label: Label,
+        else_label: Label,
+    },
+    Label(Label),
 }
 
 impl Display for Operation {
@@ -62,6 +88,14 @@ impl Display for Operation {
                 Operation::Return(value) => format!("return {value}"),
                 Operation::Unary { op, src, dst } => format!("{dst} = {op} {src}"),
                 Operation::Binary { op, a, b, dst } => format!("{dst} = {op} {a}, {b}"),
+                Operation::Copy { src, dst } => format!("copy {dst} = {src}"),
+                Operation::Branch(label) => format!("branch {label}"),
+                Operation::BranchIf {
+                    cond,
+                    then_label,
+                    else_label,
+                } => format!("branchif {cond} then {then_label} else {else_label}"),
+                Operation::Label(label) => format!("{label}:"),
             }
         )
     }
@@ -71,6 +105,7 @@ impl Display for Operation {
 pub enum UnaryOp {
     Complement,
     Negate,
+    Not,
 }
 
 impl From<ast::UnaryOp> for UnaryOp {
@@ -93,6 +128,7 @@ impl Display for UnaryOp {
             match self {
                 UnaryOp::Complement => "not",
                 UnaryOp::Negate => "neg",
+                UnaryOp::Not => "not",
             }
         )
     }
@@ -105,6 +141,12 @@ pub enum BinaryOp {
     Mul,
     Div,
     Rem,
+    Eq,
+    Neq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
 }
 
 impl Display for BinaryOp {
@@ -120,29 +162,34 @@ impl Display for BinaryOp {
                 BinaryOp::Mul => "mul",
                 BinaryOp::Div => "div",
                 BinaryOp::Rem => "rem",
+                BinaryOp::Eq => "eq",
+                BinaryOp::Neq => "neq",
+                BinaryOp::Lt => "lt",
+                BinaryOp::Lte => "lte",
+                BinaryOp::Gt => "gt",
+                BinaryOp::Gte => "gte",
             }
         )
     }
 }
 
-impl From<ast::BinaryOp> for BinaryOp {
-    fn from(op: ast::BinaryOp) -> Self {
-        match op {
-            ast::BinaryOp::Add => Self::Add,
-            ast::BinaryOp::Subtract => Self::Sub,
-            ast::BinaryOp::Multiply => Self::Mul,
-            ast::BinaryOp::Divide => Self::Div,
-            ast::BinaryOp::Modulo => Self::Rem,
-            ast::BinaryOp::And
-            | ast::BinaryOp::Or
-            | ast::BinaryOp::Equal
-            | ast::BinaryOp::NotEqual
-            | ast::BinaryOp::LessThan
-            | ast::BinaryOp::LessOrEqual
-            | ast::BinaryOp::GreaterThan
-            | ast::BinaryOp::GreaterOrEqual => {
-                todo!("AST -> IR lowering for binary operator of kind")
-            }
+impl TryFrom<ast::BinaryOp> for BinaryOp {
+    type Error = ();
+
+    fn try_from(value: ast::BinaryOp) -> Result<Self, Self::Error> {
+        match value {
+            ast::BinaryOp::Add => Ok(Self::Add),
+            ast::BinaryOp::Subtract => Ok(Self::Sub),
+            ast::BinaryOp::Multiply => Ok(Self::Mul),
+            ast::BinaryOp::Divide => Ok(Self::Div),
+            ast::BinaryOp::Modulo => Ok(Self::Rem),
+            ast::BinaryOp::Equal => Ok(Self::Eq),
+            ast::BinaryOp::NotEqual => Ok(Self::Neq),
+            ast::BinaryOp::LessThan => Ok(Self::Lt),
+            ast::BinaryOp::LessOrEqual => Ok(Self::Lte),
+            ast::BinaryOp::GreaterThan => Ok(Self::Gt),
+            ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
+            ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
         }
     }
 }
@@ -215,13 +262,48 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
+        ast::Expr::Binary(ast::BinaryOp::And | ast::BinaryOp::Or, a, b) => {
+            let false_label = Label::Anon(VarID::new());
+            let end_label = Label::Anon(VarID::new());
+            let result = Value::new_var();
+
+            let a = lower_expr(ops, *a);
+            ops.push(Operation::BranchIf {
+                cond: a,
+                then_label: false_label.clone(),
+                else_label: end_label.clone(),
+            });
+
+            let b = lower_expr(ops, *b);
+            ops.push(Operation::BranchIf {
+                cond: b,
+                then_label: false_label.clone(),
+                else_label: end_label.clone(),
+            });
+
+            ops.extend([
+                Operation::Copy {
+                    src: Value::Constant(1),
+                    dst: result,
+                },
+                Operation::Branch(end_label.clone()),
+                Operation::Label(false_label),
+                Operation::Copy {
+                    src: Value::Constant(0),
+                    dst: result,
+                },
+                Operation::Label(end_label),
+            ]);
+
+            result
+        }
         ast::Expr::Binary(binary_op, a, b) => {
             let a = lower_expr(ops, *a);
             let b = lower_expr(ops, *b);
             let dst = Value::new_var();
 
             ops.push(Operation::Binary {
-                op: binary_op.into(),
+                op: BinaryOp::try_from(binary_op).unwrap(),
                 a,
                 b,
                 dst,
@@ -517,6 +599,14 @@ mod tests {
 
                         assert!(op_pp.contains('='));
                     }
+                    Operation::Copy { src, dst } => todo!(),
+                    Operation::Branch(label) => todo!(),
+                    Operation::BranchIf {
+                        cond,
+                        then_label,
+                        else_label,
+                    } => todo!(),
+                    Operation::Label(label) => todo!(),
                 }
             }
         }

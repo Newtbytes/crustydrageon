@@ -173,6 +173,7 @@ impl From<ir::UnaryOp> for UnaryOp {
         match op {
             ir::UnaryOp::Complement => UnaryOp::Not,
             ir::UnaryOp::Negate => UnaryOp::Neg,
+            ir::UnaryOp::Not => todo!(),
         }
     }
 }
@@ -265,7 +266,21 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                     },
                 ]);
             }
+            ir::BinaryOp::Eq => todo!(),
+            ir::BinaryOp::Neq => todo!(),
+            ir::BinaryOp::Lt => todo!(),
+            ir::BinaryOp::Lte => todo!(),
+            ir::BinaryOp::Gt => todo!(),
+            ir::BinaryOp::Gte => todo!(),
         },
+        ir::Operation::Copy { src, dst } => todo!(),
+        ir::Operation::Branch(label) => todo!(),
+        ir::Operation::BranchIf {
+            cond,
+            then_label,
+            else_label,
+        } => todo!(),
+        ir::Operation::Label(label) => todo!(),
     }
 }
 
