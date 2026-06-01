@@ -1,5 +1,7 @@
 use std::ops;
 
+use cov_mark;
+
 use crate::src::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,6 +68,8 @@ impl TokenKind {
     #[must_use]
     pub fn precedence(&self) -> Option<Precedence> {
         use TokenKind as tk;
+
+        cov_mark::hit!(binary_op_precedence);
 
         Some(Precedence(match self {
             tk::Star | tk::Divide | tk::Modulo => 50,
@@ -255,6 +259,8 @@ mod tests {
 
         #[test]
         fn test_groups() {
+            cov_mark::check!(binary_op_precedence);
+
             // Check that precedence of *, /, % are equal
             assert_eq!(TokenKind::Star.precedence(), TokenKind::Divide.precedence());
             assert_eq!(

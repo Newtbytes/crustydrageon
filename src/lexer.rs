@@ -82,16 +82,20 @@ impl<'src> Lexer<'src> {
 
     fn eat_identifier(&mut self) {
         self.eat_while(is_word);
+        cov_mark::hit!(lex_identifier_eaten);
     }
 
     fn eat_int_literal(&mut self) {
         self.eat_while(char::is_ascii_digit);
+        cov_mark::hit!(lex_int_literal_eaten);
     }
 
     fn emit(&mut self, kind: TokenKind) -> Token {
         let tok = Token::new(kind, self.consumed.clone());
 
         self.end_token();
+
+        cov_mark::hit!(lex_token_emitted);
 
         tok
     }

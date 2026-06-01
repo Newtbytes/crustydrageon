@@ -252,8 +252,11 @@ pub fn compile(
     stop_at: Option<CompilerStage>,
     verbose: bool,
 ) -> CompilerResult<Option<x86::Program>> {
+    cov_mark::hit!(compilation);
+
     let src = Source::new(program);
     let tokens = lexer::tokenize(&src);
+    cov_mark::hit!(tokenize);
 
     if stop_at == Some(CompilerStage::Lex) {
         println!("{:#?}", tokens.collect::<Vec<Token>>());
@@ -262,6 +265,7 @@ pub fn compile(
 
     let ast =
         parser::parse(tokens.peekable()).map_err(|e| CompilerError::ParserError(src.clone(), e))?;
+    cov_mark::hit!(parse);
 
     if verbose || stop_at == Some(CompilerStage::Parse) {
         println!("{ast:#?}");
@@ -269,6 +273,7 @@ pub fn compile(
     }
 
     let ir = ir::lower_program(ast);
+    cov_mark::hit!(lower_to_ir);
 
     if verbose || stop_at == Some(CompilerStage::IR) {
         println!("{ir}");
@@ -276,6 +281,7 @@ pub fn compile(
     }
 
     let asm: x86::Program = x86::lower_program(ir);
+    cov_mark::hit!(lower_to_x86);
 
     if verbose || stop_at == Some(CompilerStage::Codegen) {
         println!("{asm}");

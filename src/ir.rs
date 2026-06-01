@@ -21,6 +21,8 @@ pub struct Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_function);
+
         writeln!(f, "fn {}() {{", self.id.value)?;
 
         for op in &self.body {
@@ -51,6 +53,8 @@ pub enum Operation {
 
 impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_op);
+
         write!(
             f,
             "{}",
@@ -80,6 +84,8 @@ impl From<ast::UnaryOp> for UnaryOp {
 
 impl Display for UnaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_unary_op_kind);
+
         write!(
             f,
             "{}",
@@ -102,6 +108,8 @@ pub enum BinaryOp {
 
 impl Display for BinaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_binary_op_kind);
+
         write!(
             f,
             "{}",
@@ -137,16 +145,16 @@ mod VarID {
 
     /// Create a new temporary variable with a unique ID.
     #[must_use]
-    #[inline]
     pub fn new() -> usize {
+        cov_mark::hit!(ir_var_id_created);
         COUNTER.fetch_add(1, atomic::Ordering::Relaxed)
     }
 
     /// Reset the variable ID counter to zero.
-    #[inline]
     #[allow(dead_code)] // currently only used in tests
     pub fn reset() {
         COUNTER.store(0, atomic::Ordering::Relaxed);
+        cov_mark::hit!(ir_var_id_counter_reset);
     }
 }
 
@@ -159,12 +167,15 @@ pub enum Value {
 impl Value {
     #[must_use]
     pub fn new_var() -> Self {
+        cov_mark::hit!(ir_var_created);
         Self::Var(VarID::new())
     }
 }
 
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_value);
+
         write!(
             f,
             "{}",
@@ -177,7 +188,7 @@ impl Display for Value {
 }
 
 pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
-    match expr {
+    let dst = match expr {
         ast::Expr::Const(val) => Value::Constant(val),
         ast::Expr::Unary(unary_op, expr) => {
             let src = lower_expr(ops, *expr);
@@ -188,6 +199,8 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
                 src,
                 dst,
             });
+
+            cov_mark::hit!(ir_unary_op_lowered);
 
             dst
         }
@@ -203,9 +216,15 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
                 dst,
             });
 
+            cov_mark::hit!(ir_binary_op_lowered);
+
             dst
         }
-    }
+    };
+
+    cov_mark::hit!(ir_expr_lowered);
+
+    dst
 }
 
 pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
@@ -213,8 +232,11 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
         ast::Stmt::Return(expr) => {
             let value = lower_expr(ops, expr);
             ops.push(Operation::Return(value));
+            cov_mark::hit!(ir_return_stmt_lowered);
         }
     }
+
+    cov_mark::hit!(ir_stmt_lowered);
 }
 
 #[must_use]
@@ -254,6 +276,8 @@ mod tests {
         fn test_id_counter() {
             VarID::reset();
 
+            cov_mark::check_count!(ir_var_id_created, 5);
+
             let v0 = VarID::new();
 
             assert_eq!(v0, 0);
@@ -271,6 +295,8 @@ mod tests {
         #[test]
         #[serial]
         fn test_increasing() {
+            cov_mark::check_count!(ir_var_id_created, 2);
+
             let v0 = VarID::new();
             let v1 = VarID::new();
 
@@ -284,6 +310,8 @@ mod tests {
         #[test]
         #[serial]
         fn test_reset_id() {
+            cov_mark::check_count!(ir_var_id_counter_reset, 2);
+
             VarID::reset();
 
             assert_eq!(VarID::new(), 0);
@@ -295,6 +323,18 @@ mod tests {
 
             assert_eq!(VarID::new(), 0);
             assert_eq!(VarID::new(), 1);
+        }
+
+        #[test]
+        #[serial]
+        fn test_var_uses_var_id() {
+            cov_mark::check_count!(ir_var_id_created, 2);
+            cov_mark::check_count!(ir_var_created, 1);
+
+            VarID::reset();
+
+            let _ = VarID::new();
+            let _ = Value::new_var();
         }
     }
 
@@ -343,6 +383,8 @@ mod tests {
             #[case] expect_ops: Vec<Operation>,
             #[case] expect_val: Value,
         ) {
+            cov_mark::check!(ir_expr_lowered);
+
             VarID::reset();
 
             let mut ops: Vec<Operation> = Vec::new();
@@ -356,6 +398,10 @@ mod tests {
         proptest! {
             #[test]
             fn test_lower_stmt(expr in ast::strategy::arb_expr()) {
+                cov_mark::check!(ir_stmt_lowered);
+                cov_mark::check!(ir_expr_lowered);
+                cov_mark::check_count!(ir_return_stmt_lowered, 1);
+
                 let stmt = ast::Stmt::Return(expr.clone());
 
                 VarID::reset();
@@ -431,6 +477,8 @@ mod tests {
                 Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2), dst: Value::Var(5) }
             )]
             fn test_op_contains_info(#[case] op: Operation) {
+                cov_mark::check!(ir_pp_op);
+
                 let op_pp = op.to_string();
 
                 // TODO: once rstest_reuse is used for making templates of operation cases, separate checks for the presence of '=' into a separate test
@@ -438,6 +486,9 @@ mod tests {
                 match op {
                     Operation::Return(value) => assert!(op_pp.contains(&value.to_string())),
                     Operation::Unary { op, src, dst } => {
+                        cov_mark::check!(ir_pp_unary_op_kind);
+                        cov_mark::hit!(ir_pp_value);
+
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&src.to_string()));
                         assert!(op_pp.contains(&dst.to_string()));
@@ -445,6 +496,9 @@ mod tests {
                         assert!(op_pp.contains('='));
                     }
                     Operation::Binary { op, a, b, dst } => {
+                        cov_mark::hit!(ir_pp_binary_op_kind);
+                        cov_mark::hit!(ir_pp_value);
+
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&a.to_string()));
                         assert!(op_pp.contains(&b.to_string()));
