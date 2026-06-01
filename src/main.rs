@@ -11,8 +11,6 @@ fn main() -> Result<(), String> {
     let ir = cli::flag("--tacky");
     let codegen = cli::flag("--codegen") || cli::flag("--assemble") || cli::flag("-S");
 
-    let verbose = cli::flag("--verbose");
-
     let stop_at = if lex {
         Some(CompilerStage::Lex)
     } else if parse {
@@ -25,7 +23,7 @@ fn main() -> Result<(), String> {
         None
     };
 
-    if let Some(filename) = driver::compile_file(&src_fn, stop_at, verbose)
+    if let Some(filename) = driver::compile_file(&src_fn, stop_at)
         .inspect_err(|e| println!("{e}"))
         .unwrap_or(None)
     {

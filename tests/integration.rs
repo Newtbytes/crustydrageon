@@ -1,58 +1,31 @@
-use std::{
-    error::Error,
-    fs,
-    path::{Path, PathBuf},
-    process,
-};
+use std::{fs, path::PathBuf};
 
 use proptest::prelude::*;
 use rstest::rstest;
 
 use crustydrageon::driver;
 
-fn cleanup_out(out: Option<PathBuf>) {
-    if let Some(out) = out {
-        fs::remove_file(out)
-            .expect("Failed to remove temporary output file; this test might be broken");
+mod check;
+
+pub struct FileCleanupGuard {
+    filename: PathBuf,
+}
+
+impl FileCleanupGuard {
+    pub fn new(path: PathBuf) -> Self {
+        Self { filename: path }
     }
 }
 
-struct TestOutput(Option<PathBuf>);
-
-impl Drop for TestOutput {
+impl Drop for FileCleanupGuard {
     fn drop(&mut self) {
-        cleanup_out(self.0.clone())
+        if fs::exists(&self.filename).unwrap_or(false) {
+            fs::remove_file(&self.filename).expect(&format!(
+                "Failed to cleanup file: {}",
+                self.filename.to_string_lossy()
+            ));
+        }
     }
-}
-
-/// Parse the expected status given the CHECK STATUS directives in a program
-fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
-    let directive = "//$ CHECK STATUS";
-
-    // parse the expected status
-    if let Some(idx) = src.find(directive) {
-        let expected_status = {
-            let status = src[idx..].trim_start_matches(directive);
-            let status = status.lines().next().unwrap().trim();
-            let status = status.trim_start_matches(":").trim();
-            status.parse::<i32>()?
-        };
-
-        Ok(Some(expected_status))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Run a program and compare its output to the CHECK directives defined in its source code
-fn check_program(src: String, out: &Path) -> Result<(), Box<dyn Error>> {
-    if let Some(expected_status) = expected_status(&src)? {
-        let actual_status = process::Command::new(out).status()?.code();
-
-        assert_eq!(actual_status, Some(expected_status));
-    }
-
-    Ok(())
 }
 
 #[rstest]
@@ -80,11 +53,11 @@ fn test_invalid(
         _ => panic!("Invalid stage component in test file path: {stage_str}"),
     };
 
-    let out = driver::compile_file(path.clone().to_str().unwrap(), Some(final_stage), false);
+    let out = driver::compile_file(path.clone().to_str().unwrap(), Some(final_stage));
+    let _cleanup = out.as_ref().map(|o| o.clone().map(FileCleanupGuard::new));
 
     match out {
-        Ok(out) => {
-            cleanup_out(out);
+        Ok(_) => {
             panic!("Compilation should fail for invalid programs, but it succeeded");
         }
         Err(e) => {
@@ -103,25 +76,34 @@ fn test_invalid(
 }
 
 #[rstest]
-fn test_valid(
+fn test_return_code(
     #[files("tests/valid/**/*.c")]
     #[mode = path]
     path: PathBuf,
 ) {
-    let out = TestOutput(
-        driver::compile_file(path.to_str().unwrap(), None, false)
-            .expect("Compilation should succeed for valid programs"),
-    );
+    let out = driver::compile_file(path.to_str().unwrap(), None)
+        .expect("Compilation should succeed for valid programs");
+    let _cleanup = out.clone().map(FileCleanupGuard::new);
 
-    if let Some(ref out) = out.0 {
+    if let Some(ref out) = out {
         let src = fs::read_to_string(&path).unwrap();
-        check_program(src, out).unwrap();
+        check::check_status(&src, out).unwrap();
     }
+}
+
+#[rstest]
+fn test_check_output(
+    #[files("tests/valid/**/*.c")]
+    #[mode = path]
+    path: PathBuf,
+) {
+    let src = fs::read_to_string(&path).unwrap();
+    check::check_outputs(&src);
 }
 
 proptest! {
     #[test]
     fn doesnt_panic(program: String) {
-        let _ = driver::compile(program, None, false);
+        let _ = driver::compile(program, None);
     }
 }

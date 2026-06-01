@@ -1,8 +1,10 @@
 use std::{
+    error::Error,
     ffi::OsStr,
     fs,
+    io::Write,
     path::{Path, PathBuf},
-    process,
+    process::{self, Stdio},
 };
 
 use crate::{
@@ -161,7 +163,7 @@ impl SysCompiler {
         kind == FileKind::ASM
     }
 
-    pub fn preprocess<'a>(
+    pub fn preprocess_file<'a>(
         &self,
         file: CompilerFile<'a>,
     ) -> Result<CompilerFile<'a>, process::ExitStatus> {
@@ -184,6 +186,28 @@ impl SysCompiler {
         } else {
             Err(status)
         }
+    }
+
+    pub fn preprocess(&self, src: &str) -> Result<String, Box<dyn Error>> {
+        let mut child = self
+            .command()
+            .arg("-E")
+            .arg("-P")
+            .arg("-xc")
+            .arg("-")
+            .arg("-o-")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        let child_stdin = child.stdin.as_mut().unwrap();
+
+        child_stdin.write_all(src.as_bytes())?;
+
+        Ok(format!(
+            "{}",
+            str::from_utf8(&child.wait_with_output()?.stdout)?
+        ))
     }
 
     fn target_triple(&self) -> String {
@@ -239,7 +263,7 @@ impl SysCompiler {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompilerStage {
     Lex,
     Parse,
@@ -247,74 +271,79 @@ pub enum CompilerStage {
     Codegen,
 }
 
+pub enum CompilationOutput {
+    Completed(x86::Program),
+    Stopped(CompilerStage, String),
+}
+
 pub fn compile(
     program: String,
     stop_at: Option<CompilerStage>,
-    verbose: bool,
-) -> CompilerResult<Option<x86::Program>> {
-    let src = Source::new(program);
+) -> CompilerResult<CompilationOutput> {
+    let sys_cc = SysCompiler::try_new().map_err(CompilerError::SysCompilerNotFound)?;
+
+    let src = sys_cc.preprocess(&program).unwrap();
+    let src = Source::new(src);
+
     let tokens = lexer::tokenize(&src);
 
     if stop_at == Some(CompilerStage::Lex) {
-        println!("{:#?}", tokens.collect::<Vec<Token>>());
-        return Ok(None);
+        let output = format!("{:#?}", tokens.collect::<Vec<Token>>());
+        return Ok(CompilationOutput::Stopped(CompilerStage::Lex, output));
     }
 
     let ast =
         parser::parse(tokens.peekable()).map_err(|e| CompilerError::ParserError(src.clone(), e))?;
 
-    if verbose || stop_at == Some(CompilerStage::Parse) {
-        println!("{ast:#?}");
-        return Ok(None);
+    if stop_at == Some(CompilerStage::Parse) {
+        let output = format!("{ast:#?}");
+        return Ok(CompilationOutput::Stopped(CompilerStage::Parse, output));
     }
 
     let ir = ir::lower_program(ast);
 
-    if verbose || stop_at == Some(CompilerStage::IR) {
-        println!("{ir}");
-        return Ok(None);
+    if stop_at == Some(CompilerStage::IR) {
+        let output = format!("{ir}");
+        return Ok(CompilationOutput::Stopped(CompilerStage::IR, output));
     }
 
     let asm: x86::Program = x86::lower_program(ir);
 
-    if verbose || stop_at == Some(CompilerStage::Codegen) {
-        println!("{asm}");
-        return Ok(None);
+    if stop_at == Some(CompilerStage::Codegen) {
+        let output = format!("{asm}");
+        return Ok(CompilationOutput::Stopped(CompilerStage::Codegen, output));
     }
 
-    Ok(Some(asm))
+    Ok(CompilationOutput::Completed(asm))
 }
 
 pub fn compile_file(
     filename: &str,
     stop_at: Option<CompilerStage>,
-    verbose: bool,
 ) -> CompilerResult<Option<PathBuf>> {
     let sys_cc = SysCompiler::try_new().map_err(CompilerError::SysCompilerNotFound)?;
 
-    let source = CompilerFile::from_path(Path::new(filename));
+    let source_file = CompilerFile::from_path(Path::new(filename));
+    let source = fs::read_to_string(source_file.filename()).map_err(|_| CompilerError::IoError)?;
 
-    let preprocessed = sys_cc
-        .preprocess(source)
-        .map_err(CompilerError::sys_cc_err)?;
+    match compile(source, stop_at)? {
+        CompilationOutput::Completed(asm) => {
+            let mut asm_file: CompilerFile = source_file.with_kind(FileKind::ASM);
 
-    let preprocessed_src =
-        fs::read_to_string(preprocessed.filename()).map_err(|_| CompilerError::IoError)?;
+            asm_file
+                .write(asm.to_string())
+                .expect("Writing to intermediate file shouldn't fail");
 
-    if let Some(asm) = compile(preprocessed_src, stop_at, verbose)? {
-        let mut asm_file: CompilerFile = preprocessed.with_kind(FileKind::ASM);
+            let out = sys_cc
+                .assemble(asm_file)
+                .map_err(CompilerError::sys_cc_err)?;
 
-        asm_file
-            .write(asm.to_string())
-            .expect("Writing to intermediate file shouldn't fail");
-
-        let out = sys_cc
-            .assemble(asm_file)
-            .map_err(CompilerError::sys_cc_err)?;
-
-        Ok(Some(out.filename()))
-    } else {
-        Ok(None)
+            Ok(Some(out.filename()))
+        }
+        CompilationOutput::Stopped(_, output) => {
+            println!("{}", output);
+            Ok(None)
+        }
     }
 }
 
