@@ -260,7 +260,10 @@ pub fn parse<'src>(
 
 #[cfg(test)]
 mod tests {
-    use crate::src::{Source, Span};
+    use crate::{
+        ast::strategy,
+        src::{Source, Span},
+    };
 
     use super::*;
 
@@ -269,6 +272,7 @@ mod tests {
     use TokenKind as tk;
     use UnaryOp::*;
 
+    use proptest::prelude::*;
     use rstest::{fixture, rstest};
     use rstest_reuse::{self, *};
 
@@ -286,6 +290,28 @@ mod tests {
     fn parser(#[default(&[])] tokens: &[Token]) -> Parser<impl Iterator<Item = Token>> {
         Parser {
             tokens: tokens.iter().cloned().peekable(),
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_parse_unary_op(token_kind in strategy::arb_token_kind()) {
+            let toks = &[tok(token_kind, "operator")];
+            let mut parser = parser(toks);
+            let actual_op = parser.parse_unary_op();
+
+            prop_assert_eq!(actual_op.is_ok(), token_kind.is_unary_op());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_parse_binary_op(token_kind in strategy::arb_token_kind()) {
+            let toks = &[tok(token_kind, "operator")];
+            let mut parser = parser(toks);
+            let actual_op = parser.parse_binary_op();
+
+            prop_assert_eq!(actual_op.is_ok(), token_kind.is_binary_op());
         }
     }
 
