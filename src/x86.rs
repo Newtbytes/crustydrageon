@@ -541,6 +541,17 @@ mod strategy {
         ]
     }
 
+    pub fn arb_cond() -> impl Strategy<Value = Cond> {
+        prop_oneof![
+            Just(Cond::E),
+            Just(Cond::NE),
+            Just(Cond::G),
+            Just(Cond::GE),
+            Just(Cond::L),
+            Just(Cond::LE)
+        ]
+    }
+
     pub fn arb_instruction() -> impl Strategy<Value = Instruction> {
         prop_oneof![
             Just(Instruction::Ret),
@@ -552,6 +563,12 @@ mod strategy {
                 .prop_map(|(op, a, b)| Instruction::Binary(op, a, b)),
             (arb_operand()).prop_map(Instruction::Idiv),
             Just(Instruction::Cdq),
+            (arb_operand(), arb_operand()).prop_map(|(a, b)| Instruction::Cmp(a, b)),
+            "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Jmp),
+            (arb_cond(), "[a-zA-Z_][a-zA-Z0-9_]*")
+                .prop_map(|(cond, label)| { Instruction::JmpIf(cond, label) }),
+            (arb_cond(), arb_operand()).prop_map(|(cond, operand)| Instruction::Set(cond, operand)),
+            "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Label),
         ]
     }
 }
