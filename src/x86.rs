@@ -579,6 +579,21 @@ mod tests {
                     assert!(label_pp.starts_with("."));
                 }
             }
+
+            #[test]
+            fn test_instruction_not_empty(inst in arb_instruction()) {
+                let fmt = format!("{inst}");
+                assert!(!fmt.is_empty());
+            }
+
+            #[test]
+            fn test_instruction_contains_operands(mut inst in arb_instruction()) {
+                let fmt = format!("{inst}");
+
+                for operand in inst.get_operands_mut() {
+                    assert!(fmt.contains(&operand.to_string()));
+                }
+            }
         }
     }
 
