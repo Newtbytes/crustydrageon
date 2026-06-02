@@ -1,8 +1,15 @@
 use std::fmt::Display;
 
-use crate::ast::{self, Identifier};
+#[cfg(test)]
+use test_strategy::Arbitrary;
+
+use crate::{
+    ast::{self, Identifier},
+    x86::Operand,
+};
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
 }
@@ -14,6 +21,7 @@ impl Display for Program {
 }
 
 #[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub id: ast::Identifier,
     pub body: Vec<Operation>,
@@ -40,6 +48,7 @@ impl Display for Function {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Label {
     Named(Identifier),
     Anon(usize),
@@ -63,6 +72,7 @@ impl Display for Label {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Operation {
     Return(Value),
     Unary {
@@ -93,6 +103,39 @@ pub enum Operation {
     Label(Label),
 }
 
+impl Operation {
+    pub fn get_operands(&self) -> Vec<&Value> {
+        match self {
+            Operation::Return(value) => vec![value],
+            Operation::Unary { op: _, src, dst } | Operation::Copy { src, dst } => vec![src, dst],
+            Operation::Binary { op: _, a, b, dst } => vec![a, b, dst],
+            Operation::Branch(_) | Operation::Label(_) => Vec::new(),
+            Operation::BranchIf {
+                cond,
+                then_label: _,
+                else_label: _,
+            }
+            | Operation::BranchWhen {
+                cond,
+                when_label: _,
+            } => vec![cond],
+        }
+    }
+
+    pub fn is_branch(&self) -> bool {
+        match self {
+            Operation::Branch(_) | Operation::BranchIf { .. } | Operation::BranchWhen { .. } => {
+                true
+            }
+            Operation::Return(_)
+            | Operation::Unary { .. }
+            | Operation::Binary { .. }
+            | Operation::Copy { .. }
+            | Operation::Label(_) => false,
+        }
+    }
+}
+
 impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         cov_mark::hit!(ir_pp_op);
@@ -120,6 +163,7 @@ impl Display for Operation {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
     Complement,
     Negate,
@@ -153,6 +197,7 @@ impl Display for UnaryOp {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -235,6 +280,7 @@ mod VarID {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Value {
     Constant(i32),
     Var(usize),
@@ -635,7 +681,6 @@ mod tests {
             #[case(
                 Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2), dst: Value::Var(5) }
             )]
-            #[case(Operation::Copy { src: Value::Constant(1), dst: Value::Var(6) })]
             #[case(Operation::Branch(Label::Anon(5)))]
             #[case(Operation::BranchIf {
                 cond: Value::Var(2),
@@ -661,33 +706,25 @@ mod tests {
                 // TODO: once rstest_reuse is used for making templates of operation cases, separate checks for the presence of '=' into a separate test
 
                 match op {
-                    Operation::Return(value) => assert!(op_pp.contains(&value.to_string())),
-                    Operation::Unary { op, src, dst } => {
+                    Operation::Return(_) | Operation::Copy { .. } => {}
+                    Operation::Unary { op, src: _, dst: _ } => {
                         cov_mark::check!(ir_pp_unary_op_kind);
-                        cov_mark::check!(ir_pp_value);
 
                         assert!(op_pp.contains(&op.to_string()));
-                        assert!(op_pp.contains(&src.to_string()));
-                        assert!(op_pp.contains(&dst.to_string()));
 
                         assert!(op_pp.contains('='));
                     }
-                    Operation::Binary { op, a, b, dst } => {
+                    Operation::Binary {
+                        op,
+                        a: _,
+                        b: _,
+                        dst: _,
+                    } => {
                         cov_mark::check!(ir_pp_binary_op_kind);
-                        cov_mark::check!(ir_pp_value);
 
                         assert!(op_pp.contains(&op.to_string()));
-                        assert!(op_pp.contains(&a.to_string()));
-                        assert!(op_pp.contains(&b.to_string()));
-                        assert!(op_pp.contains(&dst.to_string()));
 
                         assert!(op_pp.contains('='));
-                    }
-                    Operation::Copy { src, dst } => {
-                        cov_mark::check!(ir_pp_value);
-
-                        assert!(op_pp.contains(&src.to_string()));
-                        assert!(op_pp.contains(&dst.to_string()));
                     }
                     Operation::Branch(label) => {
                         cov_mark::check!(ir_pp_label);
@@ -697,28 +734,26 @@ mod tests {
                         assert!(op_pp.contains(&label.to_string()));
                     }
                     Operation::BranchIf {
-                        cond,
+                        cond: _,
                         then_label,
                         else_label,
                     } => {
-                        cov_mark::check!(ir_pp_value);
                         cov_mark::check!(ir_pp_label);
 
                         assert!(op_pp.contains("branch"));
                         assert!(op_pp.contains("if"));
 
-                        assert!(op_pp.contains(&cond.to_string()));
                         assert!(op_pp.contains(&then_label.to_string()));
                         assert!(op_pp.contains(&else_label.to_string()));
                     }
-                    Operation::BranchWhen { cond, when_label } => {
-                        cov_mark::check!(ir_pp_value);
+                    Operation::BranchWhen {
+                        cond: _,
+                        when_label,
+                    } => {
                         cov_mark::check!(ir_pp_label);
 
-                        assert!(op_pp.contains("branch"));
                         assert!(op_pp.contains("when"));
 
-                        assert!(op_pp.contains(&cond.to_string()));
                         assert!(op_pp.contains(&when_label.to_string()));
                     }
                     Operation::Label(label) => {
@@ -726,6 +761,34 @@ mod tests {
 
                         assert!(op_pp.contains(&label.to_string()));
                     }
+                }
+            }
+
+            proptest! {
+                #[test]
+                fn test_op_contains_operands(op: Operation) {
+                    cov_mark::check!(ir_pp_op);
+
+                    let op_pp = op.to_string();
+
+                    for operand in op.get_operands() {
+                        cov_mark::check!(ir_pp_value);
+
+                        prop_assert!(op_pp.contains(&operand.to_string()));
+                    }
+                }
+
+                #[test]
+                fn test_branch_ops(op: Operation) {
+                    if op.is_branch() {
+                        // ensure branches contain labels
+                        cov_mark::check!(ir_pp_label);
+                        let _ =  op.to_string();
+                    }
+
+                    let op_pp = op.to_string();
+
+                    prop_assert_eq!(op.is_branch(), op_pp.contains("branch"));
                 }
             }
         }
