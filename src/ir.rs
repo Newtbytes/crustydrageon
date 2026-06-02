@@ -597,8 +597,6 @@ mod tests {
         }
 
         mod label {
-            use crate::ast::strategy::arb_identifier;
-
             use super::*;
 
             proptest! {
@@ -616,7 +614,7 @@ mod tests {
                 }
 
                 #[test]
-                fn pp_contains_named_id(id in arb_identifier()) {
+                fn pp_contains_named_id(id in any::<ast::Identifier>()) {
                     let l = Label::Named(id.clone()).to_string();
                     assert!(l.contains(&id.value));
                 }

@@ -11,4 +11,5 @@ cov-mark = { version = "2.2.0", features = ["enable"] }
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
 proptest = "1.11.0"
+test-strategy = "0.4.5"
 serial_test = "3.4.0"

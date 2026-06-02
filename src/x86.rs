@@ -1,7 +1,12 @@
 use std::{collections::HashMap, fmt::Display};
 
+#[cfg(test)]
+use test_strategy::Arbitrary;
+
 use crate::{ast, ir};
 
+#[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub func: Function,
 }
@@ -18,6 +23,7 @@ impl Display for Program {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     name: ast::Identifier,
     body: Vec<Instruction>,
@@ -50,6 +56,7 @@ impl Display for Function {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Register {
     AX,
     DX,
@@ -69,6 +76,7 @@ impl Display for Register {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Operand {
     Imm(i32),
     Reg(Register),
@@ -115,6 +123,7 @@ impl Display for Operand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Cond {
     E,
     NE,
@@ -154,6 +163,7 @@ impl TryFrom<ir::BinaryOp> for Cond {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Instruction {
     Alloca(usize),
     Mov { src: Operand, dst: Operand },
@@ -224,6 +234,7 @@ impl Display for Instruction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
     Neg,
     Not,
@@ -253,6 +264,7 @@ impl Display for UnaryOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -517,75 +529,10 @@ pub fn lower_program(prg: ir::Program) -> Program {
 }
 
 #[cfg(test)]
-mod strategy {
-    use super::*;
-
-    use proptest::prelude::*;
-
-    pub fn arb_register() -> impl Strategy<Value = Register> {
-        prop_oneof![Just(Register::AX), Just(Register::R10)]
-    }
-
-    pub fn arb_unary_op() -> impl Strategy<Value = UnaryOp> {
-        prop_oneof![Just(UnaryOp::Neg), Just(UnaryOp::Not)]
-    }
-
-    pub fn arb_binary_op() -> impl Strategy<Value = BinaryOp> {
-        prop_oneof![
-            Just(BinaryOp::Add),
-            Just(BinaryOp::Sub),
-            Just(BinaryOp::Mul)
-        ]
-    }
-
-    pub fn arb_operand() -> impl Strategy<Value = Operand> {
-        prop_oneof![
-            any::<i32>().prop_map(Operand::Imm),
-            arb_register().prop_map(Operand::Reg),
-            (0..100_usize).prop_map(Operand::Pseudo),
-            (-128..128).prop_map(Operand::Stack),
-        ]
-    }
-
-    pub fn arb_cond() -> impl Strategy<Value = Cond> {
-        prop_oneof![
-            Just(Cond::E),
-            Just(Cond::NE),
-            Just(Cond::G),
-            Just(Cond::GE),
-            Just(Cond::L),
-            Just(Cond::LE)
-        ]
-    }
-
-    pub fn arb_instruction() -> impl Strategy<Value = Instruction> {
-        prop_oneof![
-            Just(Instruction::Ret),
-            (1..1000_usize).prop_map(Instruction::Alloca),
-            (arb_operand(), arb_operand()).prop_map(|(src, dst)| Instruction::Mov { src, dst }),
-            (arb_unary_op(), arb_operand())
-                .prop_map(|(op, operand)| Instruction::Unary(op, operand)),
-            (arb_binary_op(), arb_operand(), arb_operand())
-                .prop_map(|(op, a, b)| Instruction::Binary(op, a, b)),
-            (arb_operand()).prop_map(Instruction::Idiv),
-            Just(Instruction::Cdq),
-            (arb_operand(), arb_operand()).prop_map(|(a, b)| Instruction::Cmp(a, b)),
-            "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Jmp),
-            (arb_cond(), "[a-zA-Z_][a-zA-Z0-9_]*")
-                .prop_map(|(cond, label)| { Instruction::JmpIf(cond, label) }),
-            (arb_cond(), arb_operand()).prop_map(|(cond, operand)| Instruction::Set(cond, operand)),
-            "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Label),
-        ]
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
     use proptest::prelude::*;
-
-    use self::strategy::*;
 
     mod function {
         use super::*;
@@ -593,7 +540,7 @@ mod tests {
         proptest! {
             /// On macOS, function names must be prefixed with an underscore
             #[test]
-            fn test_macos_name_prefix(id in ast::strategy::arb_identifier()) {
+            fn test_macos_name_prefix(id in any::<ast::Identifier>()) {
                 let func = Function::new(id.clone(), Vec::new());
 
                 if cfg!(target_os = "macos") {
@@ -604,7 +551,7 @@ mod tests {
             }
 
             #[test]
-            fn test_function_fmt(id in ast::strategy::arb_identifier(), block in prop::collection::vec(arb_instruction(), 0..10)) {
+            fn test_function_fmt(id in any::<ast::Identifier>(), block in prop::collection::vec(any::<Instruction>(), 0..10)) {
                 let func = Function::new(id.clone(), block.clone());
                 let fmt = format!("{func}");
 
@@ -694,7 +641,7 @@ mod tests {
             }
 
             #[test]
-            fn test_other_instructions(inst in arb_instruction()) {
+            fn test_other_instructions(inst in any::<Instruction>()) {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
                 assert!(insts.iter().all(|inst| check_legalized(inst.clone())));

@@ -1,8 +1,11 @@
 use std::{fmt, ops::Deref, slice::SliceIndex};
 
 use contracts::{debug_ensures, ensures};
+#[cfg(test)]
+use test_strategy::Arbitrary;
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Source(String);
 
 impl Source {
@@ -77,6 +80,7 @@ impl From<String> for Source {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Location {
     line: usize,
     column: usize,
@@ -102,6 +106,7 @@ impl Location {
 /// A reference to a contiguous range of characters in a source string.
 /// Used to track the source spans.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Span {
     loc: Location,
     span: String,
