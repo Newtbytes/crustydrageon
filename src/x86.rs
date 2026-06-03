@@ -581,13 +581,13 @@ mod tests {
             }
 
             #[test]
-            fn test_instruction_not_empty(inst in arb_instruction()) {
+            fn test_instruction_not_empty(inst: Instruction) {
                 let fmt = format!("{inst}");
                 assert!(!fmt.is_empty());
             }
 
             #[test]
-            fn test_instruction_contains_operands(mut inst in arb_instruction()) {
+            fn test_instruction_contains_operands(mut inst: Instruction) {
                 let fmt = format!("{inst}");
 
                 for operand in inst.get_operands_mut() {

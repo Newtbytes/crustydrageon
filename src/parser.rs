@@ -260,10 +260,7 @@ pub fn parse<'src>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        ast::strategy,
-        src::{Source, Span},
-    };
+    use crate::src::{Source, Span};
 
     use super::*;
 
@@ -295,7 +292,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn test_parse_unary_op(token_kind in strategy::arb_token_kind()) {
+        fn test_parse_unary_op(token_kind: TokenKind) {
             let toks = &[tok(token_kind, "operator")];
             let mut parser = parser(toks);
             let actual_op = parser.parse_unary_op();
@@ -306,7 +303,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn test_parse_binary_op(token_kind in strategy::arb_token_kind()) {
+        fn test_parse_binary_op(token_kind: TokenKind) {
             let toks = &[tok(token_kind, "operator")];
             let mut parser = parser(toks);
             let actual_op = parser.parse_binary_op();
