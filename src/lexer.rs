@@ -247,9 +247,21 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 }
 
 #[cfg(test)]
+mod strategy {
+    use proptest::prelude::*;
+
+    pub fn identifier() -> impl Strategy<Value = String> {
+        "[a-zA-Z_][a-zA-Z0-9_]*".prop_filter("Should not generate keywords", |s| {
+            s != "void" && s != "int" && s != "return"
+        })
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    use proptest::prelude::*;
     use rstest::rstest;
 
     #[test]
@@ -261,11 +273,19 @@ mod tests {
     }
 
     #[rstest]
-    // plus, minus, increment, decrement, and their combinations
+    // single tokens
     #[case("-", [TokenKind::Minus])]
     #[case("+", [TokenKind::Plus])]
     #[case("--", [TokenKind::Decrement])]
     #[case("++", [TokenKind::Increment])]
+    #[case("*", [TokenKind::Star])]
+    #[case("/", [TokenKind::Divide])]
+    #[case("%", [TokenKind::Modulo])]
+    #[case("void", [TokenKind::Void])]
+    #[case("int", [TokenKind::Int])]
+    #[case("return", [TokenKind::Return])]
+    #[case("a", [TokenKind::Ident])]
+    // plus, minus, increment, decrement, and their combinations
     #[case("-a", [TokenKind::Minus, TokenKind::Ident])]
     #[case("- a", [TokenKind::Minus, TokenKind::Ident])]
     #[case("+a", [TokenKind::Plus, TokenKind::Ident])]
@@ -273,7 +293,6 @@ mod tests {
     #[case("++b", [TokenKind::Increment, TokenKind::Ident])]
     #[case("a--", [TokenKind::Ident, TokenKind::Decrement])]
     #[case("b++", [TokenKind::Ident, TokenKind::Increment])]
-    // more complex combinations
     #[case("+++++", [
         TokenKind::Increment,
         TokenKind::Increment,
@@ -322,10 +341,7 @@ mod tests {
         TokenKind::Decrement,
         TokenKind::Minus,
     ])]
-    // multiply, divide, and modulo
-    #[case("*", [TokenKind::Star])]
-    #[case("/", [TokenKind::Divide])]
-    #[case("%", [TokenKind::Modulo])]
+    // multiply, divide, and modulo and their combinations
     #[case("*a", [TokenKind::Star, TokenKind::Ident])]
     #[case("/b", [TokenKind::Divide, TokenKind::Ident])]
     #[case("%c", [TokenKind::Modulo, TokenKind::Ident])]
@@ -343,6 +359,12 @@ mod tests {
     #[case(">", [TokenKind::GT])]
     #[case("<=", [TokenKind::LTE])]
     #[case(">=", [TokenKind::GTE])]
+    // identifiers and keywords
+    #[case("voidx", [TokenKind::Ident])]
+    #[case("int_", [TokenKind::Ident])]
+    #[case("a0aaaa", [TokenKind::Ident])]
+    // error cases
+    #[case("0aaaaa", [TokenKind::Error("Invalid constant")])]
     fn test_tokenize_operators<const S: usize>(
         #[case] src: &str,
         #[case] expected: [TokenKind; S],
@@ -355,6 +377,18 @@ mod tests {
         // check that the token kinds match the expected kinds
         for (tok, &kind) in tokens.iter().zip(expected.iter()) {
             assert_eq!(tok.kind(), kind);
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_tokenize_identifiers(s in strategy::identifier()) {
+            let src = Source::new(s.clone());
+            let tokens = tokenize(&src).collect::<Vec<Token>>();
+
+            assert_eq!(tokens.len(), 1);
+            assert_eq!(tokens[0].kind(), TokenKind::Ident);
+            assert_eq!(tokens[0].span().get(&src).unwrap(), s);
         }
     }
 }

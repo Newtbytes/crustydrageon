@@ -264,7 +264,13 @@ mod tests {
 
     use super::*;
 
-    use rstest::rstest;
+    use BinaryOp::*;
+    use Expr::*;
+    use TokenKind as tk;
+    use UnaryOp::*;
+
+    use proptest::prelude::*;
+    use rstest::{fixture, rstest};
     use rstest_reuse::{self, *};
 
     fn src(content: &'static str) -> Source {
@@ -277,25 +283,48 @@ mod tests {
         Token::new(kind, span)
     }
 
-    fn parser(tokens: &[Token]) -> Parser<impl Iterator<Item = Token>> {
+    #[fixture]
+    fn parser(#[default(&[])] tokens: &[Token]) -> Parser<impl Iterator<Item = Token>> {
         Parser {
             tokens: tokens.iter().cloned().peekable(),
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_parse_unary_op(token_kind: TokenKind) {
+            let toks = &[tok(token_kind, "operator")];
+            let mut parser = parser(toks);
+            let actual_op = parser.parse_unary_op();
+
+            prop_assert_eq!(actual_op.is_ok(), token_kind.is_unary_op());
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn test_parse_binary_op(token_kind: TokenKind) {
+            let toks = &[tok(token_kind, "operator")];
+            let mut parser = parser(toks);
+            let actual_op = parser.parse_binary_op();
+
+            prop_assert_eq!(actual_op.is_ok(), token_kind.is_binary_op());
         }
     }
 
     #[template]
     #[rstest]
     #[case(
-        &[tok(TokenKind::Complement, "~"), tok(TokenKind::Constant, "5")],
-        Expr::Unary(UnaryOp::Complement, Box::new(Expr::Const(5)))
+        &[tok(tk::Complement, "~"), tok(tk::Constant, "5")],
+        Unary(Complement, Const(5).into())
     )]
     #[case(
-        &[tok(TokenKind::Complement, "~"), tok(TokenKind::Complement, "~"), tok(TokenKind::Constant, "42")],
-        Expr::Unary(UnaryOp::Complement, Box::new(Expr::Unary(UnaryOp::Complement, Box::new(Expr::Const(42)))))
+        &[tok(tk::Complement, "~"), tok(tk::Complement, "~"), tok(tk::Constant, "42")],
+        Unary(Complement, Unary(Complement, Const(42).into()).into())
     )]
     #[case(
-        &[tok(TokenKind::Minus, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
-        Expr::Unary(UnaryOp::Negate, Box::new(Expr::Const(69)))
+        &[tok(tk::Minus, "-"), tok(tk::LParen, "("), tok(tk::Constant, "69"), tok(tk::RParen, ")")],
+        Unary(Negate, Const(69).into())
     )]
     #[case(
         &[tok(TokenKind::LogicNot, "!"), tok(TokenKind::Constant, "0")],
@@ -326,62 +355,67 @@ mod tests {
 
     #[apply(factors)]
     #[case(
-        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2")],
-        Expr::Binary(BinaryOp::Add, Box::new(Expr::Const(4)), Box::new(Expr::Const(2)))
+        &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2")],
+        Binary(Add, Const(4).into(), Const(2).into())
     )]
     #[case(
-        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Minus, "+"), tok(TokenKind::Constant, "6")],
-        Expr::Binary(
-            BinaryOp::Subtract,
-            Expr::Binary(BinaryOp::Add, Expr::Const(4).into(), Expr::Const(2).into()).into(),
-            Expr::Const(6).into(),
+        &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Minus, "+"), tok(tk::Constant, "6")],
+        Binary(
+            Subtract,
+            Binary(Add, Const(4).into(), Const(2).into()).into(),
+            Const(6).into(),
         ),
     )]
     #[case(
-        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "2"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3")],
-        Expr::Binary(
-            BinaryOp::Add,
-            Expr::Const(4).into(),
-            Expr::Binary(BinaryOp::Multiply, Expr::Const(2).into(), Expr::Const(3).into()).into(),
+        &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Star, "*"), tok(tk::Constant, "3")],
+        Binary(
+            Add,
+            Const(4).into(),
+            Binary(Multiply, Const(2).into(), Const(3).into()).into(),
         )
     )]
     #[case(
-        &[tok(TokenKind::Constant, "4"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "2"), tok(TokenKind::Plus, "+"), tok(TokenKind::Constant, "3")],
-        Expr::Binary(
-            BinaryOp::Add,
-            Expr::Binary(BinaryOp::Multiply, Expr::Const(4).into(), Expr::Const(2).into()).into(),
-            Expr::Const(3).into(),
+        &[tok(tk::Constant, "4"), tok(tk::Star, "*"), tok(tk::Constant, "2"), tok(tk::Plus, "+"), tok(tk::Constant, "3")],
+        Binary(
+            Add,
+            Binary(Multiply, Const(4).into(), Const(2).into()).into(),
+            Const(3).into(),
         )
     )]
     #[case(
-        &[tok(TokenKind::Constant, "7"), tok(TokenKind::Star, "*"), tok(TokenKind::Constant, "3"), tok(TokenKind::Minus, "-"), tok(TokenKind::Constant, "1")],
-        Expr::Binary(
-            BinaryOp::Subtract,
-            Expr::Binary(BinaryOp::Multiply, Expr::Const(7).into(), Expr::Const(3).into()).into(),
-            Expr::Const(1).into(),
+        &[tok(tk::Constant, "7"), tok(tk::Star, "*"), tok(tk::Constant, "3"), tok(tk::Minus, "-"), tok(tk::Constant, "1")],
+        Binary(
+            Subtract,
+            Binary(Multiply, Const(7).into(), Const(3).into()).into(),
+            Const(1).into(),
         )
     )]
-    fn test_parse_expr_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
-        let mut parser = parser(tokens);
+    fn test_parse_expr_matches_expected(
+        #[case] _tokens: &[Token],
+        #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+        #[case] expected_expr: Expr,
+    ) {
         let actual_expr = parser.parse_expr(Precedence::default()).unwrap();
 
         assert_eq!(expected_expr, actual_expr);
     }
 
     #[rstest]
-    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::LParen, ")")])]
-    #[case(&[tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "(")])]
-    #[case(&[tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::LParen, ")")])]
-    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "(")])]
-    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), tok(TokenKind::LParen, ")")])]
-    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), 
-        tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::LParen, ")"), 
-    tok(TokenKind::LParen, ")")])]
-    #[case(&[tok(TokenKind::Complement, "~"), tok(TokenKind::RParen, "("), 
-        tok(TokenKind::Complement, "-"), tok(TokenKind::RParen, "("), tok(TokenKind::RParen, "("), 
-    tok(TokenKind::RParen, "(")])]
-    fn test_parse_expr_err(#[case] tokens: &[Token]) {
-        let mut parser = parser(tokens);
+    #[case(&[tok(tk::Complement, "~"), tok(tk::LParen, ")")])]
+    #[case(&[tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::RParen, "(")])]
+    #[case(&[tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::LParen, ")")])]
+    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), tok(tk::RParen, "(")])]
+    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), tok(tk::LParen, ")")])]
+    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), 
+        tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::LParen, ")"), 
+    tok(tk::LParen, ")")])]
+    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), 
+        tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::RParen, "("), 
+    tok(tk::RParen, "(")])]
+    fn test_parse_expr_err(
+        #[case] _tokens: &[Token],
+        #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+    ) {
         parser.parse_expr(Precedence::default()).unwrap_err();
     }
 }
