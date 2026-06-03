@@ -573,7 +573,7 @@ mod tests {
 
         proptest! {
             #[test]
-            fn test_lower_stmt(expr in ast::strategy::arb_expr()) {
+            fn test_lower_stmt(expr: ast::Expr) {
                 cov_mark::check!(ir_stmt_lowered);
                 cov_mark::check!(ir_expr_lowered);
                 cov_mark::check_count!(ir_return_stmt_lowered, 1);

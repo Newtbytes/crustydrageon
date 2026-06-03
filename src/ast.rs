@@ -2,11 +2,14 @@ use std::ops;
 
 use cov_mark;
 #[cfg(test)]
+use proptest::prelude::*;
+#[cfg(test)]
 use test_strategy::Arbitrary;
 
 use crate::src::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum TokenKind {
     // Literals
     Constant,
@@ -45,6 +48,8 @@ pub enum TokenKind {
     Return,
 
     EOF,
+    // TODO: Arbitrary Error TokenKinds
+    #[cfg_attr(test, weight(0))]
     Error(&'static str),
 }
 
@@ -219,75 +224,43 @@ pub enum Expr {
 #[derive(Debug)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
-    Return(#[cfg_attr(test, strategy(strategy::arb_expr()))] Expr),
+    Return(Expr),
 }
 
 #[cfg(test)]
 pub mod strategy {
     use super::*;
 
-    use proptest::prelude::*;
-
-    // TODO: Simply adding Derive(Arbitrary) to TokenKind does not work because of the &'static str in the Error variant
-    // Manually implementing this is not ideal
-    // TODO: this should be an implementation of Arbitrary
-    pub fn arb_token_kind() -> impl Strategy<Value = TokenKind> {
-        use TokenKind::*;
-
-        prop_oneof![
-            Just(Constant),
-            Just(Ident),
-            Just(Complement),
-            Just(Minus),
-            Just(Plus),
-            Just(Divide),
-            Just(Star),
-            Just(Modulo),
-            Just(LogicNot),
-            Just(And),
-            Just(Or),
-            Just(Equal),
-            Just(NotEqual),
-            Just(LT),
-            Just(GT),
-            Just(LTE),
-            Just(GTE),
-            Just(Decrement),
-            Just(Increment),
-            Just(LParen),
-            Just(RParen),
-            Just(LBrace),
-            Just(RBrace),
-            Just(Semicolon),
-            Just(Int),
-            Just(Void),
-            Just(Return),
-            Just(EOF),
-            // TODO: implement Just(Error(&'static str)),
-        ]
-    }
-
-    // TODO: This should be an implementation of Arbitrary for Expr
     // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
-    pub fn arb_expr() -> impl Strategy<Value = Expr> {
-        let leaf = any::<i32>().prop_map(Expr::Const);
+    impl Arbitrary for Expr {
+        type Parameters = ();
+        type Strategy = proptest::prelude::BoxedStrategy<Self>;
 
-        leaf.prop_recursive(
-            3,  // max depth
-            16, // max total size
-            2,  // max branching factor
-            |inner| {
-                (any::<UnaryOp>(), inner).prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr)))
-            },
-        )
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            let leaf = any::<i32>().prop_map(Expr::Const);
+
+            leaf.prop_recursive(
+                3,  // max depth
+                16, // max total size
+                2,  // max branching factor
+                |inner| {
+                    prop_oneof![
+                        (any::<UnaryOp>(), inner.clone())
+                            .prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr))),
+                        (any::<BinaryOp>(), inner.clone(), inner.clone()).prop_map(
+                            |(op, lhs, rhs)| { Expr::Binary(op, Box::new(lhs), Box::new(rhs)) }
+                        ),
+                    ]
+                },
+            )
+            .boxed()
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use proptest::prelude::*;
 
     mod precedence {
         use super::*;
@@ -324,28 +297,28 @@ mod tests {
 
         proptest! {
             #[test]
-            fn test_binop_has_precedence(kind in strategy::arb_token_kind()) {
+            fn test_binop_has_precedence(kind: TokenKind) {
                 prop_assert_eq!(kind.precedence() > Some(Precedence::default()), kind.is_binary_op());
             }
         }
 
         proptest! {
             #[test]
-            fn test_symmetric(a in strategy::arb_token_kind(), b in strategy::arb_token_kind()) {
+            fn test_symmetric(a: TokenKind, b: TokenKind) {
                 prop_assert_eq!(a == b, b == a);
             }
         }
 
         proptest! {
             #[test]
-            fn test_reflexive(kind in strategy::arb_token_kind()) {
+            fn test_reflexive(kind: TokenKind) {
                 prop_assert_eq!(kind.precedence(), kind.precedence());
             }
         }
 
         proptest! {
             #[test]
-            fn test_substitution(a in strategy::arb_token_kind(), b in strategy::arb_token_kind(), c in strategy::arb_token_kind()) {
+            fn test_substitution(a: TokenKind, b: TokenKind, c: TokenKind) {
                 if (a == c) && (a == b) {
                     prop_assert_eq!( b , c);
                 }
