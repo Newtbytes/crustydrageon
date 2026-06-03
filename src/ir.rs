@@ -250,6 +250,7 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::GreaterThan => Ok(Self::Gt),
             ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
             ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
+            ast::BinaryOp::Assign => todo!(),
         }
     }
 }
@@ -396,6 +397,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
+        ast::Expr::Var(identifier) => todo!(),
     };
 
     cov_mark::hit!(ir_expr_lowered);
@@ -410,16 +412,20 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
             ops.push(Operation::Return(value));
             cov_mark::hit!(ir_return_stmt_lowered);
         }
+        ast::Stmt::Expr(expr) => todo!(),
+        ast::Stmt::Null => {}
     }
 
     cov_mark::hit!(ir_stmt_lowered);
 }
 
 #[must_use]
-pub fn lower_func(func: ast::Function) -> Function {
+pub fn lower_func(mut func: ast::Function) -> Function {
     let mut ops = Vec::new();
 
-    lower_stmt(&mut ops, func.body);
+    if let ast::BlockItem::Stmt(stmt) = func.body.remove(0) {
+        lower_stmt(&mut ops, stmt);
+    }
 
     Function {
         id: func.name,

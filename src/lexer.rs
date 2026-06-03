@@ -181,11 +181,7 @@ impl Iterator for Lexer<'_> {
                     todo_token!("tokenizing bitwise operators: pipe token"),
                     tk::Or,
                 ),
-                '=' => self.based_on_next(
-                    '=',
-                    todo_token!("tokenizing set variable operator: equal sign token"),
-                    tk::Equal,
-                ),
+                '=' => self.based_on_next('=', tk::Assign, tk::Equal),
                 '<' => self.based_on_next('=', tk::LT, tk::LTE),
                 '>' => self.based_on_next('=', tk::GT, tk::GTE),
 
@@ -343,6 +339,8 @@ mod tests {
     #[case(">", [TokenKind::GT])]
     #[case("<=", [TokenKind::LTE])]
     #[case(">=", [TokenKind::GTE])]
+    // assignment operator
+    #[case("=", [TokenKind::Assign])]
     fn test_tokenize_operators<const S: usize>(
         #[case] src: &str,
         #[case] expected: [TokenKind; S],

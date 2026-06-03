@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0bdb2e8f9381413e9fdccd0a18167d7e4091c6bdcf41ea3c04d3491bff12c8f7 # shrinks to expr = Unary(Negate, Binary(Add, Unary(Negate, Var(Identifier { value: "", span: Span { loc: Location { line: 0, column: 0, index: 1914374 }, span: "" } })), Unary(Complement, Const(-970069236))))
+cc 2256fb69fd616e9e78515f30bd3d08892468a999a9b5b208482843ec2576f761 # shrinks to expr = Binary(Add, Binary(Assign, Const(0), Const(0)), Binary(Add, Var(Identifier { value: "", span: Span { loc: Location { line: 0, column: 0, index: 24822620628864576 }, span: "🕴''?𑻦�ዖ𐮚𛇖v?\u{11373}!ᦠ`ਫ਼X🉂{T�aຍ&" } }), Var(Identifier { value: "s\u{81e}𘴄m¥&ຄjE..𑠍0🮡$𑎃_𐏍𐦑𐳖𑃸𐇞Ѩ", span: Span { loc: Location { line: 2428240992645759808, column: 18084375106619992865, index: 9358778642334237908 }, span: "ஜ\u{ac2}ѨA𐗠&¥{" } })))

@@ -25,6 +25,7 @@ pub enum TokenKind {
     LogicNot,   // !
     And,        // &&
     Or,         // ||
+    Assign,     // =
     Equal,      // ==
     NotEqual,   // !=
     LT,         // <
@@ -90,6 +91,7 @@ impl TokenKind {
                 | tk::LTE
                 | tk::GT
                 | tk::GTE
+                | tk::Assign
         )
     }
 
@@ -107,6 +109,7 @@ impl TokenKind {
             tk::Equal | tk::NotEqual => 30,
             tk::And => 10,
             tk::Or => 5,
+            tk::Assign => 1,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
             _ => return None,
         }))
@@ -168,12 +171,12 @@ pub struct Identifier {
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
-    pub body: Stmt,
+    pub body: Vec<BlockItem>,
 }
 
 impl Function {
     #[must_use]
-    pub fn new(name: Identifier, body: Stmt) -> Self {
+    pub fn new(name: Identifier, body: Vec<BlockItem>) -> Self {
         Function { name, body }
     }
 }
@@ -210,21 +213,40 @@ pub enum BinaryOp {
     LessOrEqual,
     GreaterThan,
     GreaterOrEqual,
+
+    Assign,
 }
 
 /// Expression
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
     Const(i32),
+    Var(Identifier),
     Unary(UnaryOp, Box<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
 }
 
 /// Statement
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
+    Expr(Expr),
     Return(Expr),
+    Null,
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct Decl {
+    pub name: Identifier,
+    pub init: Option<Expr>,
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub enum BlockItem {
+    Stmt(Stmt),
+    Decl(Decl),
 }
 
 #[cfg(test)]
@@ -237,7 +259,10 @@ pub mod strategy {
         type Strategy = proptest::prelude::BoxedStrategy<Self>;
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            let leaf = any::<i32>().prop_map(Expr::Const);
+            let leaf = prop_oneof![
+                any::<i32>().prop_map(Expr::Const),
+                any::<Identifier>().prop_map(Expr::Var),
+            ];
 
             leaf.prop_recursive(
                 3,  // max depth
@@ -247,9 +272,9 @@ pub mod strategy {
                     prop_oneof![
                         (any::<UnaryOp>(), inner.clone())
                             .prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr))),
-                        (any::<BinaryOp>(), inner.clone(), inner.clone()).prop_map(
-                            |(op, lhs, rhs)| { Expr::Binary(op, Box::new(lhs), Box::new(rhs)) }
-                        ),
+                        (any::<BinaryOp>(), inner.clone(), inner).prop_map(|(op, lhs, rhs)| {
+                            Expr::Binary(op, Box::new(lhs), Box::new(rhs))
+                        }),
                     ]
                 },
             )
