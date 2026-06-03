@@ -3,10 +3,7 @@ use std::fmt::Display;
 #[cfg(test)]
 use test_strategy::Arbitrary;
 
-use crate::{
-    ast::{self, Identifier},
-    x86::Operand,
-};
+use crate::ast;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -50,7 +47,7 @@ impl Display for Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Label {
-    Named(Identifier),
+    Named(ast::Identifier),
     Anon(usize),
 }
 
