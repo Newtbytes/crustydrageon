@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::ast;
+use crate::ast::{self, Identifier};
 
 #[derive(Debug)]
 pub struct Program {
@@ -26,12 +26,39 @@ impl Display for Function {
         writeln!(f, "fn {}() {{", self.id.value)?;
 
         for op in &self.body {
-            writeln!(f, "   {op}")?;
+            if !matches!(op, Operation::Label(_)) {
+                writeln!(f, "  {op}")?;
+            } else {
+                writeln!(f, "{op}")?;
+            }
         }
 
         writeln!(f, "}}")?;
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Label {
+    Named(Identifier),
+    Anon(usize),
+}
+
+impl Label {
+    fn new() -> Self {
+        Self::Anon(VarID::new())
+    }
+}
+
+impl Display for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_label);
+
+        match self {
+            Label::Named(id) => write!(f, "{}", id.value),
+            Label::Anon(id) => write!(f, "{id}"),
+        }
     }
 }
 
@@ -49,6 +76,21 @@ pub enum Operation {
         b: Value,
         dst: Value,
     },
+    Copy {
+        src: Value,
+        dst: Value,
+    },
+    Branch(Label),
+    BranchIf {
+        cond: Value,
+        then_label: Label,
+        else_label: Label,
+    },
+    BranchWhen {
+        cond: Value,
+        when_label: Label,
+    },
+    Label(Label),
 }
 
 impl Display for Operation {
@@ -62,6 +104,16 @@ impl Display for Operation {
                 Operation::Return(value) => format!("return {value}"),
                 Operation::Unary { op, src, dst } => format!("{dst} = {op} {src}"),
                 Operation::Binary { op, a, b, dst } => format!("{dst} = {op} {a}, {b}"),
+                Operation::Copy { src, dst } => format!("copy {dst} = {src}"),
+                Operation::Branch(label) => format!("branch {label}"),
+                Operation::BranchIf {
+                    cond,
+                    then_label,
+                    else_label,
+                } => format!("branchif {cond} then {then_label} else {else_label}"),
+                Operation::BranchWhen { cond, when_label } =>
+                    format!("branch {when_label} when {cond}"),
+                Operation::Label(label) => format!("{label}:"),
             }
         )
     }
@@ -71,6 +123,7 @@ impl Display for Operation {
 pub enum UnaryOp {
     Complement,
     Negate,
+    Not,
 }
 
 impl From<ast::UnaryOp> for UnaryOp {
@@ -78,6 +131,7 @@ impl From<ast::UnaryOp> for UnaryOp {
         match op {
             ast::UnaryOp::Complement => Self::Complement,
             ast::UnaryOp::Negate => Self::Negate,
+            ast::UnaryOp::Not => Self::Not,
         }
     }
 }
@@ -92,6 +146,7 @@ impl Display for UnaryOp {
             match self {
                 UnaryOp::Complement => "not",
                 UnaryOp::Negate => "neg",
+                UnaryOp::Not => "not",
             }
         )
     }
@@ -104,6 +159,12 @@ pub enum BinaryOp {
     Mul,
     Div,
     Rem,
+    Eq,
+    Neq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
 }
 
 impl Display for BinaryOp {
@@ -119,19 +180,34 @@ impl Display for BinaryOp {
                 BinaryOp::Mul => "mul",
                 BinaryOp::Div => "div",
                 BinaryOp::Rem => "rem",
+                BinaryOp::Eq => "eq",
+                BinaryOp::Neq => "neq",
+                BinaryOp::Lt => "lt",
+                BinaryOp::Lte => "lte",
+                BinaryOp::Gt => "gt",
+                BinaryOp::Gte => "gte",
             }
         )
     }
 }
 
-impl From<ast::BinaryOp> for BinaryOp {
-    fn from(op: ast::BinaryOp) -> Self {
-        match op {
-            ast::BinaryOp::Add => Self::Add,
-            ast::BinaryOp::Subtract => Self::Sub,
-            ast::BinaryOp::Multiply => Self::Mul,
-            ast::BinaryOp::Divide => Self::Div,
-            ast::BinaryOp::Modulo => Self::Rem,
+impl TryFrom<ast::BinaryOp> for BinaryOp {
+    type Error = ();
+
+    fn try_from(value: ast::BinaryOp) -> Result<Self, Self::Error> {
+        match value {
+            ast::BinaryOp::Add => Ok(Self::Add),
+            ast::BinaryOp::Subtract => Ok(Self::Sub),
+            ast::BinaryOp::Multiply => Ok(Self::Mul),
+            ast::BinaryOp::Divide => Ok(Self::Div),
+            ast::BinaryOp::Modulo => Ok(Self::Rem),
+            ast::BinaryOp::Equal => Ok(Self::Eq),
+            ast::BinaryOp::NotEqual => Ok(Self::Neq),
+            ast::BinaryOp::LessThan => Ok(Self::Lt),
+            ast::BinaryOp::LessOrEqual => Ok(Self::Lte),
+            ast::BinaryOp::GreaterThan => Ok(Self::Gt),
+            ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
+            ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
         }
     }
 }
@@ -187,6 +263,28 @@ impl Display for Value {
     }
 }
 
+fn binary(ops: &mut Vec<Operation>, op: BinaryOp, a: Value, b: Value) -> Value {
+    let dst = Value::new_var();
+    ops.push(Operation::Binary { op, a, b, dst });
+    dst
+}
+
+fn jeq(ops: &mut Vec<Operation>, a: Value, b: Value, label: Label) {
+    let eq = binary(ops, BinaryOp::Eq, a, b);
+    ops.push(Operation::BranchWhen {
+        cond: eq,
+        when_label: label,
+    });
+}
+
+fn jneq(ops: &mut Vec<Operation>, a: Value, b: Value, label: Label) {
+    let neq = binary(ops, BinaryOp::Neq, a, b);
+    ops.push(Operation::BranchWhen {
+        cond: neq,
+        when_label: label,
+    });
+}
+
 pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
     let dst = match expr {
         ast::Expr::Const(val) => Value::Constant(val),
@@ -204,13 +302,48 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
+        ast::Expr::Binary(op, a, b) if op == ast::BinaryOp::And || op == ast::BinaryOp::Or => {
+            let skip_label = Label::new();
+            let end_label = Label::new();
+            let result = Value::new_var();
+
+            let a = lower_expr(ops, *a);
+            if op == ast::BinaryOp::And {
+                jeq(ops, a, Value::Constant(0), skip_label.clone());
+            } else {
+                jneq(ops, a, Value::Constant(0), skip_label.clone());
+            }
+
+            let b = lower_expr(ops, *b);
+            if op == ast::BinaryOp::And {
+                jeq(ops, b, Value::Constant(0), skip_label.clone());
+            } else {
+                jneq(ops, b, Value::Constant(0), skip_label.clone());
+            }
+
+            ops.extend([
+                Operation::Copy {
+                    src: Value::Constant(if op == ast::BinaryOp::And { 1 } else { 0 }),
+                    dst: result,
+                },
+                Operation::Branch(end_label.clone()),
+                Operation::Label(skip_label),
+                Operation::Copy {
+                    src: Value::Constant(if op == ast::BinaryOp::And { 0 } else { 1 }),
+                    dst: result,
+                },
+                Operation::Label(end_label),
+            ]);
+
+            result
+        }
         ast::Expr::Binary(binary_op, a, b) => {
             let a = lower_expr(ops, *a);
             let b = lower_expr(ops, *b);
             let dst = Value::new_var();
 
             ops.push(Operation::Binary {
-                op: binary_op.into(),
+                op: BinaryOp::try_from(binary_op).unwrap(),
                 a,
                 b,
                 dst,
@@ -422,6 +555,7 @@ mod tests {
     /// Test pretty printing & Display implementations
     mod pretty {
         use super::*;
+        use crate::src;
 
         mod value {
             use super::*;
@@ -462,6 +596,33 @@ mod tests {
             }
         }
 
+        mod label {
+            use crate::ast::strategy::arb_identifier;
+
+            use super::*;
+
+            proptest! {
+                #[test]
+                fn differing_value_implies_differing_pp(id1 in any::<usize>(), id2 in any::<usize>()) {
+                    let l1 = Label::Anon(id1);
+                    let l2 = Label::Anon(id2);
+
+                    assert_eq!(l1 == l2, l1.to_string() == l2.to_string());
+                }
+
+                #[test]
+                fn pp_contains_anon_id(id in any::<usize>()) {
+                    assert!(Label::Anon(id).to_string().contains(&id.to_string()));
+                }
+
+                #[test]
+                fn pp_contains_named_id(id in arb_identifier()) {
+                    let l = Label::Named(id.clone()).to_string();
+                    assert!(l.contains(&id.value));
+                }
+            }
+        }
+
         mod op {
             use super::*;
 
@@ -476,6 +637,24 @@ mod tests {
             #[case(
                 Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2), dst: Value::Var(5) }
             )]
+            #[case(Operation::Copy { src: Value::Constant(1), dst: Value::Var(6) })]
+            #[case(Operation::Branch(Label::Anon(5)))]
+            #[case(Operation::BranchIf {
+                cond: Value::Var(2),
+                then_label: Label::Anon(5),
+                else_label: Label::Named(
+                    ast::Identifier {
+                        value: "test".to_owned(), span: src::Span::default()
+                    }
+                )
+            })]
+            #[case(Operation::Label(Label::Anon(2)))]
+            #[case(Operation::Label(Label::Named(
+                ast::Identifier {
+                    value: "test".to_owned(), span: src::Span::default()
+                }
+            )))]
+            #[case(Operation::BranchWhen { cond: Value::Constant(5), when_label: Label::Anon(2) })]
             fn test_op_contains_info(#[case] op: Operation) {
                 cov_mark::check!(ir_pp_op);
 
@@ -487,7 +666,7 @@ mod tests {
                     Operation::Return(value) => assert!(op_pp.contains(&value.to_string())),
                     Operation::Unary { op, src, dst } => {
                         cov_mark::check!(ir_pp_unary_op_kind);
-                        cov_mark::hit!(ir_pp_value);
+                        cov_mark::check!(ir_pp_value);
 
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&src.to_string()));
@@ -496,8 +675,8 @@ mod tests {
                         assert!(op_pp.contains('='));
                     }
                     Operation::Binary { op, a, b, dst } => {
-                        cov_mark::hit!(ir_pp_binary_op_kind);
-                        cov_mark::hit!(ir_pp_value);
+                        cov_mark::check!(ir_pp_binary_op_kind);
+                        cov_mark::check!(ir_pp_value);
 
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&a.to_string()));
@@ -505,6 +684,49 @@ mod tests {
                         assert!(op_pp.contains(&dst.to_string()));
 
                         assert!(op_pp.contains('='));
+                    }
+                    Operation::Copy { src, dst } => {
+                        cov_mark::check!(ir_pp_value);
+
+                        assert!(op_pp.contains(&src.to_string()));
+                        assert!(op_pp.contains(&dst.to_string()));
+                    }
+                    Operation::Branch(label) => {
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains("branch"));
+
+                        assert!(op_pp.contains(&label.to_string()));
+                    }
+                    Operation::BranchIf {
+                        cond,
+                        then_label,
+                        else_label,
+                    } => {
+                        cov_mark::check!(ir_pp_value);
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains("branch"));
+                        assert!(op_pp.contains("if"));
+
+                        assert!(op_pp.contains(&cond.to_string()));
+                        assert!(op_pp.contains(&then_label.to_string()));
+                        assert!(op_pp.contains(&else_label.to_string()));
+                    }
+                    Operation::BranchWhen { cond, when_label } => {
+                        cov_mark::check!(ir_pp_value);
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains("branch"));
+                        assert!(op_pp.contains("when"));
+
+                        assert!(op_pp.contains(&cond.to_string()));
+                        assert!(op_pp.contains(&when_label.to_string()));
+                    }
+                    Operation::Label(label) => {
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains(&label.to_string()));
                     }
                 }
             }

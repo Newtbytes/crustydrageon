@@ -11,15 +11,24 @@ pub enum TokenKind {
     Ident,
 
     // Operators
-    Complement,
-    Minus,
-    Plus,
-    Divide,
-    Star,
-    Modulo,
+    Complement, // ~
+    Minus,      // -
+    Plus,       // +
+    Divide,     // /
+    Star,       // *
+    Modulo,     // %
+    LogicNot,   // !
+    And,        // &&
+    Or,         // ||
+    Equal,      // ==
+    NotEqual,   // !=
+    LT,         // <
+    GT,         // >
+    LTE,        // <=
+    GTE,        // >=
 
-    Decrement,
-    Increment,
+    Decrement, // ++
+    Increment, // --
 
     // Structural
     LParen,
@@ -51,8 +60,8 @@ impl ops::Add<usize> for Precedence {
 impl TokenKind {
     #[must_use]
     pub fn is_unary_op(&self) -> bool {
-        use TokenKind::{Complement, Minus};
-        matches!(self, Minus | Complement)
+        use TokenKind::{Complement, LogicNot, Minus};
+        matches!(self, Minus | Complement | LogicNot)
     }
 
     #[must_use]
@@ -60,7 +69,19 @@ impl TokenKind {
         use TokenKind as tk;
         matches!(
             self,
-            tk::Plus | tk::Minus | tk::Divide | tk::Star | tk::Modulo
+            tk::Plus
+                | tk::Minus
+                | tk::Divide
+                | tk::Star
+                | tk::Modulo
+                | tk::And
+                | tk::Or
+                | tk::Equal
+                | tk::NotEqual
+                | tk::LT
+                | tk::LTE
+                | tk::GT
+                | tk::GTE
         )
     }
 
@@ -74,6 +95,10 @@ impl TokenKind {
         Some(Precedence(match self {
             tk::Star | tk::Divide | tk::Modulo => 50,
             tk::Plus | tk::Minus => 45,
+            tk::LT | tk::LTE | tk::GT | tk::GTE => 35,
+            tk::Equal | tk::NotEqual => 30,
+            tk::And => 10,
+            tk::Or => 5,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
             _ => return None,
         }))
@@ -144,17 +169,34 @@ impl Function {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum UnaryOp {
-    Complement,
+    // Arithmetic
     Negate,
+
+    // Bitwise
+    Complement,
+
+    // Logical
+    Not,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinaryOp {
+    // Arithmetic
     Add,
     Subtract,
     Multiply,
     Divide,
     Modulo,
+
+    // Logical
+    And,
+    Or,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessOrEqual,
+    GreaterThan,
+    GreaterOrEqual,
 }
 
 /// Expression
@@ -196,6 +238,15 @@ pub mod strategy {
             Just(Divide),
             Just(Star),
             Just(Modulo),
+            Just(LogicNot),
+            Just(And),
+            Just(Or),
+            Just(Equal),
+            Just(NotEqual),
+            Just(LT),
+            Just(GT),
+            Just(LTE),
+            Just(GTE),
             Just(Decrement),
             Just(Increment),
             Just(LParen),
@@ -261,18 +312,37 @@ mod tests {
         fn test_groups() {
             cov_mark::check!(binary_op_precedence);
 
-            // Check that precedence of *, /, % are equal
+            // Check that the precedence of *, /, % are equal
             assert_eq!(TokenKind::Star.precedence(), TokenKind::Divide.precedence());
             assert_eq!(
                 TokenKind::Divide.precedence(),
                 TokenKind::Modulo.precedence()
             );
 
-            // Check that precedence of the above precedence group is greater than the below group
+            // Check that the precedence of the above precedence group is greater than the below group
             assert!(TokenKind::Star.precedence() > TokenKind::Plus.precedence());
 
-            // Check that precedence of +, - are equal
+            // Check that the precedence of +, - are equal
             assert_eq!(TokenKind::Minus.precedence(), TokenKind::Plus.precedence());
+
+            // Check that the precedence of the above precedence group is greater than the below group
+            assert!(TokenKind::Plus.precedence() > TokenKind::LT.precedence());
+
+            // Check precedence of comparison operators
+            assert_eq!(TokenKind::LT.precedence(), TokenKind::LTE.precedence());
+            assert_eq!(TokenKind::LTE.precedence(), TokenKind::GT.precedence());
+            assert_eq!(TokenKind::GT.precedence(), TokenKind::GTE.precedence());
+
+            // Check that the precedence of && and || is less than the above
+            assert!(TokenKind::GTE.precedence() > TokenKind::And.precedence());
+            assert!(TokenKind::And.precedence() > TokenKind::Or.precedence());
+        }
+
+        proptest! {
+            #[test]
+            fn test_binop_has_precedence(kind in strategy::arb_token_kind()) {
+                prop_assert_eq!(kind.precedence() > Some(Precedence::default()), kind.is_binary_op());
+            }
         }
 
         proptest! {

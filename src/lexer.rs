@@ -107,7 +107,16 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn error(&mut self, msg: &'static str) -> TokenKind {
+    /// After finding one character, tokenize based on the next character.
+    /// If it does, return one token kind, otherwise return a second token kind.
+    fn based_on_next(&mut self, expected: char, single: TokenKind, double: TokenKind) -> TokenKind {
+        match self.eat_if(|&c| c == expected) {
+            Some(_) => double,
+            None => single,
+        }
+    }
+
+    fn error(&self, msg: &'static str) -> TokenKind {
         TokenKind::Error(msg)
     }
 }
@@ -125,6 +134,12 @@ impl Iterator for Lexer<'_> {
         // skip whitespace
         self.eat_while(|&c| c.is_whitespace());
         self.end_token();
+
+        macro_rules! todo_token {
+            ($msg:literal) => {
+                self.error(concat!("not yet implemented: ", $msg))
+            };
+        }
 
         let kind = match self.eat() {
             Some(c) => match c {
@@ -155,6 +170,24 @@ impl Iterator for Lexer<'_> {
                         }
                     }
                 }
+                '!' => self.based_on_next('=', tk::LogicNot, tk::NotEqual),
+                '&' => self.based_on_next(
+                    '&',
+                    todo_token!("tokenizing bitwise operators: ampersand token"),
+                    tk::And,
+                ),
+                '|' => self.based_on_next(
+                    '|',
+                    todo_token!("tokenizing bitwise operators: pipe token"),
+                    tk::Or,
+                ),
+                '=' => self.based_on_next(
+                    '=',
+                    todo_token!("tokenizing set variable operator: equal sign token"),
+                    tk::Equal,
+                ),
+                '<' => self.based_on_next('=', tk::LT, tk::LTE),
+                '>' => self.based_on_next('=', tk::GT, tk::GTE),
 
                 // identifiers and keywords
                 'a'..='z' | 'A'..='Z' | '_' => {
@@ -300,6 +333,16 @@ mod tests {
     #[case("****", [TokenKind::Star, TokenKind::Star, TokenKind::Star, TokenKind::Star])]
     #[case("////", [TokenKind::Divide, TokenKind::Divide, TokenKind::Divide, TokenKind::Divide])]
     #[case("%%%%", [TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo])]
+    // logical operators
+    #[case("!", [TokenKind::LogicNot])]
+    #[case("&&", [TokenKind::And])]
+    #[case("||", [TokenKind::Or])]
+    #[case("==", [TokenKind::Equal])]
+    #[case("!=", [TokenKind::NotEqual])]
+    #[case("<", [TokenKind::LT])]
+    #[case(">", [TokenKind::GT])]
+    #[case("<=", [TokenKind::LTE])]
+    #[case(">=", [TokenKind::GTE])]
     fn test_tokenize_operators<const S: usize>(
         #[case] src: &str,
         #[case] expected: [TokenKind; S],

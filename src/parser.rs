@@ -105,6 +105,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         match tok.kind() {
             TokenKind::Complement => Ok(UnaryOp::Complement),
             TokenKind::Minus => Ok(UnaryOp::Negate),
+            TokenKind::LogicNot => Ok(UnaryOp::Not),
             kind if kind.is_unary_op() => {
                 todo!("parsing unary operator of kind {:?}", kind)
             }
@@ -118,20 +119,30 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     fn parse_binary_op(&mut self) -> ParseResult<BinaryOp> {
         let tok = self.take()?;
 
-        match tok.kind() {
-            TokenKind::Plus => Ok(BinaryOp::Add),
-            TokenKind::Minus => Ok(BinaryOp::Subtract),
-            TokenKind::Star => Ok(BinaryOp::Multiply),
-            TokenKind::Divide => Ok(BinaryOp::Divide),
-            TokenKind::Modulo => Ok(BinaryOp::Modulo),
+        Ok(match tok.kind() {
+            TokenKind::Plus => BinaryOp::Add,
+            TokenKind::Minus => BinaryOp::Subtract,
+            TokenKind::Star => BinaryOp::Multiply,
+            TokenKind::Divide => BinaryOp::Divide,
+            TokenKind::Modulo => BinaryOp::Modulo,
+            TokenKind::And => BinaryOp::And,
+            TokenKind::Or => BinaryOp::Or,
+            TokenKind::Equal => BinaryOp::Equal,
+            TokenKind::NotEqual => BinaryOp::NotEqual,
+            TokenKind::LT => BinaryOp::LessThan,
+            TokenKind::LTE => BinaryOp::LessOrEqual,
+            TokenKind::GT => BinaryOp::GreaterThan,
+            TokenKind::GTE => BinaryOp::GreaterOrEqual,
             kind if kind.is_binary_op() => {
                 todo!("parsing binary operator of kind {:?}", kind)
             }
-            _ => Err(ParserError::ExpectedString {
-                expected: "binary operator",
-                actual: tok,
-            }),
-        }
+            _ => {
+                return Err(ParserError::ExpectedString {
+                    expected: "binary operator",
+                    actual: tok,
+                });
+            }
+        })
     }
 
     fn parse_expr(&mut self, min_prec: Precedence) -> ParseResult<Expr> {
@@ -286,7 +297,13 @@ mod tests {
         &[tok(TokenKind::Minus, "-"), tok(TokenKind::LParen, "("), tok(TokenKind::Constant, "69"), tok(TokenKind::RParen, ")")],
         Expr::Unary(UnaryOp::Negate, Box::new(Expr::Const(69)))
     )]
+    #[case(
+        &[tok(TokenKind::LogicNot, "!"), tok(TokenKind::Constant, "0")],
+        Expr::Unary(UnaryOp::Not, Box::new(Expr::Const(0)))
+    )]
     fn factors(#[case] tokens: &[Token], #[case] expected_expr: Expr) {}
+
+    // TODO: unit test comparison operators
 
     #[apply(factors)]
     fn test_parse_factor_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
