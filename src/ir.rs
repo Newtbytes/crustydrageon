@@ -596,6 +596,33 @@ mod tests {
             }
         }
 
+        mod label {
+            use crate::ast::strategy::arb_identifier;
+
+            use super::*;
+
+            proptest! {
+                #[test]
+                fn differing_value_implies_differing_pp(id1 in any::<usize>(), id2 in any::<usize>()) {
+                    let l1 = Label::Anon(id1);
+                    let l2 = Label::Anon(id2);
+
+                    assert_eq!(l1 == l2, l1.to_string() == l2.to_string());
+                }
+
+                #[test]
+                fn pp_contains_anon_id(id in any::<usize>()) {
+                    assert!(Label::Anon(id).to_string().contains(&id.to_string()));
+                }
+
+                #[test]
+                fn pp_contains_named_id(id in arb_identifier()) {
+                    let l = Label::Named(id.clone()).to_string();
+                    assert!(l.contains(&id.value));
+                }
+            }
+        }
+
         mod op {
             use super::*;
 
