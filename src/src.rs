@@ -2,7 +2,7 @@ use std::{fmt, ops::Deref, slice::SliceIndex};
 
 use contracts::{debug_ensures, ensures};
 #[cfg(test)]
-use test_strategy::Arbitrary;
+use proptest_derive::Arbitrary;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]

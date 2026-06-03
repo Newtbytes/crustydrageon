@@ -4,7 +4,7 @@ use cov_mark;
 #[cfg(test)]
 use proptest::prelude::*;
 #[cfg(test)]
-use test_strategy::Arbitrary;
+use proptest_derive::Arbitrary;
 
 use crate::src::Span;
 
@@ -48,8 +48,7 @@ pub enum TokenKind {
     Return,
 
     EOF,
-    // TODO: Arbitrary Error TokenKinds
-    #[cfg_attr(test, weight(0))]
+    #[cfg_attr(test, proptest(value = "TokenKind::Error(\"test error\")"))]
     Error(&'static str),
 }
 

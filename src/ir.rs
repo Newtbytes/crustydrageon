@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 #[cfg(test)]
-use test_strategy::Arbitrary;
+use proptest_derive::Arbitrary;
 
 use crate::ast;
 
