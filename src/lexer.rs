@@ -111,8 +111,8 @@ impl<'src> Lexer<'src> {
     /// If it does, return one token kind, otherwise return a second token kind.
     fn based_on_next(&mut self, expected: char, single: TokenKind, double: TokenKind) -> TokenKind {
         match self.eat_if(|&c| c == expected) {
-            Some(c) if c == c => double,
-            _ => single,
+            Some(_) => double,
+            None => single,
         }
     }
 

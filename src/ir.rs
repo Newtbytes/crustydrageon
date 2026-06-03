@@ -53,6 +53,8 @@ impl Label {
 
 impl Display for Label {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        cov_mark::hit!(ir_pp_label);
+
         match self {
             Label::Named(id) => write!(f, "{}", id.value),
             Label::Anon(id) => write!(f, "{id}"),
@@ -553,6 +555,7 @@ mod tests {
     /// Test pretty printing & Display implementations
     mod pretty {
         use super::*;
+        use crate::src;
 
         mod value {
             use super::*;
@@ -607,6 +610,24 @@ mod tests {
             #[case(
                 Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2), dst: Value::Var(5) }
             )]
+            #[case(Operation::Copy { src: Value::Constant(1), dst: Value::Var(6) })]
+            #[case(Operation::Branch(Label::Anon(5)))]
+            #[case(Operation::BranchIf {
+                cond: Value::Var(2),
+                then_label: Label::Anon(5),
+                else_label: Label::Named(
+                    ast::Identifier {
+                        value: "test".to_owned(), span: src::Span::default()
+                    }
+                )
+            })]
+            #[case(Operation::Label(Label::Anon(2)))]
+            #[case(Operation::Label(Label::Named(
+                ast::Identifier {
+                    value: "test".to_owned(), span: src::Span::default()
+                }
+            )))]
+            #[case(Operation::BranchWhen { cond: Value::Constant(5), when_label: Label::Anon(2) })]
             fn test_op_contains_info(#[case] op: Operation) {
                 cov_mark::check!(ir_pp_op);
 
@@ -618,7 +639,7 @@ mod tests {
                     Operation::Return(value) => assert!(op_pp.contains(&value.to_string())),
                     Operation::Unary { op, src, dst } => {
                         cov_mark::check!(ir_pp_unary_op_kind);
-                        cov_mark::hit!(ir_pp_value);
+                        cov_mark::check!(ir_pp_value);
 
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&src.to_string()));
@@ -627,8 +648,8 @@ mod tests {
                         assert!(op_pp.contains('='));
                     }
                     Operation::Binary { op, a, b, dst } => {
-                        cov_mark::hit!(ir_pp_binary_op_kind);
-                        cov_mark::hit!(ir_pp_value);
+                        cov_mark::check!(ir_pp_binary_op_kind);
+                        cov_mark::check!(ir_pp_value);
 
                         assert!(op_pp.contains(&op.to_string()));
                         assert!(op_pp.contains(&a.to_string()));
@@ -637,15 +658,49 @@ mod tests {
 
                         assert!(op_pp.contains('='));
                     }
-                    Operation::Copy { src, dst } => todo!(),
-                    Operation::Branch(label) => todo!(),
+                    Operation::Copy { src, dst } => {
+                        cov_mark::check!(ir_pp_value);
+
+                        assert!(op_pp.contains(&src.to_string()));
+                        assert!(op_pp.contains(&dst.to_string()));
+                    }
+                    Operation::Branch(label) => {
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains("branch"));
+
+                        assert!(op_pp.contains(&label.to_string()));
+                    }
                     Operation::BranchIf {
                         cond,
                         then_label,
                         else_label,
-                    } => todo!(),
-                    Operation::Label(label) => todo!(),
-                    Operation::BranchWhen { cond, when_label } => todo!(),
+                    } => {
+                        cov_mark::check!(ir_pp_value);
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains("branch"));
+                        assert!(op_pp.contains("if"));
+
+                        assert!(op_pp.contains(&cond.to_string()));
+                        assert!(op_pp.contains(&then_label.to_string()));
+                        assert!(op_pp.contains(&else_label.to_string()));
+                    }
+                    Operation::BranchWhen { cond, when_label } => {
+                        cov_mark::check!(ir_pp_value);
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains("branch"));
+                        assert!(op_pp.contains("when"));
+
+                        assert!(op_pp.contains(&cond.to_string()));
+                        assert!(op_pp.contains(&when_label.to_string()));
+                    }
+                    Operation::Label(label) => {
+                        cov_mark::check!(ir_pp_label);
+
+                        assert!(op_pp.contains(&label.to_string()));
+                    }
                 }
             }
         }
