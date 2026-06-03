@@ -211,7 +211,13 @@ impl Display for Instruction {
                 Instruction::Jmp(label) => format!("jmp .L{label}"),
                 Instruction::JmpIf(cond, label) => format!("j{cond} .L{label}"),
                 Instruction::Set(cond, operand) => format!("set{cond} {operand}"),
-                Instruction::Label(label) => format!(".L{label}:"),
+                Instruction::Label(label) => {
+                    if cfg!(target_os = "macos") {
+                        format!("L{label}:")
+                    } else {
+                        format!(".L{label}:")
+                    }
+                }
             }
         )
     }
@@ -609,6 +615,22 @@ mod tests {
                 // emitted code should contain the function prologue
                 assert!(fmt.contains("pushq %rbp"));
                 assert!(fmt.contains("movq %rsp, %rbp"));
+            }
+        }
+    }
+
+    mod instruction {
+        use super::*;
+
+        proptest! {
+            #[test]
+            fn test_label_pp(label in "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Label)) {
+                let label_pp = label.to_string();
+                if cfg!(target_os = "macos") {
+                    assert!(!label_pp.starts_with("."));
+                } else {
+                    assert!(label_pp.starts_with("."));
+                }
             }
         }
     }
