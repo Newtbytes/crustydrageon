@@ -1,6 +1,8 @@
 use std::ops;
 
 use cov_mark;
+#[cfg(test)]
+use test_strategy::Arbitrary;
 
 use crate::src::Span;
 
@@ -47,6 +49,7 @@ pub enum TokenKind {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Precedence(usize);
 
 impl ops::Add<usize> for Precedence {
@@ -142,12 +145,14 @@ impl Token {
 /// A C program
 /// Currently can only contain a single function.
 #[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
 }
 
 /// User-defined identifier (function names, variable names, etc.)
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Identifier {
     pub value: String,
     pub span: Span,
@@ -155,6 +160,7 @@ pub struct Identifier {
 
 /// Function definition
 #[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
     pub body: Stmt,
@@ -168,6 +174,7 @@ impl Function {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
     // Arithmetic
     Negate,
@@ -180,6 +187,7 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
     // Arithmetic
     Add,
@@ -209,23 +217,20 @@ pub enum Expr {
 
 /// Statement
 #[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
-    Return(Expr),
+    Return(#[cfg_attr(test, strategy(strategy::arb_expr()))] Expr),
 }
 
 #[cfg(test)]
 pub mod strategy {
     use super::*;
 
-    use crate::src::{Source, Span};
-
     use proptest::prelude::*;
 
-    fn dummy_span() -> Span {
-        let src = Source::new(" ".to_owned());
-        Span::empty_at(&src, 0).unwrap()
-    }
-
+    // TODO: Simply adding Derive(Arbitrary) to TokenKind does not work because of the &'static str in the Error variant
+    // Manually implementing this is not ideal
+    // TODO: this should be an implementation of Arbitrary
     pub fn arb_token_kind() -> impl Strategy<Value = TokenKind> {
         use TokenKind::*;
 
@@ -262,10 +267,8 @@ pub mod strategy {
         ]
     }
 
-    pub fn arb_unary_op() -> impl Strategy<Value = UnaryOp> {
-        prop_oneof![Just(UnaryOp::Complement), Just(UnaryOp::Negate),]
-    }
-
+    // TODO: This should be an implementation of Arbitrary for Expr
+    // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
     pub fn arb_expr() -> impl Strategy<Value = Expr> {
         let leaf = any::<i32>().prop_map(Expr::Const);
 
@@ -273,29 +276,10 @@ pub mod strategy {
             3,  // max depth
             16, // max total size
             2,  // max branching factor
-            |inner| (arb_unary_op(), inner).prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr))),
+            |inner| {
+                (any::<UnaryOp>(), inner).prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr)))
+            },
         )
-    }
-
-    pub fn arb_stmt() -> impl Strategy<Value = Stmt> {
-        arb_expr().prop_map(Stmt::Return)
-    }
-
-    pub fn arb_identifier() -> impl Strategy<Value = Identifier> {
-        "[a-zA-Z_][a-zA-Z0-9_]*"
-            .prop_map(|s| Identifier {
-                value: s,
-                span: dummy_span(),
-            })
-            .boxed()
-    }
-
-    pub fn arb_function() -> impl Strategy<Value = Function> {
-        (arb_identifier(), arb_stmt()).prop_map(|(name, body)| Function::new(name, body))
-    }
-
-    pub fn arb_program() -> impl Strategy<Value = Program> {
-        arb_function().prop_map(|body| Program { body })
     }
 }
 
