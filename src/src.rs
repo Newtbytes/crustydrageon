@@ -65,6 +65,15 @@ impl Source {
     }
 }
 
+impl From<Source> for Span {
+    fn from(src: Source) -> Self {
+        Span {
+            loc: Location::default(),
+            span: src.to_string(),
+        }
+    }
+}
+
 impl Deref for Source {
     type Target = String;
 

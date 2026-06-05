@@ -164,6 +164,38 @@ impl TryFrom<ir::BinaryOp> for Cond {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
+pub struct Label(String);
+
+impl Label {
+    pub fn new() -> Self {
+        Self { 0: String::new() }
+    }
+}
+
+impl From<String> for Label {
+    fn from(label: String) -> Self {
+        Self { 0: label }
+    }
+}
+
+impl From<ir::Label> for Label {
+    fn from(label: ir::Label) -> Self {
+        Label::from(label.to_string())
+    }
+}
+
+impl Display for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if cfg!(target_os = "macos") {
+            write!(f, "L{}", self.0)
+        } else {
+            write!(f, ".L{}", self.0)
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Instruction {
     Alloca(usize),
     Mov { src: Operand, dst: Operand },
@@ -173,10 +205,10 @@ pub enum Instruction {
     Cdq,
     Ret,
     Cmp(Operand, Operand),
-    Jmp(String),
-    JmpIf(Cond, String),
+    Jmp(Label),
+    JmpIf(Cond, Label),
     Set(Cond, Operand),
-    Label(String),
+    Label(Label),
 }
 
 impl Instruction {
@@ -218,16 +250,10 @@ impl Display for Instruction {
                 Instruction::Idiv(operand) => format!("idivl {operand}"),
                 Instruction::Cdq => "cdq".to_string(),
                 Instruction::Cmp(a, b) => format!("cmpl {a}, {b}"),
-                Instruction::Jmp(label) => format!("jmp .L{label}"),
-                Instruction::JmpIf(cond, label) => format!("j{cond} .L{label}"),
+                Instruction::Jmp(label) => format!("jmp {label}"),
+                Instruction::JmpIf(cond, label) => format!("j{cond} {label}"),
                 Instruction::Set(cond, operand) => format!("set{cond} {operand}"),
-                Instruction::Label(label) => {
-                    if cfg!(target_os = "macos") {
-                        format!("L{label}:")
-                    } else {
-                        format!(".L{label}:")
-                    }
-                }
+                Instruction::Label(label) => format!("{label}:"),
             }
         )
     }
@@ -373,7 +399,7 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                 dst: dst.into(),
             });
         }
-        ir::Operation::Branch(label) => insts.push(Instruction::Jmp(label.to_string())),
+        ir::Operation::Branch(label) => insts.push(Instruction::Jmp(label.into())),
         ir::Operation::BranchIf {
             cond,
             then_label,
@@ -381,17 +407,17 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
         } => {
             insts.extend([
                 Instruction::Cmp(Operand::Imm(1), cond.into()),
-                Instruction::JmpIf(Cond::E, then_label.to_string()),
-                Instruction::Jmp(else_label.to_string()),
+                Instruction::JmpIf(Cond::E, then_label.into()),
+                Instruction::Jmp(else_label.into()),
             ]);
         }
         ir::Operation::BranchWhen { cond, when_label } => {
             insts.extend([
                 Instruction::Cmp(Operand::Imm(1), cond.into()),
-                Instruction::JmpIf(Cond::E, when_label.to_string()),
+                Instruction::JmpIf(Cond::E, when_label.into()),
             ]);
         }
-        ir::Operation::Label(label) => insts.push(Instruction::Label(label.to_string())),
+        ir::Operation::Label(label) => insts.push(Instruction::Label(label.into())),
     }
 }
 
@@ -566,12 +592,12 @@ mod tests {
         }
     }
 
-    mod instruction {
+    mod label {
         use super::*;
 
         proptest! {
             #[test]
-            fn test_label_pp(label in "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Label)) {
+            fn test_label_pp_macos(label: Label) {
                 let label_pp = label.to_string();
                 if cfg!(target_os = "macos") {
                     assert!(!label_pp.starts_with("."));
@@ -580,6 +606,25 @@ mod tests {
                 }
             }
 
+            #[test]
+            fn test_label_pp_contains_info(label: Label) {
+                assert!(label.to_string().contains(&label.0));
+            }
+
+            #[test]
+            fn test_anon_ir_label_to_x86_label(id: usize) {
+                let ir_label = ir::Label::Anon(id);
+                let x86_label = Label::from(id.to_string());
+
+                assert_eq!(Label::from(ir_label), x86_label);
+            }
+        }
+    }
+
+    mod instruction {
+        use super::*;
+
+        proptest! {
             #[test]
             fn test_instruction_not_empty(inst: Instruction) {
                 let fmt = format!("{inst}");

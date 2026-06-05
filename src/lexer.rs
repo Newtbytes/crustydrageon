@@ -3,6 +3,9 @@ use std::{
     str::Chars,
 };
 
+#[allow(unused_imports)]
+use itertools::Itertools;
+
 use crate::{
     ast::{Token, TokenKind},
     src::{Source, Span},
@@ -251,7 +254,7 @@ mod strategy {
     use proptest::prelude::*;
 
     pub fn identifier() -> impl Strategy<Value = String> {
-        "[a-zA-Z_][a-zA-Z0-9_]*".prop_filter("Should not generate keywords", |s| {
+        "[a-zA-Z_][a-zA-Z0-9_]+".prop_filter("Should not generate keywords", |s| {
             s != "void" && s != "int" && s != "return"
         })
     }
@@ -389,6 +392,23 @@ mod tests {
             assert_eq!(tokens.len(), 1);
             assert_eq!(tokens[0].kind(), TokenKind::Ident);
             assert_eq!(tokens[0].span().get(&src).unwrap(), s);
+        }
+
+        #[test]
+        fn test_tokenize_round_trip(
+            tokens in prop::collection::vec(
+                any::<Token>().prop_filter("is not EOF or error token", |tok| {
+                    !matches!(tok.kind(), TokenKind::EOF | TokenKind::Error(_))
+                }),
+                1..=10,
+            )
+        ) {
+            let src: Source = tokens.iter().join(" ").into();
+
+            prop_assert_eq!(
+                tokenize(&src).join(" "),
+                tokens.iter().join(" "),
+            );
         }
     }
 }

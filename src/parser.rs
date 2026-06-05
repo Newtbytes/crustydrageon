@@ -260,7 +260,10 @@ pub fn parse<'src>(
 
 #[cfg(test)]
 mod tests {
-    use crate::src::{Source, Span};
+    use crate::{
+        lexer,
+        src::{Source, Span},
+    };
 
     use super::*;
 
@@ -417,5 +420,20 @@ mod tests {
         #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
     ) {
         parser.parse_expr(Precedence::default()).unwrap_err();
+    }
+
+    proptest! {
+        #[test]
+        fn test_parse_expr_roundtrip(expr: Expr) {
+            let src: Source = expr.to_string().into();
+            let tokens: Vec<Token> = lexer::tokenize(&src).collect();
+            let mut parser = parser(&tokens);
+
+            // Parsing increment / decrement operators is not yet implemented
+            prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
+
+            let parsed = parser.parse_expr(Precedence::default());
+            prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
+        }
     }
 }

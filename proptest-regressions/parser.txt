@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc fa1e152d1f1f6026333f97482b07c55c10b465ef8badce8b6e4f6005ca6d0033 # shrinks to expr = Binary(Add, Unary(Negate, Unary(Negate, Const(0))), Const(0))

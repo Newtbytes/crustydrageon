@@ -1,4 +1,4 @@
-use std::ops;
+use std::{fmt::Display, ops};
 
 use cov_mark;
 #[cfg(test)]
@@ -47,6 +47,7 @@ pub enum TokenKind {
     Void,
     Return,
 
+    #[cfg_attr(test, proptest(skip))]
     EOF,
     #[cfg_attr(test, proptest(value = "TokenKind::Error(\"test error\")"))]
     Error(&'static str),
@@ -146,6 +147,12 @@ impl Token {
     }
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lexeme())
+    }
+}
+
 /// A C program
 /// Currently can only contain a single function.
 #[derive(Debug)]
@@ -190,6 +197,20 @@ pub enum UnaryOp {
     Not,
 }
 
+impl Display for UnaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UnaryOp::Negate => "-",
+                UnaryOp::Complement => "~",
+                UnaryOp::Not => "!",
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
@@ -211,12 +232,46 @@ pub enum BinaryOp {
     GreaterOrEqual,
 }
 
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOp::Add => "+",
+                BinaryOp::Subtract => "-",
+                BinaryOp::Multiply => "*",
+                BinaryOp::Divide => "/",
+                BinaryOp::Modulo => "%",
+                BinaryOp::And => "&&",
+                BinaryOp::Or => "||",
+                BinaryOp::Equal => "==",
+                BinaryOp::NotEqual => "!=",
+                BinaryOp::LessThan => "<",
+                BinaryOp::LessOrEqual => "<=",
+                BinaryOp::GreaterThan => ">",
+                BinaryOp::GreaterOrEqual => ">=",
+            }
+        )
+    }
+}
+
 /// Expression
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
     Const(i32),
     Unary(UnaryOp, Box<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Expr::Const(val) => write!(f, "{val}"),
+            Expr::Unary(op, expr) => write!(f, "{op}{expr}"),
+            Expr::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
+        }
+    }
 }
 
 /// Statement
@@ -226,8 +281,19 @@ pub enum Stmt {
     Return(Expr),
 }
 
+impl Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Stmt::Return(expr) => write!(f, "return {};", expr),
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod strategy {
+    use crate::src::Source;
+    use proptest::string::string_regex;
+
     use super::*;
 
     // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
@@ -253,6 +319,58 @@ pub mod strategy {
                 },
             )
             .boxed()
+        }
+    }
+
+    impl Arbitrary for Token {
+        type Parameters = ();
+        type Strategy = proptest::prelude::BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            any::<TokenKind>()
+                .prop_flat_map(|k| {
+                    let regex_str = match k {
+                        TokenKind::Constant => "[0-9]",
+                        // FIXME: ensure keywords are never generated here
+                        TokenKind::Ident => "[_a-zA-Z][_a-zA-Z0-9]+",
+                        TokenKind::Complement => "~",
+                        TokenKind::Minus => "-",
+                        TokenKind::Plus => "\\+",
+                        TokenKind::Divide => "/",
+                        TokenKind::Star => "\\*",
+                        TokenKind::Modulo => "%",
+                        TokenKind::LogicNot => "!",
+                        TokenKind::And => "&&",
+                        TokenKind::Or => "\\|\\|",
+                        TokenKind::Equal => "==",
+                        TokenKind::NotEqual => "!=",
+                        TokenKind::LT => "<",
+                        TokenKind::GT => ">",
+                        TokenKind::LTE => "<=",
+                        TokenKind::GTE => ">=",
+                        TokenKind::Decrement => "--",
+                        TokenKind::Increment => "\\+\\+",
+                        TokenKind::LParen => "\\(",
+                        TokenKind::RParen => "\\)",
+                        TokenKind::LBrace => "\\{",
+                        TokenKind::RBrace => "\\}",
+                        TokenKind::Semicolon => ";",
+                        TokenKind::Int => "int",
+                        TokenKind::Void => "void",
+                        TokenKind::Return => "return",
+                        TokenKind::EOF => "",
+                        TokenKind::Error(_) => "",
+                    };
+                    (
+                        Just(k),
+                        string_regex(regex_str)
+                            .expect("valid regex")
+                            .prop_map(Source::new)
+                            .prop_map(Span::from),
+                    )
+                })
+                .prop_map(|(kind, lexeme)| Token::new(kind, lexeme))
+                .boxed()
         }
     }
 }
