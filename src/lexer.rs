@@ -3,6 +3,8 @@ use std::{
     str::Chars,
 };
 
+use contracts::ensures;
+
 use crate::{
     ast::{Token, TokenKind},
     src::{Source, Span},
@@ -24,20 +26,10 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    fn get_consumed(&self) -> &str {
-        self.consumed
-            .get(self.src)
-            .expect("Consumed span should always be valid for the source string")
-    }
-
-    /// Reset the consumed token, setting it to start at the next character
+    /// Reset the consumed token, setting it to start at the next character.
     fn end_token(&mut self) {
         if self.one_ahead().is_some() {
-            self.consumed
-                .point_to(self.src, self.consumed.end_index())
-                .unwrap();
-        } else {
-            self.consumed.clear();
+            self.consumed = self.src.empty_at(self.consumed.end_index()).unwrap();
         }
     }
 
@@ -45,10 +37,25 @@ impl<'src> Lexer<'src> {
         self.chars.peek()
     }
 
+    /// Eat one [`char`] from the source, extending the consumed token by one character.
+    #[ensures(
+        ret.is_some() -> old(self.consumed.len()) < self.consumed.len(),
+        "eating one [`char`] increases the length of the consumed [`Token`]"
+    )]
+    #[ensures(
+        old(self.consumed.len()) == self.consumed.len() -> ret.is_none(),
+        "if the [`consumed`](Lexer::consumed) length is unchanged, then [`None`] was returned"
+    )]
     fn eat(&mut self) -> Option<char> {
         let c = self.chars.next()?;
 
-        self.consumed.push_char(c);
+        self.consumed = self
+            .src
+            .subspan(
+                self.consumed.start_index(),
+                self.consumed.end_index() + c.len_utf8(),
+            )
+            .unwrap();
 
         Some(c)
     }
@@ -195,7 +202,7 @@ impl Iterator for Lexer<'_> {
 
                     if self.at_word_bound() {
                         // handle keywords
-                        match self.get_consumed() {
+                        match self.consumed.as_str() {
                             "void" => tk::Void,
                             "int" => tk::Int,
                             "return" => tk::Return,
@@ -386,9 +393,9 @@ mod tests {
             let src = Source::new(s.clone());
             let tokens = tokenize(&src).collect::<Vec<Token>>();
 
-            assert_eq!(tokens.len(), 1);
-            assert_eq!(tokens[0].kind(), TokenKind::Ident);
-            assert_eq!(tokens[0].span().get(&src).unwrap(), s);
+            prop_assert_eq!(tokens.len(), 1);
+            prop_assert_eq!(tokens[0].kind(), TokenKind::Ident);
+            prop_assert_eq!(tokens[0].span().to_string(), s);
         }
     }
 }
