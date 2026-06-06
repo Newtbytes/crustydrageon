@@ -62,15 +62,17 @@ pub enum Register {
     DX,
     R10,
     R11,
+    CL,
 }
 
 impl Display for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Register::AX => "eax",
-            Register::DX => "edx",
-            Register::R10 => "r10d",
-            Register::R11 => "r11d",
+            Self::AX => "eax",
+            Self::DX => "edx",
+            Self::R10 => "r10d",
+            Self::R11 => "r11d",
+            Self::CL => "ecx",
         })
     }
 }
@@ -269,6 +271,11 @@ pub enum BinaryOp {
     Add,
     Sub,
     Mul,
+    And,
+    Or,
+    Xor,
+    Shl,
+    Shr,
 }
 
 impl Display for BinaryOp {
@@ -277,9 +284,14 @@ impl Display for BinaryOp {
             f,
             "{}",
             match self {
-                BinaryOp::Add => "addl",
-                BinaryOp::Sub => "subl",
-                BinaryOp::Mul => "imull",
+                Self::Add => "addl",
+                Self::Sub => "subl",
+                Self::Mul => "imull",
+                Self::And => "andl",
+                Self::Or => "orl",
+                Self::Xor => "xorl",
+                Self::Shl => "shll",
+                Self::Shr => "shrl",
             }
         )
     }
@@ -314,7 +326,14 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             insts.push(Instruction::Unary(op.into(), dst.into()));
         }
         ir::Operation::Binary { op, a, b, dst } => match op {
-            ir::BinaryOp::Add | ir::BinaryOp::Sub | ir::BinaryOp::Mul => {
+            ir::BinaryOp::Add
+            | ir::BinaryOp::Sub
+            | ir::BinaryOp::Mul
+            | ir::BinaryOp::And
+            | ir::BinaryOp::Or
+            | ir::BinaryOp::Xor
+            | ir::BinaryOp::Lshl
+            | ir::BinaryOp::Lshr => {
                 insts.extend([
                     Instruction::Mov {
                         src: a.into(),
@@ -325,6 +344,11 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                             ir::BinaryOp::Add => BinaryOp::Add,
                             ir::BinaryOp::Sub => BinaryOp::Sub,
                             ir::BinaryOp::Mul => BinaryOp::Mul,
+                            ir::BinaryOp::And => BinaryOp::And,
+                            ir::BinaryOp::Or => BinaryOp::Or,
+                            ir::BinaryOp::Xor => BinaryOp::Xor,
+                            ir::BinaryOp::Lshl => BinaryOp::Shl,
+                            ir::BinaryOp::Lshr => BinaryOp::Shr,
                             _ => unreachable!(),
                         },
                         b.into(),
@@ -429,7 +453,10 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
             cov_mark::hit!(x86_stack_to_stack_mov_legalized);
         }
         Instruction::Binary(op, Operand::Stack(a), Operand::Stack(b))
-            if op == BinaryOp::Add || op == BinaryOp::Sub =>
+            if matches!(
+                op,
+                BinaryOp::Add | BinaryOp::Sub | BinaryOp::And | BinaryOp::Xor | BinaryOp::Or
+            ) =>
         {
             insts.extend([
                 Instruction::Mov {
@@ -468,6 +495,19 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                     src: Register::R11.into(),
                     dst: Operand::Stack(b),
                 },
+            ]);
+        }
+        // Shift instructions require that the count operand is the CL reg or an immediate
+        Instruction::Binary(op, dst, count)
+            if matches!(op, BinaryOp::Shl | BinaryOp::Shr)
+                && !matches!(count, Operand::Reg(Register::CL) | Operand::Imm(_)) =>
+        {
+            insts.extend([
+                Instruction::Mov {
+                    src: count,
+                    dst: Register::CL.into(),
+                },
+                Instruction::Binary(op, dst, Register::CL.into()),
             ]);
         }
         Instruction::Idiv(Operand::Imm(val)) => insts.extend([
