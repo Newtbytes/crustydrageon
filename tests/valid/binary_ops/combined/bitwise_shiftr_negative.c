@@ -6,3 +6,5 @@
 int main(void) {
     return -5 >> 30;
 }
+
+//$ CHECK STATUS : 255
