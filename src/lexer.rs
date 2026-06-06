@@ -247,18 +247,9 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 }
 
 #[cfg(test)]
-mod strategy {
-    use proptest::prelude::*;
-
-    pub fn identifier() -> impl Strategy<Value = String> {
-        "[a-zA-Z_][a-zA-Z0-9_]*".prop_filter("Should not generate keywords", |s| {
-            s != "void" && s != "int" && s != "return"
-        })
-    }
-}
-
-#[cfg(test)]
 mod tests {
+    use crate::ast::Identifier;
+
     use super::*;
 
     use proptest::prelude::*;
@@ -380,15 +371,43 @@ mod tests {
         }
     }
 
+    fn is_keyword(s: &str) -> bool {
+        // if a keyword is implemented but it isn't checked here, tests should fail
+        match s {
+            "int" | "return" | "void" => true,
+            _ => false,
+        }
+    }
+
     proptest! {
         #[test]
-        fn test_tokenize_identifiers(s in strategy::identifier()) {
-            let src = Source::new(s.clone());
+        fn test_tokenize_identifiers(s: Identifier) {
+            // skip keywords
+            prop_assume!(!is_keyword(&s.to_string()));
+
+            let src = Source::new(s.to_string());
             let tokens = tokenize(&src).collect::<Vec<Token>>();
 
-            assert_eq!(tokens.len(), 1);
-            assert_eq!(tokens[0].kind(), TokenKind::Ident);
-            assert_eq!(tokens[0].span().get(&src).unwrap(), s);
+            prop_assert_eq!(tokens.len(), 1);
+            prop_assert_eq!(tokens[0].kind(), TokenKind::Ident);
+            prop_assert_eq!(tokens[0].span().get(&src).unwrap(), s.to_string());
+        }
+
+        /// Test that identifier tokenization in the [`Lexer`] and [`Identifier::is_ident`] agree.
+        #[test]
+        fn test_is_ident_equivalence(s: String) {
+            // skip keywords
+            prop_assume!(!is_keyword(&s.to_string()));
+            prop_assume!(!s.is_empty());
+
+            fn lexer_is_ident(s: String) -> bool {
+                let src = Source::new(s.to_string());
+                let tokens = tokenize(&src).collect::<Vec<Token>>();
+
+                tokens.len() == 1 && tokens[0].kind() == TokenKind::Ident
+            }
+
+            prop_assert_eq!(Identifier::is_ident(&s), lexer_is_ident(s));
         }
     }
 }

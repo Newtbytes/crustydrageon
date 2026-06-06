@@ -1,5 +1,6 @@
-use std::ops;
+use std::{fmt::Display, ops};
 
+use contracts::requires;
 use cov_mark;
 #[cfg(test)]
 use proptest::prelude::*;
@@ -155,11 +156,63 @@ pub struct Program {
 }
 
 /// User-defined identifier (function names, variable names, etc.)
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(test, derive(Arbitrary))]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Identifier {
     pub value: String,
     pub span: Span,
+}
+
+impl Identifier {
+    /// Check if a given string is a valid identifier.
+    ///
+    /// # Examples
+    ///
+    /// Valid identifiers can contain alphabetic characters, numeric characters, or the character '_'.
+    ///
+    /// ```rust
+    /// # use crustydrageon::ast::Identifier;
+    /// assert_eq!(Identifier::is_ident("abcdef"), true);
+    /// assert_eq!(Identifier::is_ident("abc_def"), true);
+    /// assert_eq!(Identifier::is_ident("hello_world"), true);
+    /// assert_eq!(Identifier::is_ident("x1"), true);
+    /// assert_eq!(Identifier::is_ident("x2"), true);
+    /// ```
+    ///
+    /// Other characters, such as special characters or whitespace, are not allowed.
+    ///
+    /// ```rust
+    /// # use crustydrageon::ast::Identifier;
+    /// assert_eq!(Identifier::is_ident("hello world"), false);
+    /// assert_eq!(Identifier::is_ident("Hello, world!"), false);
+    /// ```
+    ///
+    /// Empty strings are not identifiers.
+    ///
+    /// ```rust
+    /// # use crustydrageon::ast::Identifier;
+    /// assert_eq!(Identifier::is_ident(""), false);
+    /// ```
+    pub fn is_ident(s: &str) -> bool {
+        cov_mark::hit!(ast_is_ident);
+
+        s.chars().next().map_or(false, |c| !matches!(c, '0'..='9'))
+            && s.chars()
+                .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.span.to_string())
+    }
+}
+
+impl From<Span> for Identifier {
+    #[requires(Identifier::is_ident(&span.to_string()))]
+    fn from(span: Span) -> Self {
+        let value = span.to_string();
+        Self { span, value }
+    }
 }
 
 /// Function definition
@@ -228,12 +281,28 @@ pub enum Stmt {
 
 #[cfg(test)]
 pub mod strategy {
+
+    use crate::src::Source;
+
     use super::*;
+
+    impl Arbitrary for Identifier {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            "[a-zA-Z_][0-9a-zA-Z_]"
+                .prop_map(Source::new)
+                .prop_map(Span::from)
+                .prop_map(Identifier::from)
+                .boxed()
+        }
+    }
 
     // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
     impl Arbitrary for Expr {
         type Parameters = ();
-        type Strategy = proptest::prelude::BoxedStrategy<Self>;
+        type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
             let leaf = any::<i32>().prop_map(Expr::Const);
