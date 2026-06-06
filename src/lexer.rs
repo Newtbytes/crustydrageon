@@ -339,6 +339,10 @@ mod tests {
     #[case("****", [TokenKind::Star, TokenKind::Star, TokenKind::Star, TokenKind::Star])]
     #[case("////", [TokenKind::Divide, TokenKind::Divide, TokenKind::Divide, TokenKind::Divide])]
     #[case("%%%%", [TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo])]
+    // bitwise operators
+    #[case("&", [TokenKind::Ampersand])]
+    #[case("|", [TokenKind::Pipe])]
+    #[case("^", [TokenKind::UpArrow])]
     // logical operators
     #[case("!", [TokenKind::LogicNot])]
     #[case("&&", [TokenKind::And])]
