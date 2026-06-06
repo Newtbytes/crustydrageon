@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 52cc8eb84ab5d6b072c498e902354de83a76636a840df9e99b862e6fd494ae97 # shrinks to expr = Binary(Add, Const(0), Binary(BitAnd, Const(0), Const(0)))
 cc 2f73542f55f56d74e0a3ef6da8b386c7e32537d5ac9b518ea324e92567970aa8 # shrinks to expr = Binary(Multiply, Binary(Subtract, Const(-1124919892), Const(502612130)), Binary(Multiply, Const(591279220), Const(-1892352259)))
+cc a086479c3933b2e94a09b21879241f2baec496cc08e5a55740de8334efb287a1 # shrinks to expr = Unary(Not, Unary(Not, Const(-457178535)))

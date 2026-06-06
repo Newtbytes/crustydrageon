@@ -584,9 +584,9 @@ mod tests {
                 let func = Function::new(id.clone(), Vec::new());
 
                 if cfg!(target_os = "macos") {
-                    assert_eq!(func.name.value, format!("_{}", id.value));
+                    assert_eq!(func.name.to_string(), format!("_{}", id));
                 } else {
-                    assert_eq!(func.name.value, id.value);
+                    assert_eq!(func.name.to_string(), id.to_string());
                 }
             }
 

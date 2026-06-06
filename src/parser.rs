@@ -223,12 +223,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_identifier(&mut self) -> ParseResult<Identifier> {
-        let tok = self.expect(TokenKind::Ident)?;
-
-        Ok(Identifier {
-            value: tok.lexeme().to_string(),
-            span: tok.span().clone(),
-        })
+        Ok(self.expect(TokenKind::Ident)?.span().clone().into())
     }
 
     fn parse_function(&mut self) -> ParseResult<Function> {

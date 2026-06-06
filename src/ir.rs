@@ -28,7 +28,7 @@ impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         cov_mark::hit!(ir_pp_function);
 
-        writeln!(f, "fn {}() {{", self.id.value)?;
+        writeln!(f, "fn {}() {{", self.id)?;
 
         for op in &self.body {
             if !matches!(op, Operation::Label(_)) {
@@ -62,7 +62,7 @@ impl Display for Label {
         cov_mark::hit!(ir_pp_label);
 
         match self {
-            Label::Named(id) => write!(f, "{}", id.value),
+            Label::Named(id) => write!(f, "{id}"),
             Label::Anon(id) => write!(f, "{id}"),
         }
     }
@@ -457,8 +457,6 @@ pub fn lower_program(program: ast::Program) -> Program {
     }
 }
 
-// TODO: implement proptest strategies
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,7 +619,6 @@ mod tests {
     /// Test pretty printing & Display implementations
     mod pretty {
         use super::*;
-        use crate::src;
 
         mod value {
             use super::*;
@@ -682,7 +679,7 @@ mod tests {
                 #[test]
                 fn pp_contains_named_id(id in any::<ast::Identifier>()) {
                     let l = Label::Named(id.clone()).to_string();
-                    assert!(l.contains(&id.value));
+                    assert!(l.contains(&id.to_string()));
                 }
             }
         }
@@ -706,17 +703,11 @@ mod tests {
                 cond: Value::Var(2),
                 then_label: Label::Anon(5),
                 else_label: Label::Named(
-                    ast::Identifier {
-                        value: "test".to_owned(), span: src::Span::default()
-                    }
+                    ast::Identifier::default()
                 )
             })]
             #[case(Operation::Label(Label::Anon(2)))]
-            #[case(Operation::Label(Label::Named(
-                ast::Identifier {
-                    value: "test".to_owned(), span: src::Span::default()
-                }
-            )))]
+            #[case(Operation::Label(Label::Named(ast::Identifier::default())))]
             #[case(Operation::BranchWhen { cond: Value::Constant(5), when_label: Label::Anon(2) })]
             fn test_op_contains_info(#[case] op: Operation) {
                 cov_mark::check!(ir_pp_op);

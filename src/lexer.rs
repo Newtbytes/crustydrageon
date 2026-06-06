@@ -4,9 +4,27 @@ use std::{
 };
 
 use crate::{
-    ast::{Token, TokenKind},
+    ast::{Identifier, Token, TokenKind},
     src::{Source, Span},
 };
+
+/// Corresponds to the word character class, or the `\w` regex pattern.
+fn is_word(c: &char) -> bool {
+    matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
+}
+
+/// Tokenize an identifier string as a keyword or identifier [`TokenKind`].
+///
+/// Returns [`None`] if the input is not an identifier.
+fn classify_ident(s: &str) -> Option<TokenKind> {
+    Some(match s {
+        "int" => TokenKind::Int,
+        "void" => TokenKind::Void,
+        "return" => TokenKind::Return,
+        s if Identifier::is_ident(s) => TokenKind::Ident,
+        _ => return None,
+    })
+}
 
 pub struct Lexer<'src> {
     src: &'src Source,
@@ -121,10 +139,6 @@ impl<'src> Lexer<'src> {
     }
 }
 
-fn is_word(c: &char) -> bool {
-    matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
-}
-
 impl Iterator for Lexer<'_> {
     type Item = Token;
 
@@ -185,13 +199,7 @@ impl Iterator for Lexer<'_> {
 
                     if self.at_word_bound() {
                         // handle keywords
-                        match self.get_consumed() {
-                            "void" => tk::Void,
-                            "int" => tk::Int,
-                            "return" => tk::Return,
-
-                            _ => tk::Ident,
-                        }
+                        classify_ident(self.get_consumed()).unwrap()
                     } else {
                         // if the next character isn't \b
                         self.error("Invalid identifier")
@@ -237,18 +245,9 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 }
 
 #[cfg(test)]
-mod strategy {
-    use proptest::prelude::*;
-
-    pub fn identifier() -> impl Strategy<Value = String> {
-        "[a-zA-Z_][a-zA-Z0-9_]*".prop_filter("Should not generate keywords", |s| {
-            s != "void" && s != "int" && s != "return"
-        })
-    }
-}
-
-#[cfg(test)]
 mod tests {
+    use crate::ast::Identifier;
+
     use super::*;
 
     use proptest::prelude::*;
@@ -374,15 +373,48 @@ mod tests {
         }
     }
 
+    fn is_keyword(s: &str) -> bool {
+        match classify_ident(s) {
+            Some(kind) => !matches!(kind, TokenKind::Ident),
+            None => false,
+        }
+    }
+
     proptest! {
         #[test]
-        fn test_tokenize_identifiers(s in strategy::identifier()) {
-            let src = Source::new(s.clone());
+        fn test_is_word(s in r"[a-zA-Z_0-9]" /* FIXME: should be \w but unicode isn't supported yet */) {
+            let c = s.chars().next().unwrap();
+            assert!(is_word(&c))
+        }
+
+        #[test]
+        fn test_tokenize_identifiers(s: Identifier) {
+            // skip keywords
+            prop_assume!(!is_keyword(&s.to_string()));
+
+            let src = Source::new(s.to_string());
             let tokens = tokenize(&src).collect::<Vec<Token>>();
 
-            assert_eq!(tokens.len(), 1);
-            assert_eq!(tokens[0].kind(), TokenKind::Ident);
-            assert_eq!(tokens[0].span().get(&src).unwrap(), s);
+            prop_assert_eq!(tokens.len(), 1);
+            prop_assert_eq!(tokens[0].kind(), TokenKind::Ident);
+            prop_assert_eq!(tokens[0].span().get(&src).unwrap(), s.to_string());
+        }
+
+        /// Test that identifier tokenization in the [`Lexer`] and [`Identifier::is_ident`] agree.
+        #[test]
+        fn test_is_ident_equivalence(s: String) {
+            // skip keywords
+            prop_assume!(!is_keyword(&s.to_string()));
+            prop_assume!(!s.is_empty());
+
+            fn lexer_is_ident(s: String) -> bool {
+                let src = Source::new(s.to_string());
+                let tokens = tokenize(&src).collect::<Vec<Token>>();
+
+                tokens.len() == 1 && tokens[0].kind() == TokenKind::Ident
+            }
+
+            prop_assert_eq!(Identifier::is_ident(&s), lexer_is_ident(s));
         }
     }
 }
