@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a086479c3933b2e94a09b21879241f2baec496cc08e5a55740de8334efb287a1 # shrinks to expr = Unary(Not, Unary(Not, Const(-457178535)))

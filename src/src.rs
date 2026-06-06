@@ -79,6 +79,15 @@ impl From<String> for Source {
     }
 }
 
+impl From<Source> for Span {
+    fn from(src: Source) -> Self {
+        Span {
+            span: src.to_string(),
+            loc: Location::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Location {
