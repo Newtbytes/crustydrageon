@@ -5,9 +5,11 @@ edition = "2024"
 
 [dependencies]
 contracts = "0.6.7"
+cov-mark = { version = "2.2.0", features = ["enable"] }
 
 [dev-dependencies]
 rstest = "0.26.1"
 rstest_reuse = "0.7.0"
 proptest = "1.11.0"
-serial_test = "3.4.0"
+proptest-derive = "0.8.0"
+serial_test = "3.5.0"

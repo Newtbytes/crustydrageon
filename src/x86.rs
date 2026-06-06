@@ -1,7 +1,12 @@
 use std::{collections::HashMap, fmt::Display};
 
+#[cfg(test)]
+use proptest_derive::Arbitrary;
+
 use crate::{ast, ir};
 
+#[derive(Debug)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub func: Function,
 }
@@ -18,6 +23,7 @@ impl Display for Program {
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     name: ast::Identifier,
     body: Vec<Instruction>,
@@ -50,6 +56,7 @@ impl Display for Function {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Register {
     AX,
     DX,
@@ -69,6 +76,7 @@ impl Display for Register {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Operand {
     Imm(i32),
     Reg(Register),
@@ -115,6 +123,47 @@ impl Display for Operand {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub enum Cond {
+    E,
+    NE,
+    G,
+    GE,
+    L,
+    LE,
+}
+
+impl Display for Cond {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Cond::E => "e",
+            Cond::NE => "ne",
+            Cond::G => "g",
+            Cond::GE => "ge",
+            Cond::L => "l",
+            Cond::LE => "le",
+        })
+    }
+}
+
+impl TryFrom<ir::BinaryOp> for Cond {
+    type Error = ();
+
+    fn try_from(value: ir::BinaryOp) -> Result<Self, Self::Error> {
+        Ok(match value {
+            ir::BinaryOp::Eq => Cond::E,
+            ir::BinaryOp::Neq => Cond::NE,
+            ir::BinaryOp::Gt => Cond::G,
+            ir::BinaryOp::Gte => Cond::GE,
+            ir::BinaryOp::Lt => Cond::L,
+            ir::BinaryOp::Lte => Cond::LE,
+            _ => return Err(()),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum Instruction {
     Alloca(usize),
     Mov { src: Operand, dst: Operand },
@@ -123,6 +172,11 @@ pub enum Instruction {
     Idiv(Operand),
     Cdq,
     Ret,
+    Cmp(Operand, Operand),
+    Jmp(String),
+    JmpIf(Cond, String),
+    Set(Cond, Operand),
+    Label(String),
 }
 
 impl Instruction {
@@ -130,8 +184,14 @@ impl Instruction {
         match self {
             Instruction::Mov { src, dst } => vec![src, dst],
             Instruction::Unary(_, operand) | Instruction::Idiv(operand) => vec![operand],
-            Instruction::Binary(_, a, b) => vec![a, b],
-            Instruction::Alloca(_) | Instruction::Ret | Instruction::Cdq => Vec::new(),
+            Instruction::Binary(_, a, b) | Instruction::Cmp(a, b) => vec![a, b],
+            Instruction::Alloca(_)
+            | Instruction::Ret
+            | Instruction::Cdq
+            | Instruction::Jmp(_)
+            | Instruction::JmpIf(_, _)
+            | Instruction::Label(_) => Vec::new(),
+            Instruction::Set(_, dst) => vec![dst],
         }
     }
 }
@@ -157,12 +217,24 @@ impl Display for Instruction {
                 Instruction::Binary(binary_op, a, b) => format!("{binary_op} {a}, {b}"),
                 Instruction::Idiv(operand) => format!("idivl {operand}"),
                 Instruction::Cdq => "cdq".to_string(),
+                Instruction::Cmp(a, b) => format!("cmpl {a}, {b}"),
+                Instruction::Jmp(label) => format!("jmp .L{label}"),
+                Instruction::JmpIf(cond, label) => format!("j{cond} .L{label}"),
+                Instruction::Set(cond, operand) => format!("set{cond} {operand}"),
+                Instruction::Label(label) => {
+                    if cfg!(target_os = "macos") {
+                        format!("L{label}:")
+                    } else {
+                        format!(".L{label}:")
+                    }
+                }
             }
         )
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
     Neg,
     Not,
@@ -173,6 +245,7 @@ impl From<ir::UnaryOp> for UnaryOp {
         match op {
             ir::UnaryOp::Complement => UnaryOp::Not,
             ir::UnaryOp::Negate => UnaryOp::Neg,
+            ir::UnaryOp::Not => UnaryOp::Not,
         }
     }
 }
@@ -191,6 +264,7 @@ impl Display for UnaryOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
     Add,
     Sub,
@@ -220,6 +294,18 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             });
             insts.push(Instruction::Ret);
         }
+        ir::Operation::Unary {
+            op: ir::UnaryOp::Not,
+            src,
+            dst,
+        } => insts.extend([
+            Instruction::Cmp(Operand::Imm(0), src.into()),
+            Instruction::Mov {
+                src: Operand::Imm(0),
+                dst: dst.into(),
+            },
+            Instruction::Set(Cond::E, dst.into()),
+        ]),
         ir::Operation::Unary { op, src, dst } => {
             insts.push(Instruction::Mov {
                 src: src.into(),
@@ -265,7 +351,47 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                     },
                 ]);
             }
+            ir::BinaryOp::Eq
+            | ir::BinaryOp::Neq
+            | ir::BinaryOp::Lt
+            | ir::BinaryOp::Lte
+            | ir::BinaryOp::Gt
+            | ir::BinaryOp::Gte => {
+                insts.extend([
+                    Instruction::Cmp(b.into(), a.into()),
+                    Instruction::Mov {
+                        src: Operand::Imm(0),
+                        dst: dst.into(),
+                    },
+                    Instruction::Set(Cond::try_from(op).unwrap(), dst.into()),
+                ]);
+            }
         },
+        ir::Operation::Copy { src, dst } => {
+            insts.push(Instruction::Mov {
+                src: src.into(),
+                dst: dst.into(),
+            });
+        }
+        ir::Operation::Branch(label) => insts.push(Instruction::Jmp(label.to_string())),
+        ir::Operation::BranchIf {
+            cond,
+            then_label,
+            else_label,
+        } => {
+            insts.extend([
+                Instruction::Cmp(Operand::Imm(1), cond.into()),
+                Instruction::JmpIf(Cond::E, then_label.to_string()),
+                Instruction::Jmp(else_label.to_string()),
+            ]);
+        }
+        ir::Operation::BranchWhen { cond, when_label } => {
+            insts.extend([
+                Instruction::Cmp(Operand::Imm(1), cond.into()),
+                Instruction::JmpIf(Cond::E, when_label.to_string()),
+            ]);
+        }
+        ir::Operation::Label(label) => insts.push(Instruction::Label(label.to_string())),
     }
 }
 
@@ -277,10 +403,14 @@ pub fn lower_block(block: Vec<ir::Operation>) -> Vec<Instruction> {
         lower_op(&mut insts, op);
     }
 
+    cov_mark::hit!(x86_block_lowered);
+
     insts
 }
 
 pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
+    cov_mark::hit!(x86_inst_legalized);
+
     match inst {
         Instruction::Mov {
             src: Operand::Stack(a),
@@ -295,6 +425,8 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                 src: Register::R10.into(),
                 dst: Operand::Stack(b),
             });
+
+            cov_mark::hit!(x86_stack_to_stack_mov_legalized);
         }
         Instruction::Binary(op, Operand::Stack(a), Operand::Stack(b))
             if op == BinaryOp::Add || op == BinaryOp::Sub =>
@@ -305,6 +437,24 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                     dst: Register::R10.into(),
                 },
                 Instruction::Binary(op, Register::R10.into(), Operand::Stack(b)),
+            ]);
+        }
+        Instruction::Cmp(Operand::Stack(a), Operand::Stack(b)) => {
+            insts.extend([
+                Instruction::Mov {
+                    src: Operand::Stack(a),
+                    dst: Register::R10.into(),
+                },
+                Instruction::Cmp(Register::R10.into(), Operand::Stack(b)),
+            ]);
+        }
+        Instruction::Cmp(a, Operand::Imm(b)) => {
+            insts.extend([
+                Instruction::Mov {
+                    src: Operand::Imm(b),
+                    dst: Register::R10.into(),
+                },
+                Instruction::Cmp(a, Register::R10.into()),
             ]);
         }
         Instruction::Binary(BinaryOp::Mul, a, Operand::Stack(b)) => {
@@ -351,6 +501,8 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
                 });
 
                 *operand = Operand::Stack(*stack_map.get(&id).unwrap());
+
+                cov_mark::hit!(x86_pseudo_register_replaced_with_stack);
             }
         }
 
@@ -358,6 +510,8 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
     }
 
     insts.insert(0, Instruction::Alloca(stack_size as usize));
+
+    cov_mark::hit!(x86_block_legalized);
 
     insts
 }
@@ -375,58 +529,10 @@ pub fn lower_program(prg: ir::Program) -> Program {
 }
 
 #[cfg(test)]
-mod strategy {
-    use super::*;
-
-    use proptest::prelude::*;
-
-    pub fn arb_register() -> impl Strategy<Value = Register> {
-        prop_oneof![Just(Register::AX), Just(Register::R10)]
-    }
-
-    pub fn arb_unary_op() -> impl Strategy<Value = UnaryOp> {
-        prop_oneof![Just(UnaryOp::Neg), Just(UnaryOp::Not)]
-    }
-
-    pub fn arb_binary_op() -> impl Strategy<Value = BinaryOp> {
-        prop_oneof![
-            Just(BinaryOp::Add),
-            Just(BinaryOp::Sub),
-            Just(BinaryOp::Mul)
-        ]
-    }
-
-    pub fn arb_operand() -> impl Strategy<Value = Operand> {
-        prop_oneof![
-            any::<i32>().prop_map(Operand::Imm),
-            arb_register().prop_map(Operand::Reg),
-            (0..100_usize).prop_map(Operand::Pseudo),
-            (-128..128).prop_map(Operand::Stack),
-        ]
-    }
-
-    pub fn arb_instruction() -> impl Strategy<Value = Instruction> {
-        prop_oneof![
-            Just(Instruction::Ret),
-            (1..1000_usize).prop_map(Instruction::Alloca),
-            (arb_operand(), arb_operand()).prop_map(|(src, dst)| Instruction::Mov { src, dst }),
-            (arb_unary_op(), arb_operand())
-                .prop_map(|(op, operand)| Instruction::Unary(op, operand)),
-            (arb_binary_op(), arb_operand(), arb_operand())
-                .prop_map(|(op, a, b)| Instruction::Binary(op, a, b)),
-            (arb_operand()).prop_map(Instruction::Idiv),
-            Just(Instruction::Cdq),
-        ]
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
     use proptest::prelude::*;
-
-    use self::strategy::*;
 
     mod function {
         use super::*;
@@ -434,7 +540,7 @@ mod tests {
         proptest! {
             /// On macOS, function names must be prefixed with an underscore
             #[test]
-            fn test_macos_name_prefix(id in ast::strategy::arb_identifier()) {
+            fn test_macos_name_prefix(id in any::<ast::Identifier>()) {
                 let func = Function::new(id.clone(), Vec::new());
 
                 if cfg!(target_os = "macos") {
@@ -445,7 +551,7 @@ mod tests {
             }
 
             #[test]
-            fn test_function_fmt(id in ast::strategy::arb_identifier(), block in prop::collection::vec(arb_instruction(), 0..10)) {
+            fn test_function_fmt(id in any::<ast::Identifier>(), block in prop::collection::vec(any::<Instruction>(), 0..10)) {
                 let func = Function::new(id.clone(), block.clone());
                 let fmt = format!("{func}");
 
@@ -456,6 +562,37 @@ mod tests {
                 // emitted code should contain the function prologue
                 assert!(fmt.contains("pushq %rbp"));
                 assert!(fmt.contains("movq %rsp, %rbp"));
+            }
+        }
+    }
+
+    mod instruction {
+        use super::*;
+
+        proptest! {
+            #[test]
+            fn test_label_pp(label in "[a-zA-Z_][a-zA-Z0-9_]*".prop_map(Instruction::Label)) {
+                let label_pp = label.to_string();
+                if cfg!(target_os = "macos") {
+                    assert!(!label_pp.starts_with("."));
+                } else {
+                    assert!(label_pp.starts_with("."));
+                }
+            }
+
+            #[test]
+            fn test_instruction_not_empty(inst: Instruction) {
+                let fmt = format!("{inst}");
+                assert!(!fmt.is_empty());
+            }
+
+            #[test]
+            fn test_instruction_contains_operands(mut inst: Instruction) {
+                let fmt = format!("{inst}");
+
+                for operand in inst.get_operands_mut() {
+                    assert!(fmt.contains(&operand.to_string()));
+                }
             }
         }
     }
@@ -483,9 +620,14 @@ mod tests {
             )
         }
 
+        // TODO: test that pseudo registers replacement
+
         proptest! {
             #[test]
             fn test_mov_stack_to_stack(offset_a in -128..128, offset_b in -128..128) {
+                cov_mark::check_count!(x86_inst_legalized, 1);
+                cov_mark::check_count!(x86_stack_to_stack_mov_legalized, 1);
+
                 let inst = Instruction::Mov {
                     src: Operand::Stack(offset_a),
                     dst: Operand::Stack(offset_b),
@@ -514,7 +656,7 @@ mod tests {
             }
 
             #[test]
-            fn test_other_instructions(inst in arb_instruction()) {
+            fn test_other_instructions(inst in any::<Instruction>()) {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
                 assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
