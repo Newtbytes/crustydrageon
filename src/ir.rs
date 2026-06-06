@@ -250,6 +250,11 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::GreaterThan => Ok(Self::Gt),
             ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
             ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
+            ast::BinaryOp::BitAnd => todo!(),
+            ast::BinaryOp::BitOr => todo!(),
+            ast::BinaryOp::Xor => todo!(),
+            ast::BinaryOp::LShift => todo!(),
+            ast::BinaryOp::RShift => todo!(),
         }
     }
 }

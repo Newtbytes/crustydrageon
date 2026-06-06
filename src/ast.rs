@@ -22,7 +22,7 @@ pub enum TokenKind {
     Divide,     // /
     Star,       // *
     Modulo,     // %
-    LogicNot,   // !
+    Not,        // !
     Ampersand,  // &
     And,        // &&
     Pipe,       // |
@@ -72,8 +72,8 @@ impl ops::Add<usize> for Precedence {
 impl TokenKind {
     #[must_use]
     pub fn is_unary_op(&self) -> bool {
-        use TokenKind::{Complement, LogicNot, Minus};
-        matches!(self, Minus | Complement | LogicNot)
+        use TokenKind::{Complement, Minus, Not};
+        matches!(self, Minus | Complement | Not)
     }
 
     #[must_use]
@@ -94,12 +94,19 @@ impl TokenKind {
                 | tk::LTE
                 | tk::GT
                 | tk::GTE
+                | tk::Ampersand
+                | tk::Pipe
+                | tk::UpArrow
+                | tk::LShift
+                | tk::RShift
         )
     }
 
     // TODO: this really should be a method of BinaryOp
     #[must_use]
     pub fn precedence(&self) -> Option<Precedence> {
+        //! See https://en.cppreference.com/c/language/operator_precedence
+
         use TokenKind as tk;
 
         cov_mark::hit!(binary_op_precedence);
@@ -107,8 +114,12 @@ impl TokenKind {
         Some(Precedence(match self {
             tk::Star | tk::Divide | tk::Modulo => 50,
             tk::Plus | tk::Minus => 45,
+            tk::LShift | tk::RShift => 40,
             tk::LT | tk::LTE | tk::GT | tk::GTE => 35,
             tk::Equal | tk::NotEqual => 30,
+            tk::Ampersand => 16,
+            tk::UpArrow => 14,
+            tk::Pipe => 12,
             tk::And => 10,
             tk::Or => 5,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
@@ -214,6 +225,13 @@ pub enum BinaryOp {
     LessOrEqual,
     GreaterThan,
     GreaterOrEqual,
+
+    // Bitwise
+    BitAnd,
+    BitOr,
+    Xor,
+    LShift,
+    RShift,
 }
 
 /// Expression

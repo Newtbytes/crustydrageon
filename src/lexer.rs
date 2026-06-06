@@ -158,7 +158,7 @@ impl Iterator for Lexer<'_> {
                 '^' => tk::UpArrow,
                 '+' => self.based_on_next('+', tk::Plus, tk::Increment),
                 '-' => self.based_on_next('-', tk::Minus, tk::Decrement),
-                '!' => self.based_on_next('=', tk::LogicNot, tk::NotEqual),
+                '!' => self.based_on_next('=', tk::Not, tk::NotEqual),
                 '&' => self.based_on_next('&', tk::Ampersand, tk::And),
                 '|' => self.based_on_next('|', tk::Pipe, tk::Or),
                 '=' => self.based_on_next(
@@ -344,7 +344,7 @@ mod tests {
     #[case("|", [TokenKind::Pipe])]
     #[case("^", [TokenKind::UpArrow])]
     // logical operators
-    #[case("!", [TokenKind::LogicNot])]
+    #[case("!", [TokenKind::Not])]
     #[case("&&", [TokenKind::And])]
     #[case("||", [TokenKind::Or])]
     #[case("==", [TokenKind::Equal])]
