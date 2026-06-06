@@ -381,11 +381,7 @@ mod tests {
 
     fn is_keyword(s: &str) -> bool {
         match classify_ident(s) {
-            Some(kind) => match kind {
-                TokenKind::Ident => false,
-                _ => true,
-            },
-
+            Some(kind) => !matches!(kind, TokenKind::Ident),
             None => false,
         }
     }

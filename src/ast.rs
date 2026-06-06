@@ -195,7 +195,7 @@ impl Identifier {
     pub fn is_ident(s: &str) -> bool {
         cov_mark::hit!(ast_is_ident);
 
-        s.chars().next().map_or(false, |c| !matches!(c, '0'..='9'))
+        s.chars().next().is_some_and(|c: char| !c.is_ascii_digit())
             && s.chars()
                 .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
     }
@@ -230,7 +230,7 @@ impl Identifier {
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.span.to_string())
+        write!(f, "{}", self.span)
     }
 }
 
