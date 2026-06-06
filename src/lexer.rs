@@ -4,9 +4,27 @@ use std::{
 };
 
 use crate::{
-    ast::{Token, TokenKind},
+    ast::{Identifier, Token, TokenKind},
     src::{Source, Span},
 };
+
+/// Corresponds to the word character class, or the `\w` regex pattern.
+fn is_word(c: &char) -> bool {
+    matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
+}
+
+/// Tokenize an identifier string as a keyword or identifier [`TokenKind`].
+///
+/// Returns [`None`] if the input is not an identifier.
+fn classify_ident(s: &str) -> Option<TokenKind> {
+    Some(match s {
+        "int" => TokenKind::Int,
+        "void" => TokenKind::Void,
+        "return" => TokenKind::Return,
+        s if Identifier::is_ident(s) => TokenKind::Ident,
+        _ => return None,
+    })
+}
 
 pub struct Lexer<'src> {
     src: &'src Source,
@@ -121,10 +139,6 @@ impl<'src> Lexer<'src> {
     }
 }
 
-fn is_word(c: &char) -> bool {
-    matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
-}
-
 impl Iterator for Lexer<'_> {
     type Item = Token;
 
@@ -195,13 +209,7 @@ impl Iterator for Lexer<'_> {
 
                     if self.at_word_bound() {
                         // handle keywords
-                        match self.get_consumed() {
-                            "void" => tk::Void,
-                            "int" => tk::Int,
-                            "return" => tk::Return,
-
-                            _ => tk::Ident,
-                        }
+                        classify_ident(self.get_consumed()).unwrap()
                     } else {
                         // if the next character isn't \b
                         self.error("Invalid identifier")
@@ -372,14 +380,23 @@ mod tests {
     }
 
     fn is_keyword(s: &str) -> bool {
-        // if a keyword is implemented but it isn't checked here, tests should fail
-        match s {
-            "int" | "return" | "void" => true,
-            _ => false,
+        match classify_ident(s) {
+            Some(kind) => match kind {
+                TokenKind::Ident => false,
+                _ => true,
+            },
+
+            None => false,
         }
     }
 
     proptest! {
+        #[test]
+        fn test_is_word(s in r"[a-zA-Z_0-9]" /* FIXME: should be \w but unicode isn't supported yet */) {
+            let c = s.chars().next().unwrap();
+            assert!(is_word(&c))
+        }
+
         #[test]
         fn test_tokenize_identifiers(s: Identifier) {
             // skip keywords

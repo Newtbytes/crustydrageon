@@ -1,6 +1,6 @@
 use std::{fmt::Display, ops};
 
-use contracts::requires;
+use contracts::{debug_requires, requires};
 use cov_mark;
 #[cfg(test)]
 use proptest::prelude::*;
@@ -155,7 +155,7 @@ pub struct Program {
     pub body: Function,
 }
 
-/// User-defined identifier (function names, variable names, etc.)
+/// Keywords and user-defined identifiers (e.g. function names or variable names).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Identifier {
     pub value: String,
@@ -198,6 +198,33 @@ impl Identifier {
         s.chars().next().map_or(false, |c| !matches!(c, '0'..='9'))
             && s.chars()
                 .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+    }
+
+    /// Get the [`TokenKind`] of this [`Identifier`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::{src, ast::{Identifier, TokenKind}};
+    ///
+    /// let mut id = Identifier { value: "hello_world".to_owned(), span: src::Span::default() };
+    ///
+    /// assert_eq!(id.tok_kind(), TokenKind::Ident);
+    ///
+    /// id.value = "int".to_owned();
+    /// assert_eq!(id.tok_kind(), TokenKind::Int);
+    ///
+    /// id.value = "return".to_owned();
+    /// assert_eq!(id.tok_kind(), TokenKind::Return);
+    /// ```
+    #[debug_requires(Self::is_ident(&self.value))]
+    pub fn tok_kind(&self) -> TokenKind {
+        match self.value.as_str() {
+            "int" => TokenKind::Int,
+            "void" => TokenKind::Void,
+            "return" => TokenKind::Return,
+            _ => TokenKind::Ident,
+        }
     }
 }
 
