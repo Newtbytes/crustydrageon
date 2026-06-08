@@ -78,7 +78,7 @@ impl Span {
     /// let span = Source::new("Hello, world!".to_owned());
     /// let subspan = span.empty_at(4).unwrap();
     ///
-    /// assert!(span.is_empty());
+    /// assert!(subspan.is_empty());
     /// ```
     pub fn empty_at(&self, index: usize) -> Option<Self> {
         self.subspan(index, index)
@@ -215,6 +215,7 @@ impl fmt::Display for Span {
 mod tests {
     use super::*;
 
+    use proptest::prelude::*;
     use rstest::{fixture, rstest};
 
     #[fixture]
@@ -283,16 +284,26 @@ mod tests {
         mod init {
             use super::*;
 
-            #[test]
-            fn test_empty_at() {
-                let src = Source::new("char semicolon = ';';".to_owned());
-                let idx = 5;
+            #[rstest]
+            #[case("Hello, world!", 4)]
+            #[case("char semicolon = ';';", 5)]
+            fn test_empty_at(#[case] src: &str, #[case] idx: usize) {
+                let src = Source::new(src.to_owned());
                 let span = Span::empty_at(&src, idx).unwrap();
 
                 assert!(span.is_empty());
                 assert_eq!(span.len(), 0);
                 assert_eq!(span.span, "");
                 assert_eq!(span.loc.index, idx);
+            }
+
+            proptest! {
+                #[test]
+                fn test_equal_empty_at(src: String, idx: usize) {
+                    let src = Source::new(src);
+
+                    prop_assert_eq!(Span::empty_at(&src, idx), src.empty_at(idx));
+                }
             }
         }
     }
