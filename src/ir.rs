@@ -215,11 +215,11 @@ pub enum BinaryOp {
     /// Logical shift left.
     ///
     /// Shift bits to the left, filling new bits to the right with zeros.
-    Lshl,
+    Ashl,
     /// Logical shift right.
     ///
     /// Shift bits to the right, filling new bits to the left with zeros.
-    Lshr,
+    Ashr,
 }
 
 impl Display for BinaryOp {
@@ -244,8 +244,8 @@ impl Display for BinaryOp {
                 Self::And => "and",
                 Self::Or => "or",
                 Self::Xor => "xor",
-                Self::Lshl => "lshl",
-                Self::Lshr => "lshr",
+                Self::Ashl => "ashl",
+                Self::Ashr => "ashr",
             }
         )
     }
@@ -270,8 +270,8 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::BitAnd => Ok(Self::And),
             ast::BinaryOp::BitOr => Ok(Self::Or),
             ast::BinaryOp::Xor => Ok(Self::Xor),
-            ast::BinaryOp::LShift => Ok(Self::Lshl),
-            ast::BinaryOp::RShift => Ok(Self::Lshr),
+            ast::BinaryOp::LShift => Ok(Self::Ashl),
+            ast::BinaryOp::RShift => Ok(Self::Ashr),
             ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
         }
     }

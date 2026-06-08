@@ -63,6 +63,7 @@ pub enum Register {
     R10,
     R11,
     CL,
+    ECX,
 }
 
 impl Display for Register {
@@ -72,7 +73,8 @@ impl Display for Register {
             Self::DX => "edx",
             Self::R10 => "r10d",
             Self::R11 => "r11d",
-            Self::CL => "ecx",
+            Self::CL => "cl",
+            Self::ECX => "ecx",
         })
     }
 }
@@ -274,8 +276,8 @@ pub enum BinaryOp {
     And,
     Or,
     Xor,
-    Shl,
-    Shr,
+    Sal,
+    Sar,
 }
 
 impl Display for BinaryOp {
@@ -290,8 +292,8 @@ impl Display for BinaryOp {
                 Self::And => "andl",
                 Self::Or => "orl",
                 Self::Xor => "xorl",
-                Self::Shl => "shll",
-                Self::Shr => "shrl",
+                Self::Sal => "sall",
+                Self::Sar => "sarl",
             }
         )
     }
@@ -332,8 +334,8 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             | ir::BinaryOp::And
             | ir::BinaryOp::Or
             | ir::BinaryOp::Xor
-            | ir::BinaryOp::Lshl
-            | ir::BinaryOp::Lshr => {
+            | ir::BinaryOp::Ashl
+            | ir::BinaryOp::Ashr => {
                 insts.extend([
                     Instruction::Mov {
                         src: a.into(),
@@ -347,8 +349,8 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                             ir::BinaryOp::And => BinaryOp::And,
                             ir::BinaryOp::Or => BinaryOp::Or,
                             ir::BinaryOp::Xor => BinaryOp::Xor,
-                            ir::BinaryOp::Lshl => BinaryOp::Shl,
-                            ir::BinaryOp::Lshr => BinaryOp::Shr,
+                            ir::BinaryOp::Ashl => BinaryOp::Sal,
+                            ir::BinaryOp::Ashr => BinaryOp::Sar,
                             _ => unreachable!(),
                         },
                         b.into(),
@@ -498,16 +500,16 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
             ]);
         }
         // Shift instructions require that the count operand is the CL reg or an immediate
-        Instruction::Binary(op, dst, count)
-            if matches!(op, BinaryOp::Shl | BinaryOp::Shr)
+        Instruction::Binary(op, count, dst)
+            if matches!(op, BinaryOp::Sal | BinaryOp::Sar)
                 && !matches!(count, Operand::Reg(Register::CL) | Operand::Imm(_)) =>
         {
             insts.extend([
                 Instruction::Mov {
                     src: count,
-                    dst: Register::CL.into(),
+                    dst: Register::ECX.into(),
                 },
-                Instruction::Binary(op, dst, Register::CL.into()),
+                Instruction::Binary(op, Register::CL.into(), dst),
             ]);
         }
         Instruction::Idiv(Operand::Imm(val)) => insts.extend([
