@@ -1,5 +1,6 @@
-use std::ops;
+use std::{fmt::Display, ops};
 
+use contracts::{debug_requires, requires};
 use cov_mark;
 #[cfg(test)]
 use proptest::prelude::*;
@@ -22,8 +23,10 @@ pub enum TokenKind {
     Divide,     // /
     Star,       // *
     Modulo,     // %
-    LogicNot,   // !
+    Not,        // !
+    Ampersand,  // &
     And,        // &&
+    Pipe,       // |
     Or,         // ||
     Equal,      // ==
     NotEqual,   // !=
@@ -31,6 +34,9 @@ pub enum TokenKind {
     GT,         // >
     LTE,        // <=
     GTE,        // >=
+    UpArrow,    // ^
+    LShift,     // <<
+    RShift,     // >>
 
     Decrement, // ++
     Increment, // --
@@ -67,8 +73,8 @@ impl ops::Add<usize> for Precedence {
 impl TokenKind {
     #[must_use]
     pub fn is_unary_op(&self) -> bool {
-        use TokenKind::{Complement, LogicNot, Minus};
-        matches!(self, Minus | Complement | LogicNot)
+        use TokenKind::{Complement, Minus, Not};
+        matches!(self, Minus | Complement | Not)
     }
 
     #[must_use]
@@ -89,12 +95,19 @@ impl TokenKind {
                 | tk::LTE
                 | tk::GT
                 | tk::GTE
+                | tk::Ampersand
+                | tk::Pipe
+                | tk::UpArrow
+                | tk::LShift
+                | tk::RShift
         )
     }
 
     // TODO: this really should be a method of BinaryOp
     #[must_use]
     pub fn precedence(&self) -> Option<Precedence> {
+        //! See https://en.cppreference.com/c/language/operator_precedence
+
         use TokenKind as tk;
 
         cov_mark::hit!(binary_op_precedence);
@@ -102,8 +115,12 @@ impl TokenKind {
         Some(Precedence(match self {
             tk::Star | tk::Divide | tk::Modulo => 50,
             tk::Plus | tk::Minus => 45,
+            tk::LShift | tk::RShift => 40,
             tk::LT | tk::LTE | tk::GT | tk::GTE => 35,
             tk::Equal | tk::NotEqual => 30,
+            tk::Ampersand => 16,
+            tk::UpArrow => 14,
+            tk::Pipe => 12,
             tk::And => 10,
             tk::Or => 5,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
@@ -154,12 +171,91 @@ pub struct Program {
     pub body: Function,
 }
 
-/// User-defined identifier (function names, variable names, etc.)
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(test, derive(Arbitrary))]
+/// Keywords and user-defined identifiers (e.g. function names or variable names).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Identifier {
     pub value: String,
     pub span: Span,
+}
+
+impl Identifier {
+    /// Check if a given string is a valid identifier.
+    ///
+    /// # Examples
+    ///
+    /// Valid identifiers can contain alphabetic characters, numeric characters, or the character '_'.
+    ///
+    /// ```rust
+    /// # use crustydrageon::ast::Identifier;
+    /// assert_eq!(Identifier::is_ident("abcdef"), true);
+    /// assert_eq!(Identifier::is_ident("abc_def"), true);
+    /// assert_eq!(Identifier::is_ident("hello_world"), true);
+    /// assert_eq!(Identifier::is_ident("x1"), true);
+    /// assert_eq!(Identifier::is_ident("x2"), true);
+    /// ```
+    ///
+    /// Other characters, such as special characters or whitespace, are not allowed.
+    ///
+    /// ```rust
+    /// # use crustydrageon::ast::Identifier;
+    /// assert_eq!(Identifier::is_ident("hello world"), false);
+    /// assert_eq!(Identifier::is_ident("Hello, world!"), false);
+    /// ```
+    ///
+    /// Empty strings are not identifiers.
+    ///
+    /// ```rust
+    /// # use crustydrageon::ast::Identifier;
+    /// assert_eq!(Identifier::is_ident(""), false);
+    /// ```
+    pub fn is_ident(s: &str) -> bool {
+        cov_mark::hit!(ast_is_ident);
+
+        s.chars().next().is_some_and(|c: char| !c.is_ascii_digit())
+            && s.chars()
+                .all(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9'))
+    }
+
+    /// Get the [`TokenKind`] of this [`Identifier`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::{src, ast::{Identifier, TokenKind}};
+    ///
+    /// let mut id = Identifier { value: "hello_world".to_owned(), span: src::Span::default() };
+    ///
+    /// assert_eq!(id.tok_kind(), TokenKind::Ident);
+    ///
+    /// id.value = "int".to_owned();
+    /// assert_eq!(id.tok_kind(), TokenKind::Int);
+    ///
+    /// id.value = "return".to_owned();
+    /// assert_eq!(id.tok_kind(), TokenKind::Return);
+    /// ```
+    #[debug_requires(Self::is_ident(&self.value))]
+    pub fn tok_kind(&self) -> TokenKind {
+        match self.value.as_str() {
+            "int" => TokenKind::Int,
+            "void" => TokenKind::Void,
+            "return" => TokenKind::Return,
+            _ => TokenKind::Ident,
+        }
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.span)
+    }
+}
+
+impl From<Span> for Identifier {
+    #[requires(Identifier::is_ident(&span.to_string()))]
+    fn from(span: Span) -> Self {
+        let value = span.to_string();
+        Self { span, value }
+    }
 }
 
 /// Function definition
@@ -209,6 +305,13 @@ pub enum BinaryOp {
     LessOrEqual,
     GreaterThan,
     GreaterOrEqual,
+
+    // Bitwise
+    BitAnd,
+    BitOr,
+    Xor,
+    LShift,
+    RShift,
 }
 
 /// Expression
@@ -228,12 +331,28 @@ pub enum Stmt {
 
 #[cfg(test)]
 pub mod strategy {
+
+    use crate::src::Source;
+
     use super::*;
+
+    impl Arbitrary for Identifier {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            "[a-zA-Z_][0-9a-zA-Z_]"
+                .prop_map(Source::new)
+                .prop_map(Span::from)
+                .prop_map(Identifier::from)
+                .boxed()
+        }
+    }
 
     // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
     impl Arbitrary for Expr {
         type Parameters = ();
-        type Strategy = proptest::prelude::BoxedStrategy<Self>;
+        type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
             let leaf = any::<i32>().prop_map(Expr::Const);
@@ -261,37 +380,54 @@ pub mod strategy {
 mod tests {
     use super::*;
 
+    use rstest::{fixture, rstest};
+
+    /// See https://en.cppreference.com/c/language/operator_precedence
     mod precedence {
         use super::*;
 
-        #[test]
-        fn test_groups() {
-            cov_mark::check!(binary_op_precedence);
+        use TokenKind::*;
 
-            // Check that the precedence of *, /, % are equal
-            assert_eq!(TokenKind::Star.precedence(), TokenKind::Divide.precedence());
-            assert_eq!(
-                TokenKind::Divide.precedence(),
-                TokenKind::Modulo.precedence()
-            );
+        #[fixture]
+        fn precedence_groups() -> Vec<Vec<TokenKind>> {
+            vec![
+                vec![Star, Divide, Modulo],
+                vec![Minus, Plus],
+                vec![LShift, RShift],
+                vec![LT, LTE, GT, GTE],
+                vec![Equal, NotEqual],
+                vec![Ampersand],
+                vec![Pipe],
+                vec![And],
+                vec![Or],
+            ]
+        }
 
-            // Check that the precedence of the above precedence group is greater than the below group
-            assert!(TokenKind::Star.precedence() > TokenKind::Plus.precedence());
+        #[rstest]
+        fn test_prec_group_equality(#[from(precedence_groups)] groups: Vec<Vec<TokenKind>>) {
+            for group in groups {
+                if let Some(first) = group.first() {
+                    assert!(
+                        group
+                            .iter()
+                            .all(|item| item.precedence() == first.precedence())
+                    )
+                }
+            }
+        }
 
-            // Check that the precedence of +, - are equal
-            assert_eq!(TokenKind::Minus.precedence(), TokenKind::Plus.precedence());
+        #[rstest]
+        fn test_prec_group_relativity(#[from(precedence_groups)] groups: Vec<Vec<TokenKind>>) {
+            let precedences: Vec<Precedence> = groups
+                .iter()
+                .filter_map(|g| {
+                    g.first()
+                        .map(|k| k.precedence().expect("should have precedence"))
+                })
+                .rev()
+                .collect();
 
-            // Check that the precedence of the above precedence group is greater than the below group
-            assert!(TokenKind::Plus.precedence() > TokenKind::LT.precedence());
-
-            // Check precedence of comparison operators
-            assert_eq!(TokenKind::LT.precedence(), TokenKind::LTE.precedence());
-            assert_eq!(TokenKind::LTE.precedence(), TokenKind::GT.precedence());
-            assert_eq!(TokenKind::GT.precedence(), TokenKind::GTE.precedence());
-
-            // Check that the precedence of && and || is less than the above
-            assert!(TokenKind::GTE.precedence() > TokenKind::And.precedence());
-            assert!(TokenKind::And.precedence() > TokenKind::Or.precedence());
+            assert!(precedences.is_sorted(), "not sorted: {precedences:?}");
         }
 
         proptest! {

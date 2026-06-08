@@ -6,9 +6,27 @@ use std::{
 use contracts::ensures;
 
 use crate::{
-    ast::{Token, TokenKind},
+    ast::{Identifier, Token, TokenKind},
     src::{Source, Span},
 };
+
+/// Corresponds to the word character class, or the `\w` regex pattern.
+fn is_word(c: &char) -> bool {
+    matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
+}
+
+/// Tokenize an identifier string as a keyword or identifier [`TokenKind`].
+///
+/// Returns [`None`] if the input is not an identifier.
+fn classify_ident(s: &str) -> Option<TokenKind> {
+    Some(match s {
+        "int" => TokenKind::Int,
+        "void" => TokenKind::Void,
+        "return" => TokenKind::Return,
+        s if Identifier::is_ident(s) => TokenKind::Ident,
+        _ => return None,
+    })
+}
 
 pub struct Lexer<'src> {
     src: &'src Source,
@@ -128,10 +146,6 @@ impl<'src> Lexer<'src> {
     }
 }
 
-fn is_word(c: &char) -> bool {
-    matches!(c, '0'..='9' | 'a'..='z' | 'A'..='Z' | '_')
-}
-
 impl Iterator for Lexer<'_> {
     type Item = Token;
 
@@ -162,39 +176,29 @@ impl Iterator for Lexer<'_> {
                 '*' => tk::Star,
                 '/' => tk::Divide,
                 '%' => tk::Modulo,
-                '-' | '+' => {
-                    if self.eat_if(|c| matches!(c, '-' | '+')).is_some() {
-                        match c {
-                            '-' => tk::Decrement,
-                            '+' => tk::Increment,
-                            _ => unreachable!(),
-                        }
-                    } else {
-                        match c {
-                            '-' => tk::Minus,
-                            '+' => tk::Plus,
-                            _ => unreachable!(),
-                        }
-                    }
-                }
-                '!' => self.based_on_next('=', tk::LogicNot, tk::NotEqual),
-                '&' => self.based_on_next(
-                    '&',
-                    todo_token!("tokenizing bitwise operators: ampersand token"),
-                    tk::And,
-                ),
-                '|' => self.based_on_next(
-                    '|',
-                    todo_token!("tokenizing bitwise operators: pipe token"),
-                    tk::Or,
-                ),
+                '^' => tk::UpArrow,
+                '+' => self.based_on_next('+', tk::Plus, tk::Increment),
+                '-' => self.based_on_next('-', tk::Minus, tk::Decrement),
+                '!' => self.based_on_next('=', tk::Not, tk::NotEqual),
+                '&' => self.based_on_next('&', tk::Ampersand, tk::And),
+                '|' => self.based_on_next('|', tk::Pipe, tk::Or),
                 '=' => self.based_on_next(
                     '=',
                     todo_token!("tokenizing set variable operator: equal sign token"),
                     tk::Equal,
                 ),
-                '<' => self.based_on_next('=', tk::LT, tk::LTE),
-                '>' => self.based_on_next('=', tk::GT, tk::GTE),
+                '<' => match self.eat_if(|c| matches!(c, '=' | '<')) {
+                    Some('=') => tk::LTE,
+                    Some('<') => tk::LShift,
+                    Some(_) => unreachable!(),
+                    None => tk::LT,
+                },
+                '>' => match self.eat_if(|c| matches!(c, '=' | '>')) {
+                    Some('=') => tk::GTE,
+                    Some('>') => tk::RShift,
+                    Some(_) => unreachable!(),
+                    _ => tk::GT,
+                },
 
                 // identifiers and keywords
                 'a'..='z' | 'A'..='Z' | '_' => {
@@ -202,13 +206,7 @@ impl Iterator for Lexer<'_> {
 
                     if self.at_word_bound() {
                         // handle keywords
-                        match self.consumed.as_str() {
-                            "void" => tk::Void,
-                            "int" => tk::Int,
-                            "return" => tk::Return,
-
-                            _ => tk::Ident,
-                        }
+                        classify_ident(self.consumed.as_str()).unwrap()
                     } else {
                         // if the next character isn't \b
                         self.error("Invalid identifier")
@@ -254,18 +252,9 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 }
 
 #[cfg(test)]
-mod strategy {
-    use proptest::prelude::*;
-
-    pub fn identifier() -> impl Strategy<Value = String> {
-        "[a-zA-Z_][a-zA-Z0-9_]*".prop_filter("Should not generate keywords", |s| {
-            s != "void" && s != "int" && s != "return"
-        })
-    }
-}
-
-#[cfg(test)]
 mod tests {
+    use crate::ast::Identifier;
+
     use super::*;
 
     use proptest::prelude::*;
@@ -356,8 +345,12 @@ mod tests {
     #[case("****", [TokenKind::Star, TokenKind::Star, TokenKind::Star, TokenKind::Star])]
     #[case("////", [TokenKind::Divide, TokenKind::Divide, TokenKind::Divide, TokenKind::Divide])]
     #[case("%%%%", [TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo])]
+    // bitwise operators
+    #[case("&", [TokenKind::Ampersand])]
+    #[case("|", [TokenKind::Pipe])]
+    #[case("^", [TokenKind::UpArrow])]
     // logical operators
-    #[case("!", [TokenKind::LogicNot])]
+    #[case("!", [TokenKind::Not])]
     #[case("&&", [TokenKind::And])]
     #[case("||", [TokenKind::Or])]
     #[case("==", [TokenKind::Equal])]
@@ -387,15 +380,48 @@ mod tests {
         }
     }
 
+    fn is_keyword(s: &str) -> bool {
+        match classify_ident(s) {
+            Some(kind) => !matches!(kind, TokenKind::Ident),
+            None => false,
+        }
+    }
+
     proptest! {
         #[test]
-        fn test_tokenize_identifiers(s in strategy::identifier()) {
-            let src = Source::new(s.clone());
+        fn test_is_word(s in r"[a-zA-Z_0-9]" /* FIXME: should be \w but unicode isn't supported yet */) {
+            let c = s.chars().next().unwrap();
+            assert!(is_word(&c))
+        }
+
+        #[test]
+        fn test_tokenize_identifiers(s: Identifier) {
+            // skip keywords
+            prop_assume!(!is_keyword(&s.to_string()));
+
+            let src = Source::new(s.to_string());
             let tokens = tokenize(&src).collect::<Vec<Token>>();
 
             prop_assert_eq!(tokens.len(), 1);
             prop_assert_eq!(tokens[0].kind(), TokenKind::Ident);
-            prop_assert_eq!(tokens[0].span().to_string(), s);
+            prop_assert_eq!(tokens[0].span().to_string(), s.to_string());
+        }
+
+        /// Test that identifier tokenization in the [`Lexer`] and [`Identifier::is_ident`] agree.
+        #[test]
+        fn test_is_ident_equivalence(s: String) {
+            // skip keywords
+            prop_assume!(!is_keyword(&s.to_string()));
+            prop_assume!(!s.is_empty());
+
+            fn lexer_is_ident(s: String) -> bool {
+                let src = Source::new(s.to_string());
+                let tokens = tokenize(&src).collect::<Vec<Token>>();
+
+                tokens.len() == 1 && tokens[0].kind() == TokenKind::Ident
+            }
+
+            prop_assert_eq!(Identifier::is_ident(&s), lexer_is_ident(s));
         }
     }
 }
