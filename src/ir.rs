@@ -207,6 +207,19 @@ pub enum BinaryOp {
     Lte,
     Gt,
     Gte,
+    /// Bitwise and.
+    And,
+    /// Bitwise or.
+    Or,
+    Xor,
+    /// Logical shift left.
+    ///
+    /// Shift bits to the left, filling new bits to the right with zeros.
+    Ashl,
+    /// Logical shift right.
+    ///
+    /// Shift bits to the right, filling new bits to the left with zeros.
+    Ashr,
 }
 
 impl Display for BinaryOp {
@@ -217,17 +230,22 @@ impl Display for BinaryOp {
             f,
             "{}",
             match self {
-                BinaryOp::Add => "add",
-                BinaryOp::Sub => "sub",
-                BinaryOp::Mul => "mul",
-                BinaryOp::Div => "div",
-                BinaryOp::Rem => "rem",
-                BinaryOp::Eq => "eq",
-                BinaryOp::Neq => "neq",
-                BinaryOp::Lt => "lt",
-                BinaryOp::Lte => "lte",
-                BinaryOp::Gt => "gt",
-                BinaryOp::Gte => "gte",
+                Self::Add => "add",
+                Self::Sub => "sub",
+                Self::Mul => "mul",
+                Self::Div => "div",
+                Self::Rem => "rem",
+                Self::Eq => "eq",
+                Self::Neq => "neq",
+                Self::Lt => "lt",
+                Self::Lte => "lte",
+                Self::Gt => "gt",
+                Self::Gte => "gte",
+                Self::And => "and",
+                Self::Or => "or",
+                Self::Xor => "xor",
+                Self::Ashl => "ashl",
+                Self::Ashr => "ashr",
             }
         )
     }
@@ -249,6 +267,11 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::LessOrEqual => Ok(Self::Lte),
             ast::BinaryOp::GreaterThan => Ok(Self::Gt),
             ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
+            ast::BinaryOp::BitAnd => Ok(Self::And),
+            ast::BinaryOp::BitOr => Ok(Self::Or),
+            ast::BinaryOp::Xor => Ok(Self::Xor),
+            ast::BinaryOp::LShift => Ok(Self::Ashl),
+            ast::BinaryOp::RShift => Ok(Self::Ashr),
             ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
         }
     }

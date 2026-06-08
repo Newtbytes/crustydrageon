@@ -169,39 +169,29 @@ impl Iterator for Lexer<'_> {
                 '*' => tk::Star,
                 '/' => tk::Divide,
                 '%' => tk::Modulo,
-                '-' | '+' => {
-                    if self.eat_if(|c| matches!(c, '-' | '+')).is_some() {
-                        match c {
-                            '-' => tk::Decrement,
-                            '+' => tk::Increment,
-                            _ => unreachable!(),
-                        }
-                    } else {
-                        match c {
-                            '-' => tk::Minus,
-                            '+' => tk::Plus,
-                            _ => unreachable!(),
-                        }
-                    }
-                }
-                '!' => self.based_on_next('=', tk::LogicNot, tk::NotEqual),
-                '&' => self.based_on_next(
-                    '&',
-                    todo_token!("tokenizing bitwise operators: ampersand token"),
-                    tk::And,
-                ),
-                '|' => self.based_on_next(
-                    '|',
-                    todo_token!("tokenizing bitwise operators: pipe token"),
-                    tk::Or,
-                ),
+                '^' => tk::UpArrow,
+                '+' => self.based_on_next('+', tk::Plus, tk::Increment),
+                '-' => self.based_on_next('-', tk::Minus, tk::Decrement),
+                '!' => self.based_on_next('=', tk::Not, tk::NotEqual),
+                '&' => self.based_on_next('&', tk::Ampersand, tk::And),
+                '|' => self.based_on_next('|', tk::Pipe, tk::Or),
                 '=' => self.based_on_next(
                     '=',
                     todo_token!("tokenizing set variable operator: equal sign token"),
                     tk::Equal,
                 ),
-                '<' => self.based_on_next('=', tk::LT, tk::LTE),
-                '>' => self.based_on_next('=', tk::GT, tk::GTE),
+                '<' => match self.eat_if(|c| matches!(c, '=' | '<')) {
+                    Some('=') => tk::LTE,
+                    Some('<') => tk::LShift,
+                    Some(_) => unreachable!(),
+                    None => tk::LT,
+                },
+                '>' => match self.eat_if(|c| matches!(c, '=' | '>')) {
+                    Some('=') => tk::GTE,
+                    Some('>') => tk::RShift,
+                    Some(_) => unreachable!(),
+                    _ => tk::GT,
+                },
 
                 // identifiers and keywords
                 'a'..='z' | 'A'..='Z' | '_' => {
@@ -348,8 +338,12 @@ mod tests {
     #[case("****", [TokenKind::Star, TokenKind::Star, TokenKind::Star, TokenKind::Star])]
     #[case("////", [TokenKind::Divide, TokenKind::Divide, TokenKind::Divide, TokenKind::Divide])]
     #[case("%%%%", [TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo])]
+    // bitwise operators
+    #[case("&", [TokenKind::Ampersand])]
+    #[case("|", [TokenKind::Pipe])]
+    #[case("^", [TokenKind::UpArrow])]
     // logical operators
-    #[case("!", [TokenKind::LogicNot])]
+    #[case("!", [TokenKind::Not])]
     #[case("&&", [TokenKind::And])]
     #[case("||", [TokenKind::Or])]
     #[case("==", [TokenKind::Equal])]
