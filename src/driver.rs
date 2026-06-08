@@ -263,8 +263,8 @@ pub fn compile(
         return Ok(None);
     }
 
-    let ast =
-        parser::parse(tokens.peekable()).map_err(|e| CompilerError::ParserError(src.clone(), e))?;
+    let ast = parser::parse(tokens.peekable())
+        .map_err(|e| CompilerError::ParserError(src.clone(), Box::new(e)))?;
     cov_mark::hit!(parse);
 
     if verbose || stop_at == Some(CompilerStage::Parse) {

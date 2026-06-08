@@ -6,7 +6,7 @@ use crate::{parser::ParserError, src::Source};
 pub enum CompilerError {
     SysCompilerNotFound(&'static str),
     SysCompilerError(process::ExitStatus),
-    ParserError(Source, ParserError),
+    ParserError(Source, Box<ParserError>),
     IoError,
 }
 
