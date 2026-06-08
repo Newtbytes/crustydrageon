@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 05a765b49833a4d681e2d11a752bfb2db4eba06dae7a1125f74cd1e846c0afd8 # shrinks to token_kind = Pipe
+cc 0045f999da6d97b91fecbe3e3c2b7b1bf309b9b4b766f673c1d1c37d55363257 # shrinks to token_kind = LShift

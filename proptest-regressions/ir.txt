@@ -4,5 +4,10 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
+cc 52cc8eb84ab5d6b072c498e902354de83a76636a840df9e99b862e6fd494ae97 # shrinks to expr = Binary(Add, Const(0), Binary(BitAnd, Const(0), Const(0)))
+cc 2f73542f55f56d74e0a3ef6da8b386c7e32537d5ac9b518ea324e92567970aa8 # shrinks to expr = Binary(Multiply, Binary(Subtract, Const(-1124919892), Const(502612130)), Binary(Multiply, Const(591279220), Const(-1892352259)))
+cc a086479c3933b2e94a09b21879241f2baec496cc08e5a55740de8334efb287a1 # shrinks to expr = Unary(Not, Unary(Not, Const(-457178535)))
+cc 934ebc08d266641268d090be80824a305da99641d9246300f8129660e0625c2b # shrinks to expr = Binary(Multiply, Binary(Multiply, Binary(Or, Const(-845551717), Const(1298588208)), Const(-1725708985)), Const(-2086790110))
+cc 2a26ede570fe5d458918c5eebd942f9dcc8e9ea98aa674a8fcea19fe9fd21581 # shrinks to expr = Unary(Complement, Binary(Add, Const(1458389874), Const(573522243)))
 cc 0bdb2e8f9381413e9fdccd0a18167d7e4091c6bdcf41ea3c04d3491bff12c8f7 # shrinks to expr = Unary(Negate, Binary(Add, Unary(Negate, Var(Identifier { value: "", span: Span { loc: Location { line: 0, column: 0, index: 1914374 }, span: "" } })), Unary(Complement, Const(-970069236))))
 cc 2256fb69fd616e9e78515f30bd3d08892468a999a9b5b208482843ec2576f761 # shrinks to expr = Binary(Add, Binary(Assign, Const(0), Const(0)), Binary(Add, Var(Identifier { value: "", span: Span { loc: Location { line: 0, column: 0, index: 24822620628864576 }, span: "🕴''?𑻦�ዖ𐮚𛇖v?\u{11373}!ᦠ`ਫ਼X🉂{T�aຍ&" } }), Var(Identifier { value: "s\u{81e}𘴄m¥&ຄjE..𑠍0🮡$𑎃_𐏍𐦑𐳖𑃸𐇞Ѩ", span: Span { loc: Location { line: 2428240992645759808, column: 18084375106619992865, index: 9358778642334237908 }, span: "ஜ\u{ac2}ѨA𐗠&¥{" } })))
