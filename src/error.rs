@@ -35,10 +35,10 @@ impl fmt::Display for CompilerError {
                         span.start().column()
                     )?;
 
-                    let start_line = src.get_lineno(span.start_index()).unwrap();
-                    let end_line = src.get_lineno(span.end_index()).unwrap();
+                    let start_line = src.find_line(span.start_index()).unwrap();
+                    let end_line = src.find_line(span.end_index()).unwrap();
                     let start_col = span.start().column();
-                    let end_col = src.get_colno(span.end_index()).unwrap();
+                    let end_col = src.find_column(span.end_index()).unwrap();
 
                     for i in start_line..=end_line {
                         if let Some(line) = src.lines().nth(i) {

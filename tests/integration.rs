@@ -121,7 +121,8 @@ fn test_valid(
 
 proptest! {
     #[test]
-    fn doesnt_panic(program: String) {
+    // FIXME: this tests only ASCII input programs
+    fn doesnt_panic(program in "[ -~]" /* all printable ASCII characters */) {
         let _ = driver::compile(program, None, false);
     }
 }

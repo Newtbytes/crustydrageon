@@ -260,7 +260,7 @@ pub fn parse<'src>(
 
 #[cfg(test)]
 mod tests {
-    use crate::src::{Source, Span};
+    use crate::src::Source;
 
     use super::*;
 
@@ -273,14 +273,8 @@ mod tests {
     use rstest::{fixture, rstest};
     use rstest_reuse::{self, *};
 
-    fn src(content: &'static str) -> Source {
-        Source::new(content.to_owned())
-    }
-
     fn tok(kind: TokenKind, lexeme: &'static str) -> Token {
-        let mut span = Span::empty_at(&src(lexeme), 0).unwrap();
-        span.push_str(lexeme.to_owned());
-        Token::new(kind, span)
+        Token::new(kind, Source::new(lexeme.to_owned()).into())
     }
 
     #[fixture]
