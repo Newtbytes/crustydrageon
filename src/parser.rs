@@ -100,6 +100,10 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
     }
 
+    fn next_is(&mut self, kind: TokenKind) -> bool {
+        self.peek().kind() == kind
+    }
+
     fn parse_unary_op(&mut self) -> ParseResult<UnaryOp> {
         let tok = self.take()?;
 
@@ -233,11 +237,19 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
-        self.expect(TokenKind::Return)?;
-        let ret_val = self.parse_expr(Precedence::default())?;
-        self.expect(TokenKind::Semicolon)?;
-
-        Ok(Stmt::Return(ret_val))
+        if self.next_is(TokenKind::Return) {
+            self.expect(TokenKind::Return)?;
+            let ret_val = self.parse_expr(Precedence::default())?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Return(ret_val))
+        } else if self.next_is(TokenKind::Semicolon) {
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Null)
+        } else {
+            let expr = self.parse_expr(Precedence::default())?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Expr(expr))
+        }
     }
 
     fn parse_decl(&mut self) -> ParseResult<Decl> {
@@ -245,11 +257,10 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
         let name = self.parse_identifier()?;
 
-        self.expect(TokenKind::Assign)?;
-
         let init = if self.peek().kind() == TokenKind::Semicolon {
             None
         } else {
+            self.expect(TokenKind::Assign)?;
             let expr = self.parse_expr(Precedence::default())?;
             self.expect(TokenKind::Semicolon)?;
             Some(expr)
