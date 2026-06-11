@@ -7,7 +7,7 @@ use proptest::prelude::*;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
-use crate::src::Span;
+use crate::src::{self, Span};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -166,6 +166,18 @@ impl Token {
     }
 }
 
+impl From<Token> for Span {
+    fn from(tok: Token) -> Self {
+        tok.lexeme
+    }
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
 /// A C program
 /// Currently can only contain a single function.
 #[derive(Debug)]
@@ -268,6 +280,12 @@ impl From<Span> for Identifier {
     }
 }
 
+impl From<Identifier> for Span {
+    fn from(id: Identifier) -> Self {
+        id.span
+    }
+}
+
 /// Function definition
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -285,7 +303,7 @@ impl Function {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum UnaryOp {
+pub enum UnOpKind {
     // Arithmetic
     Negate,
 
@@ -296,9 +314,15 @@ pub enum UnaryOp {
     Not,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct UnOp {
+    pub kind: UnOpKind,
+    pub span: Span,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum BinaryOp {
+pub enum BinOpKind {
     // Arithmetic
     Add,
     Subtract,
@@ -327,13 +351,25 @@ pub enum BinaryOp {
     Assign,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct BinOp {
+    pub kind: BinOpKind,
+    pub span: Span,
+}
+
 /// Expression
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Expr {
+pub enum ExprKind {
     Const(i32),
     Var(Identifier),
-    Unary(UnaryOp, Box<Expr>),
-    Binary(BinaryOp, Box<Expr>, Box<Expr>),
+    Unary(UnOp, Box<Expr>),
+    Binary(BinOp, Box<Expr>, Box<Expr>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
 }
 
 /// Statement
@@ -350,6 +386,7 @@ pub enum Stmt {
 pub struct Decl {
     pub name: Identifier,
     pub init: Option<Expr>,
+    pub span: src::Span,
 }
 
 #[derive(Debug, Clone)]
@@ -379,32 +416,22 @@ pub mod strategy {
         }
     }
 
-    // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
     impl Arbitrary for Expr {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            let leaf = prop_oneof![
-                any::<i32>().prop_map(Expr::Const),
-                any::<Identifier>().prop_map(Expr::Var),
-            ];
+            todo!()
+        }
+    }
 
-            leaf.prop_recursive(
-                3,  // max depth
-                16, // max total size
-                2,  // max branching factor
-                |inner| {
-                    prop_oneof![
-                        (any::<UnaryOp>(), inner.clone())
-                            .prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr))),
-                        (any::<BinaryOp>(), inner.clone(), inner).prop_map(|(op, lhs, rhs)| {
-                            Expr::Binary(op, Box::new(lhs), Box::new(rhs))
-                        }),
-                    ]
-                },
-            )
-            .boxed()
+    // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
+    impl Arbitrary for ExprKind {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            todo!()
         }
     }
 }

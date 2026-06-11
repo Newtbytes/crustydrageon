@@ -264,8 +264,8 @@ pub fn compile(
         return Ok(None);
     }
 
-    let mut ast = parser::parse(tokens.peekable())
-        .map_err(|e| CompilerError::ParserError(src.clone(), Box::new(e)))?;
+    let mut ast = parser::parse(src.clone(), tokens.peekable())
+        .map_err(|e| CompilerError::SourceDiagnostic(src.clone(), Box::new(e)))?;
     cov_mark::hit!(parse);
 
     if verbose || stop_at == Some(CompilerStage::Parse) {
@@ -273,7 +273,7 @@ pub fn compile(
         return Ok(None);
     }
 
-    sema::resolve(&mut ast).map_err(|e| CompilerError::ResolutionError(src, e))?;
+    sema::resolve(&mut ast).map_err(|e| CompilerError::SourceDiagnostic(src, Box::new(e)))?;
 
     if verbose || stop_at == Some(CompilerStage::Validate) {
         println!("{ast:#?}");
