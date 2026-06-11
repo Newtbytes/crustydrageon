@@ -329,11 +329,17 @@ impl Display for UnOpKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct UnOp {
     pub kind: UnOpKind,
     pub span: Span,
+}
+
+impl PartialEq for UnOp {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 impl Display for UnOp {
@@ -403,11 +409,17 @@ impl Display for BinOpKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct BinOp {
     pub kind: BinOpKind,
     pub span: Span,
+}
+
+impl PartialEq for BinOp {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 impl Display for BinOp {
@@ -436,10 +448,16 @@ impl Display for ExprKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Eq, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+}
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 impl Display for Expr {
@@ -449,7 +467,7 @@ impl Display for Expr {
 }
 
 /// Statement
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
     Expr(Expr),
@@ -457,7 +475,7 @@ pub enum Stmt {
     Null,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Decl {
     pub name: Identifier,
@@ -465,7 +483,13 @@ pub struct Decl {
     pub span: src::Span,
 }
 
-#[derive(Debug, Clone)]
+impl PartialEq for Decl {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.init == other.init
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BlockItem {
     Stmt(Stmt),
