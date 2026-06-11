@@ -272,15 +272,14 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::Xor => Ok(Self::Xor),
             ast::BinaryOp::LShift => Ok(Self::Ashl),
             ast::BinaryOp::RShift => Ok(Self::Ashr),
-            ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
-            ast::BinaryOp::Assign => todo!(),
+            ast::BinaryOp::Assign | ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
         }
     }
 }
 
 /// A counter for generating unique variable IDs for temporary variables created during IR generation.
 #[allow(non_snake_case)]
-mod VarID {
+pub mod VarID {
     use std::sync::atomic;
 
     static COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
@@ -300,18 +299,18 @@ mod VarID {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Value {
     Constant(i32),
-    Var(usize),
+    Var(String),
 }
 
 impl Value {
     #[must_use]
     pub fn new_var() -> Self {
         cov_mark::hit!(ir_var_created);
-        Self::Var(VarID::new())
+        Self::Var(VarID::new().to_string())
     }
 }
 
@@ -332,7 +331,12 @@ impl Display for Value {
 
 fn binary(ops: &mut Vec<Operation>, op: BinaryOp, a: Value, b: Value) -> Value {
     let dst = Value::new_var();
-    ops.push(Operation::Binary { op, a, b, dst });
+    ops.push(Operation::Binary {
+        op,
+        a,
+        b,
+        dst: dst.clone(),
+    });
     dst
 }
 
@@ -362,7 +366,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
             ops.push(Operation::Unary {
                 op: unary_op.into(),
                 src,
-                dst,
+                dst: dst.clone(),
             });
 
             cov_mark::hit!(ir_unary_op_lowered);
@@ -391,18 +395,29 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
             ops.extend([
                 Operation::Copy {
                     src: Value::Constant(if op == ast::BinaryOp::And { 1 } else { 0 }),
-                    dst: result,
+                    dst: result.clone(),
                 },
                 Operation::Branch(end_label.clone()),
                 Operation::Label(skip_label),
                 Operation::Copy {
                     src: Value::Constant(if op == ast::BinaryOp::And { 0 } else { 1 }),
-                    dst: result,
+                    dst: result.clone(),
                 },
                 Operation::Label(end_label),
             ]);
 
             result
+        }
+        ast::Expr::Binary(ast::BinaryOp::Assign, dst, src) => {
+            let dst = lower_expr(ops, *dst);
+            let src = lower_expr(ops, *src);
+
+            ops.push(Operation::Copy {
+                src,
+                dst: dst.clone(),
+            });
+
+            dst
         }
         ast::Expr::Binary(binary_op, a, b) => {
             let a = lower_expr(ops, *a);
@@ -413,14 +428,14 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
                 op: BinaryOp::try_from(binary_op).unwrap(),
                 a,
                 b,
-                dst,
+                dst: dst.clone(),
             });
 
             cov_mark::hit!(ir_binary_op_lowered);
 
             dst
         }
-        ast::Expr::Var(identifier) => todo!(),
+        ast::Expr::Var(identifier) => Value::Var(identifier.to_string()),
     };
 
     cov_mark::hit!(ir_expr_lowered);
@@ -435,8 +450,13 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
             ops.push(Operation::Return(value));
             cov_mark::hit!(ir_return_stmt_lowered);
         }
-        ast::Stmt::Expr(expr) => todo!(),
-        ast::Stmt::Null => {}
+        ast::Stmt::Expr(expr) => {
+            lower_expr(ops, expr);
+            cov_mark::hit!(ir_expr_stmt_lowered);
+        }
+        ast::Stmt::Null => {
+            cov_mark::hit!(ir_null_stmt_lowered);
+        }
     }
 
     cov_mark::hit!(ir_stmt_lowered);
@@ -446,8 +466,10 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
 pub fn lower_func(mut func: ast::Function) -> Function {
     let mut ops = Vec::new();
 
-    if let ast::BlockItem::Stmt(stmt) = func.body.remove(0) {
-        lower_stmt(&mut ops, stmt);
+    if !func.body.is_empty() {
+        if let ast::BlockItem::Stmt(stmt) = func.body.remove(0) {
+            lower_stmt(&mut ops, stmt);
+        }
     }
 
     Function {
@@ -556,8 +578,8 @@ mod tests {
             vec![Operation::Unary {
                     op: UnaryOp::Negate,
                     src: Value::Constant(5),
-                    dst: Value::Var(0),
-                }], Value::Var(0)
+                    dst: Value::Var(0.to_string()),
+                }], Value::Var(0.to_string())
         )]
         #[case::nested_negate_and_complement(
             // given: ~(-42)
@@ -571,14 +593,14 @@ mod tests {
                 Operation::Unary {
                     op: UnaryOp::Negate,
                     src: Value::Constant(42),
-                    dst: Value::Var(0),
+                    dst: Value::Var(0.to_string()),
                 },
                 Operation::Unary {
                     op: UnaryOp::Complement,
-                    src: Value::Var(0),
-                    dst: Value::Var(1),
+                    src: Value::Var(0.to_string()),
+                    dst: Value::Var(1.to_string()),
                 }
-            ], Value::Var(1)
+            ], Value::Var(1.to_string())
         )]
         #[serial]
         fn test_lower_expr(
@@ -633,7 +655,7 @@ mod tests {
                 #[test]
                 fn test_no_whitespace(val in any::<i32>(), id in any::<usize>()) {
                     let c = Value::Constant(val).to_string();
-                    let v = Value::Var(id).to_string();
+                    let v = Value::Var(id.to_string()).to_string();
 
                     prop_assert_eq!(c.trim(), &c);
                     prop_assert_eq!(v.trim(), &v);
@@ -642,7 +664,7 @@ mod tests {
                 #[test]
                 fn test_variants_differ(val in any::<u16>() /* u16 so it fits in usize & i32 */) {
                     let c = Value::Constant(val.into()).to_string();
-                    let v = Value::Var(val.into()).to_string();
+                    let v = Value::Var(val.to_string()).to_string();
 
                     prop_assert_ne!(c, v);
                 }
@@ -656,7 +678,7 @@ mod tests {
 
                 #[test]
                 fn test_value_var_pretty(id in any::<usize>()) {
-                    let v = Value::Var(id);
+                    let v = Value::Var(id.to_string());
                     let s = v.to_string();
 
                     prop_assert!(s.starts_with('$'));
@@ -697,16 +719,16 @@ mod tests {
             #[case(
                 Operation::Binary {
                     op: BinaryOp::Add,
-                    a: Value::Constant(5), b: Value::Var(3),
-                    dst: Value::Var(3)
+                    a: Value::Constant(5), b: Value::Var(3.to_string()),
+                    dst: Value::Var(3.to_string())
                 }
             )]
             #[case(
-                Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2), dst: Value::Var(5) }
+                Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2.to_string()), dst: Value::Var(5.to_string()) }
             )]
             #[case(Operation::Branch(Label::Anon(5)))]
             #[case(Operation::BranchIf {
-                cond: Value::Var(2),
+                cond: Value::Var(2.to_string()),
                 then_label: Label::Anon(5),
                 else_label: Label::Named(
                     ast::Identifier::default()

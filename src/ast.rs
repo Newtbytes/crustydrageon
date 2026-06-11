@@ -177,11 +177,27 @@ pub struct Program {
 /// Keywords and user-defined identifiers (e.g. function names or variable names).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Identifier {
-    pub value: String,
-    pub span: Span,
+    names: Vec<String>,
+    span: Span,
 }
 
 impl Identifier {
+    /// Return the current value of the identifier, including all mangling that has been done so far.
+    #[requires(self.names.len() >0)]
+    pub fn value(&self) -> &str {
+        self.names.last().unwrap()
+    }
+
+    pub fn rename(&mut self, name: String) {
+        self.names.push(name);
+    }
+
+    /// Get the original, demangled name from the name history.
+    #[requires(self.names.len() >0)]
+    pub fn source_name(&self) -> &str {
+        self.names.first().unwrap()
+    }
+
     /// Check if a given string is a valid identifier.
     ///
     /// # Examples
@@ -236,14 +252,18 @@ impl Identifier {
     /// id.value = "return".to_owned();
     /// assert_eq!(id.tok_kind(), TokenKind::Return);
     /// ```
-    #[debug_requires(Self::is_ident(&self.value))]
+    #[debug_requires(Self::is_ident(&self.source_name()))]
     pub fn tok_kind(&self) -> TokenKind {
-        match self.value.as_str() {
+        match self.source_name() {
             "int" => TokenKind::Int,
             "void" => TokenKind::Void,
             "return" => TokenKind::Return,
             _ => TokenKind::Ident,
         }
+    }
+
+    pub fn span(&self) -> &Span {
+        &self.span
     }
 }
 
@@ -257,7 +277,10 @@ impl From<Span> for Identifier {
     #[requires(Identifier::is_ident(&span.to_string()))]
     fn from(span: Span) -> Self {
         let value = span.to_string();
-        Self { span, value }
+        Self {
+            span,
+            names: vec![value],
+        }
     }
 }
 
@@ -408,6 +431,22 @@ mod tests {
 
     use rstest::{fixture, rstest};
 
+    proptest! {
+        #[test]
+        fn test_identifier_rename(mut id: Identifier, new_name: String) {
+            let old_name = id.source_name().to_owned();
+
+            prop_assume!(old_name != new_name);
+
+            prop_assert_eq!(id.value(), &old_name);
+
+            id.rename(new_name.clone());
+
+            prop_assert_eq!(id.value(), &new_name);
+            prop_assert_eq!(id.source_name(), &old_name);
+        }
+    }
+
     /// See https://en.cppreference.com/c/language/operator_precedence
     mod precedence {
         use super::*;
@@ -426,6 +465,7 @@ mod tests {
                 vec![Pipe],
                 vec![And],
                 vec![Or],
+                vec![Assign],
             ]
         }
 

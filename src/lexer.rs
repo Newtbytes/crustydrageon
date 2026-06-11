@@ -156,12 +156,6 @@ impl Iterator for Lexer<'_> {
         self.eat_while(|&c| c.is_whitespace());
         self.end_token();
 
-        macro_rules! todo_token {
-            ($msg:literal) => {
-                self.error(concat!("not yet implemented: ", $msg))
-            };
-        }
-
         let kind = match self.eat() {
             Some(c) => match c {
                 // structural tokens

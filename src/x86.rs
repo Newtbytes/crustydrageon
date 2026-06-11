@@ -33,7 +33,7 @@ impl Function {
     #[must_use]
     pub fn new(mut name: ast::Identifier, body: Vec<Instruction>) -> Self {
         if cfg!(target_os = "macos") {
-            name.value = format!("_{}", name.value);
+            name.rename(format!("_{}", name.value()));
         }
 
         Self { name, body }
@@ -42,8 +42,8 @@ impl Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("\t.globl {}\n", self.name.value))?;
-        f.write_str(&format!("{}:\n", self.name.value))?;
+        f.write_str(&format!("\t.globl {}\n", self.name.value()))?;
+        f.write_str(&format!("{}:\n", self.name.value()))?;
         // TODO: make adding the function prologue a part of legalization perhaps?
         // alternatively it could be a part of lowering alloca instructions
         f.write_str("\tpushq %rbp\n")?;
@@ -84,7 +84,7 @@ impl Display for Register {
 pub enum Operand {
     Imm(i32),
     Reg(Register),
-    Pseudo(usize),
+    Pseudo(String),
     Stack(i32),
 }
 
@@ -316,14 +316,14 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             Instruction::Cmp(Operand::Imm(0), src.into()),
             Instruction::Mov {
                 src: Operand::Imm(0),
-                dst: dst.into(),
+                dst: dst.clone().into(),
             },
             Instruction::Set(Cond::E, dst.into()),
         ]),
         ir::Operation::Unary { op, src, dst } => {
             insts.push(Instruction::Mov {
                 src: src.into(),
-                dst: dst.into(),
+                dst: dst.clone().into(),
             });
             insts.push(Instruction::Unary(op.into(), dst.into()));
         }
@@ -339,7 +339,7 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                 insts.extend([
                     Instruction::Mov {
                         src: a.into(),
-                        dst: dst.into(),
+                        dst: dst.clone().into(),
                     },
                     Instruction::Binary(
                         match op {
@@ -387,7 +387,7 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                     Instruction::Cmp(b.into(), a.into()),
                     Instruction::Mov {
                         src: Operand::Imm(0),
-                        dst: dst.into(),
+                        dst: dst.clone().into(),
                     },
                     Instruction::Set(Cond::try_from(op).unwrap(), dst.into()),
                 ]);
@@ -528,21 +528,20 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
     let mut insts = Vec::new();
 
     // map from pseudo register to stack offset
-    let mut stack_map: HashMap<usize, i32> = HashMap::new();
+    let mut stack_map: HashMap<String, i32> = HashMap::new();
     let mut stack_size: u64 = 0;
 
-    for mut inst in block {
+    for inst in block {
+        let mut inst = inst.clone();
         for operand in inst.get_operands_mut() {
-            if let Operand::Pseudo(id) = operand {
-                let id = *id;
-
-                stack_map.entry(id).or_insert_with(|| {
+            if let Operand::Pseudo(id) = &operand {
+                stack_map.entry(id.clone()).or_insert_with(|| {
                     // allocate new stack slot
                     stack_size += operand.size_bytes() as u64;
                     -(stack_size as i32)
                 });
 
-                *operand = Operand::Stack(*stack_map.get(&id).unwrap());
+                *operand = Operand::Stack(*stack_map.get(id).unwrap());
 
                 cov_mark::hit!(x86_pseudo_register_replaced_with_stack);
             }
@@ -598,8 +597,8 @@ mod tests {
                 let fmt = format!("{func}");
 
                 // emitted code should contain the correct global directive and label for the function
-                assert!(fmt.contains(&format!(".globl {}", func.name.value)));
-                assert!(fmt.contains(&format!("{}:", func.name.value)));
+                assert!(fmt.contains(&format!(".globl {}", func.name.value())));
+                assert!(fmt.contains(&format!("{}:", func.name.value())));
 
                 // emitted code should contain the function prologue
                 assert!(fmt.contains("pushq %rbp"));
