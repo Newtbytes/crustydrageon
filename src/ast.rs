@@ -285,7 +285,7 @@ impl From<Span> for Identifier {
 }
 
 /// Function definition
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
@@ -361,14 +361,14 @@ pub enum Stmt {
     Null,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Decl {
     pub name: Identifier,
     pub init: Option<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BlockItem {
     Stmt(Stmt),

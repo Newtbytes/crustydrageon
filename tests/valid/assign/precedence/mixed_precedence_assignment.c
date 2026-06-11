@@ -4,3 +4,5 @@ int main(void) {
     a = 3 * (b = a);
     return a + b;
 }
+
+//$ CHECK STATUS : 4

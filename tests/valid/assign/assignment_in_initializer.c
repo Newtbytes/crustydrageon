@@ -3,3 +3,5 @@ int main(void) {
     int b = a = 0;
     return b;
 }
+
+//$ CHECK STATUS : 0

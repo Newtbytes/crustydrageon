@@ -9,3 +9,5 @@ int main(void) {
     0 && (a = 5);
     return a;
 }
+
+//$ CHECK STATUS : 0

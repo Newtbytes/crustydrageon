@@ -4,3 +4,5 @@ int main(void) {
     int b = 2;
     return a = b = 4;
 }
+
+//$ CHECK STATUS : 4

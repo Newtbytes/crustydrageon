@@ -8,3 +8,5 @@ int main(void) {
     0 || (a = 1);
     return a;
 }
+
+//$ CHECK STATUS : 1

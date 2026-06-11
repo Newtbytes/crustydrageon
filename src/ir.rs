@@ -280,21 +280,23 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
 /// A counter for generating unique variable IDs for temporary variables created during IR generation.
 #[allow(non_snake_case)]
 pub mod VarID {
-    use std::sync::atomic;
+    use std::cell::Cell;
 
-    static COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+    thread_local! {
+        static COUNTER: Cell<usize> = Cell::new(0);
+    }
 
     /// Create a new temporary variable with a unique ID.
     #[must_use]
     pub fn new() -> usize {
         cov_mark::hit!(ir_var_id_created);
-        COUNTER.fetch_add(1, atomic::Ordering::Relaxed)
+        let val = COUNTER.get() + 1;
+        COUNTER.set(val);
+        val - 1
     }
-
     /// Reset the variable ID counter to zero.
-    #[allow(dead_code)] // currently only used in tests
     pub fn reset() {
-        COUNTER.store(0, atomic::Ordering::Relaxed);
+        COUNTER.set(0);
         cov_mark::hit!(ir_var_id_counter_reset);
     }
 }
@@ -462,14 +464,36 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
     cov_mark::hit!(ir_stmt_lowered);
 }
 
+pub fn lower_decl(ops: &mut Vec<Operation>, decl: ast::Decl) {
+    if let Some(init) = decl.init {
+        let init = lower_expr(ops, init);
+
+        ops.push(Operation::Copy {
+            src: init,
+            dst: Value::Var(decl.name.to_string()),
+        });
+    }
+}
+
+pub fn lower_block_item(ops: &mut Vec<Operation>, block_item: ast::BlockItem) {
+    match block_item {
+        ast::BlockItem::Stmt(stmt) => lower_stmt(ops, stmt),
+        ast::BlockItem::Decl(decl) => lower_decl(ops, decl),
+    }
+}
+
 #[must_use]
-pub fn lower_func(mut func: ast::Function) -> Function {
+pub fn lower_func(func: ast::Function) -> Function {
     let mut ops = Vec::new();
 
     if !func.body.is_empty() {
-        if let ast::BlockItem::Stmt(stmt) = func.body.remove(0) {
-            lower_stmt(&mut ops, stmt);
+        for block_item in func.body {
+            lower_block_item(&mut ops, block_item);
         }
+    }
+
+    if !ops.iter().any(|op| matches!(op, Operation::Return(_))) {
+        ops.push(Operation::Return(Value::Constant(0)));
     }
 
     Function {
@@ -622,6 +646,7 @@ mod tests {
 
         proptest! {
             #[test]
+            #[serial]
             fn test_lower_stmt(expr: ast::Expr) {
                 cov_mark::check!(ir_stmt_lowered);
                 cov_mark::check!(ir_expr_lowered);
@@ -640,6 +665,22 @@ mod tests {
                 prop_assert_eq!(actual_ops.last(), Some(&Operation::Return(expected_val)));
                 prop_assert_eq!(actual_ops.len(), expected_ops.len() + 1);
                 prop_assert_eq!(&actual_ops[..actual_ops.len() - 1], &expected_ops[..]);
+            }
+
+            #[test]
+            #[ignore]
+            fn test_lowered_func_contains_more_ops(func: ast::Function) {
+                let ir_func = lower_func(func.clone());
+
+                prop_assert!(
+                    ir_func.body.len() >= func.body.iter()
+                        .filter(|item| {
+                            matches!(item, ast::BlockItem::Stmt(_))
+                            && !matches!(item, ast::BlockItem::Stmt(ast::Stmt::Null))
+                        }).count(),
+                    "ir opcount of {} should be >= ast stmt count {}:\n{}",
+                    ir_func.body.len(), func.body.len(), ir_func
+                );
             }
         }
     }
