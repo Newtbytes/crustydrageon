@@ -4,6 +4,8 @@ use std::{
 };
 
 use contracts::ensures;
+#[allow(unused_imports)]
+use itertools::Itertools;
 
 use crate::{
     ast::{Identifier, Token, TokenKind},
@@ -414,6 +416,23 @@ mod tests {
             }
 
             prop_assert_eq!(Identifier::is_ident(&s), lexer_is_ident(s));
+        }
+
+        #[test]
+        fn test_tokenize_round_trip(
+            tokens in prop::collection::vec(
+                any::<Token>().prop_filter("is not EOF or error token", |tok| {
+                    !matches!(tok.kind(), TokenKind::EOF | TokenKind::Error(_))
+                }),
+                1..=10,
+            )
+        ) {
+            let src: Source = tokens.iter().join(" ").into();
+
+            prop_assert_eq!(
+                tokenize(&src).join(" "),
+                tokens.iter().join(" "),
+            );
         }
     }
 }

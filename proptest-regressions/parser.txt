@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 05a765b49833a4d681e2d11a752bfb2db4eba06dae7a1125f74cd1e846c0afd8 # shrinks to token_kind = Pipe
 cc 0045f999da6d97b91fecbe3e3c2b7b1bf309b9b4b766f673c1d1c37d55363257 # shrinks to token_kind = LShift
+cc fa1e152d1f1f6026333f97482b07c55c10b465ef8badce8b6e4f6005ca6d0033 # shrinks to expr = Binary(Add, Unary(Negate, Unary(Negate, Const(0))), Const(0))

@@ -54,6 +54,7 @@ pub enum TokenKind {
     Void,
     Return,
 
+    #[cfg_attr(test, proptest(skip))]
     EOF,
     #[cfg_attr(test, proptest(value = "TokenKind::Error(\"test error\")"))]
     Error(&'static str),
@@ -169,6 +170,12 @@ impl Token {
 impl From<Token> for Span {
     fn from(tok: Token) -> Self {
         tok.lexeme
+    }
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lexeme)
     }
 }
 
@@ -308,6 +315,20 @@ pub enum UnOpKind {
     Not,
 }
 
+impl Display for UnOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Negate => "-",
+                Self::Complement => "~",
+                Self::Not => "!",
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct UnOp {
@@ -346,6 +367,36 @@ pub enum BinOpKind {
     Assign,
 }
 
+impl Display for BinOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Add => "+",
+                Self::Subtract => "-",
+                Self::Multiply => "*",
+                Self::Divide => "/",
+                Self::Modulo => "%",
+                Self::And => "&&",
+                Self::Or => "||",
+                Self::Equal => "==",
+                Self::NotEqual => "!=",
+                Self::LessThan => "<",
+                Self::LessOrEqual => "<=",
+                Self::GreaterThan => ">",
+                Self::GreaterOrEqual => ">=",
+                Self::BitAnd => "&",
+                Self::BitOr => "|",
+                Self::Xor => "^",
+                Self::LShift => "<<",
+                Self::RShift => ">>",
+                Self::Assign => "=",
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct BinOp {
@@ -362,10 +413,32 @@ pub enum ExprKind {
     Binary(BinOp, Box<Expr>, Box<Expr>),
 }
 
+impl Display for ExprKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Const(val) => write!(f, "{val}"),
+            Self::Var(id) => write!(f, "{}", id.source_name()),
+            Self::Unary(op, expr) => write!(f, "{op}{expr}"),
+            Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Const(val) => write!(f, "{val}"),
+            Self::Var(id) => write!(f, "{}", id.source_name()),
+            Self::Unary(op, expr) => write!(f, "{op}{expr}"),
+            Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
+        }
+    }
 }
 
 /// Statement
@@ -390,6 +463,16 @@ pub struct Decl {
 pub enum BlockItem {
     Stmt(Stmt),
     Decl(Decl),
+}
+
+impl Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Expr(expr) => write!(f, "{};", expr),
+            Self::Return(expr) => write!(f, "return {};", expr),
+            Self::Null => write!(f, ";"),
+        }
+    }
 }
 
 /// Constructors for test dummies of AST nodes which don't include [`Span`] information, for example.
@@ -448,8 +531,8 @@ pub mod dummy {
 
 #[cfg(test)]
 pub mod strategy {
-
     use crate::src::Source;
+    use proptest::string::string_regex;
 
     use super::*;
 
@@ -502,6 +585,64 @@ pub mod strategy {
                         ]
                     },
                 )
+                .boxed()
+        }
+    }
+
+    impl Arbitrary for Token {
+        type Parameters = ();
+        type Strategy = proptest::prelude::BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            any::<TokenKind>()
+                .prop_flat_map(|k| {
+                    let regex_str = match k {
+                        TokenKind::Constant => "[0-9]",
+                        // FIXME: ensure keywords are never generated here
+                        TokenKind::Ident => "[_a-zA-Z][_a-zA-Z0-9]+",
+                        TokenKind::Complement => "~",
+                        TokenKind::Minus => "-",
+                        TokenKind::Plus => "\\+",
+                        TokenKind::Divide => "/",
+                        TokenKind::Star => "\\*",
+                        TokenKind::Modulo => "%",
+                        TokenKind::Not => "!",
+                        TokenKind::And => "&&",
+                        TokenKind::Or => "\\|\\|",
+                        TokenKind::Equal => "==",
+                        TokenKind::NotEqual => "!=",
+                        TokenKind::LT => "<",
+                        TokenKind::GT => ">",
+                        TokenKind::LTE => "<=",
+                        TokenKind::GTE => ">=",
+                        TokenKind::Decrement => "--",
+                        TokenKind::Increment => "\\+\\+",
+                        TokenKind::LParen => "\\(",
+                        TokenKind::RParen => "\\)",
+                        TokenKind::LBrace => "\\{",
+                        TokenKind::RBrace => "\\}",
+                        TokenKind::Semicolon => ";",
+                        TokenKind::Int => "int",
+                        TokenKind::Void => "void",
+                        TokenKind::Return => "return",
+                        TokenKind::Ampersand => "&",
+                        TokenKind::Pipe => "\\|",
+                        TokenKind::UpArrow => "\\^",
+                        TokenKind::LShift => "<<",
+                        TokenKind::RShift => ">>",
+                        TokenKind::Assign => "=",
+                        TokenKind::EOF => "",
+                        TokenKind::Error(_) => "",
+                    };
+                    (
+                        Just(k),
+                        string_regex(regex_str)
+                            .expect("valid regex")
+                            .prop_map(Source::new)
+                            .prop_map(Span::from),
+                    )
+                })
+                .prop_map(|(kind, lexeme)| Token::new(kind, lexeme))
                 .boxed()
         }
     }

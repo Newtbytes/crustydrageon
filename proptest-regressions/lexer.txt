@@ -6,3 +6,6 @@
 # everyone who runs the test benefits from these saved cases.
 cc b4ca65ae220679cdc0b414917ee20d47443b40b412fcd0a54df67cf742bbb0e8 # shrinks to s = Identifier { value: "", span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "" } }
 cc f797d28f7d87d10714ef817ea66b0243de418c0939d62b32d082a0ea10492400 # shrinks to s = ""
+cc 2e7a044ac17d9b9b1a3c27199fa9a4e979e3c8d4f28bb46fd0432ee2b7e7a849 # shrinks to src = Source("\u{bbe}￼")
+cc 2aedb0849b08511125c7c8663dc89f68b9ed86ca07c53bda6ac6b134f4bf8c73 # shrinks to src = Source("A%")
+cc 1c20511b26b6827677d78e5b6dac15e3a5321e1beb5fb5bf5b9458e1d70c4c6e # shrinks to tokens = [Token { kind: Constant, lexeme: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "0" } }, Token { kind: Constant, lexeme: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "0" } }]

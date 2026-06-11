@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 contracts = "0.6.7"
 cov-mark = { version = "2.2.0", features = ["enable"] }
+itertools = "0.14.0"
 
 [dev-dependencies]
 rstest = "0.26.1"
