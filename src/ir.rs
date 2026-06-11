@@ -3,7 +3,7 @@ use std::fmt::Display;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
-use crate::ast::{self, BinOp, BinOpKind};
+use crate::ast;
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -426,7 +426,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             result
         }
-        ast::ExprKind::Binary(op, dst, src) if op.kind == BinOpKind::Assign => {
+        ast::ExprKind::Binary(op, dst, src) if op.kind == ast::BinOpKind::Assign => {
             let dst = lower_expr(ops, *dst);
             let src = lower_expr(ops, *src);
 
@@ -608,80 +608,80 @@ mod tests {
     mod lower {
         use super::*;
 
-        // #[rstest]
-        // #[case::constants(ast::ExprKind::Const(5), vec![], Value::Constant(5))]
-        // #[case::negate(
-        //     // given: -5
-        //     // expect:
-        //     //  negate #5 -> %0
-        //     ast::ExprKind::Unary(ast::UnOpKind::Negate, Box::new(ast::ExprKind::Const(5))),
-        //     vec![Operation::Unary {
-        //             op: UnaryOp::Negate,
-        //             src: Value::Constant(5),
-        //             dst: Value::Var(0.to_string()),
-        //         }], Value::Var(0.to_string())
-        // )]
-        // #[case::nested_negate_and_complement(
-        //     // given: ~(-42)
-        //     // expect:
-        //     //  negate      #42 -> %0
-        //     //  complement  %0  -> %1
-        //     ast::ExprKind::Unary(ast::UnOpKind::Complement, Box::new(
-        //         ast::ExprKind::Unary(ast::UnOpKind::Negate, Box::new(ast::ExprKind::Const(42)))
-        //     )),
-        //     vec![
-        //         Operation::Unary {
-        //             op: UnaryOp::Negate,
-        //             src: Value::Constant(42),
-        //             dst: Value::Var(0.to_string()),
-        //         },
-        //         Operation::Unary {
-        //             op: UnaryOp::Complement,
-        //             src: Value::Var(0.to_string()),
-        //             dst: Value::Var(1.to_string()),
-        //         }
-        //     ], Value::Var(1.to_string())
-        // )]
-        // #[serial]
-        // fn test_lower_expr(
-        //     #[case] expr: ast::ExprKind,
-        //     #[case] expect_ops: Vec<Operation>,
-        //     #[case] expect_val: Value,
-        // ) {
-        //     cov_mark::check!(ir_expr_lowered);
+        #[rstest]
+        #[case::constants(ast::Expr::constant(5), vec![], Value::Constant(5))]
+        #[case::negate(
+            // given: -5
+            // expect:
+            //  negate #5 -> %0
+            ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(5)),
+            vec![Operation::Unary {
+                    op: UnaryOp::Negate,
+                    src: Value::Constant(5),
+                    dst: Value::Var(0.to_string()),
+                }], Value::Var(0.to_string())
+        )]
+        #[case::nested_negate_and_complement(
+            // given: ~(-42)
+            // expect:
+            //  negate      #42 -> %0
+            //  complement  %0  -> %1
+            ast::Expr::unary(ast::UnOpKind::Complement, 
+                ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(42))
+            ),
+            vec![
+                Operation::Unary {
+                    op: UnaryOp::Negate,
+                    src: Value::Constant(42),
+                    dst: Value::Var(0.to_string()),
+                },
+                Operation::Unary {
+                    op: UnaryOp::Complement,
+                    src: Value::Var(0.to_string()),
+                    dst: Value::Var(1.to_string()),
+                }
+            ], Value::Var(1.to_string())
+        )]
+        #[serial]
+        fn test_lower_expr(
+            #[case] expr: ast::Expr,
+            #[case] expect_ops: Vec<Operation>,
+            #[case] expect_val: Value,
+        ) {
+            cov_mark::check!(ir_expr_lowered);
 
-        //     VarID::reset();
+            VarID::reset();
 
-        //     let mut ops: Vec<Operation> = Vec::new();
+            let mut ops: Vec<Operation> = Vec::new();
 
-        //     let value = lower_expr(&mut ops, expr);
+            let value = lower_expr(&mut ops, expr);
 
-        //     assert_eq!(ops, expect_ops);
-        //     assert_eq!(value, expect_val);
-        // }
+            assert_eq!(ops, expect_ops);
+            assert_eq!(value, expect_val);
+        }
 
         proptest! {
-            // #[test]
-            // #[serial]
-            // fn test_lower_stmt(expr: ast::ExprKind) {
-            //     cov_mark::check!(ir_stmt_lowered);
-            //     cov_mark::check!(ir_expr_lowered);
-            //     cov_mark::check_count!(ir_return_stmt_lowered, 1);
+            #[test]
+            #[serial]
+            fn test_lower_stmt(expr: ast::Expr) {
+                cov_mark::check!(ir_stmt_lowered);
+                cov_mark::check!(ir_expr_lowered);
+                cov_mark::check_count!(ir_return_stmt_lowered, 1);
 
-            //     let stmt = ast::Stmt::Return(expr.clone());
+                let stmt = ast::Stmt::Return(expr.clone());
 
-            //     VarID::reset();
-            //     let mut expected_ops = Vec::new();
-            //     let expected_val = lower_expr(&mut expected_ops, expr);
+                VarID::reset();
+                let mut expected_ops = Vec::new();
+                let expected_val = lower_expr(&mut expected_ops, expr);
 
-            //     VarID::reset();
-            //     let mut actual_ops = Vec::new();
-            //     lower_stmt(&mut actual_ops, stmt);
+                VarID::reset();
+                let mut actual_ops = Vec::new();
+                lower_stmt(&mut actual_ops, stmt);
 
-            //     prop_assert_eq!(actual_ops.last(), Some(&Operation::Return(expected_val)));
-            //     prop_assert_eq!(actual_ops.len(), expected_ops.len() + 1);
-            //     prop_assert_eq!(&actual_ops[..actual_ops.len() - 1], &expected_ops[..]);
-            // }
+                prop_assert_eq!(actual_ops.last(), Some(&Operation::Return(expected_val)));
+                prop_assert_eq!(actual_ops.len(), expected_ops.len() + 1);
+                prop_assert_eq!(&actual_ops[..actual_ops.len() - 1], &expected_ops[..]);
+            }
 
             #[test]
             #[ignore]

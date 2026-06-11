@@ -392,6 +392,60 @@ pub enum BlockItem {
     Decl(Decl),
 }
 
+/// Constructors for test dummies of AST nodes which don't include [`Span`] information, for example.
+///
+/// Used for easing the definition of test cases.
+#[cfg(test)]
+pub mod dummy {
+    use super::*;
+
+    pub fn ident(value: &str) -> Identifier {
+        Identifier {
+            names: vec![value.to_owned()],
+            span: Span::default(),
+        }
+    }
+
+    pub fn expr(kind: ExprKind) -> Expr {
+        Expr {
+            kind,
+            span: Span::default(),
+        }
+    }
+
+    pub fn unop(kind: UnOpKind) -> UnOp {
+        UnOp {
+            kind,
+            span: Span::default(),
+        }
+    }
+
+    pub fn binop(kind: BinOpKind) -> BinOp {
+        BinOp {
+            kind,
+            span: Span::default(),
+        }
+    }
+
+    impl Expr {
+        pub fn constant(value: i32) -> Self {
+            expr(ExprKind::Const(value))
+        }
+
+        pub fn var(name: &str) -> Self {
+            expr(ExprKind::Var(ident(name)))
+        }
+
+        pub fn unary(kind: UnOpKind, operand: Expr) -> Self {
+            expr(ExprKind::Unary(unop(kind), operand.into()))
+        }
+
+        pub fn binary(kind: BinOpKind, a: Expr, b: Expr) -> Self {
+            expr(ExprKind::Binary(binop(kind), a.into(), b.into()))
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod strategy {
 

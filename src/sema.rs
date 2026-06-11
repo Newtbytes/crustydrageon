@@ -113,22 +113,18 @@ pub fn resolve(prg: &mut Program) -> ResolveResult<()> {
     resolver.resolve_program(prg)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::ast::Identifier;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     use super::*;
-
-//     #[test]
-//     fn test_resolve_invalid_lvalue() {
-//         let mut resolver = VariableResolver::new();
-
-//         let mut expr = Expr::Binary(
-//             BinaryOp::Assign,
-//             Expr::Const(5).into(),
-//             Expr::Var(Identifier::default()).into(),
-//         );
-
-//         resolver.resolve_expr(&mut expr).unwrap_err();
-//     }
-// }
+    #[test]
+    fn test_resolve_invalid_lvalue() {
+        VariableResolver::new()
+            .resolve_expr(&mut Expr::binary(
+                BinOpKind::Assign,
+                Expr::constant(5),
+                Expr::var(""),
+            ))
+            .unwrap_err();
+    }
+}
