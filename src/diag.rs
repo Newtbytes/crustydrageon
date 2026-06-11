@@ -50,10 +50,27 @@ pub trait Diagnostic {
 pub struct Annotation {
     pub span: src::Span,
     pub msg: String,
+    pub note: Option<String>,
 }
 
 impl Annotation {
-    fn fmt_for(&self, f: &mut std::fmt::Formatter<'_>, src: &Source) -> fmt::Result {
+    pub fn new(span: src::Span, msg: String) -> Self {
+        Self {
+            span,
+            msg,
+            note: None,
+        }
+    }
+
+    pub fn with_note(self, note: String) -> Self {
+        Self {
+            span: self.span,
+            msg: self.msg,
+            note: Some(note),
+        }
+    }
+
+    pub fn fmt_for(&self, f: &mut std::fmt::Formatter<'_>, src: &Source) -> fmt::Result {
         let span = &self.span;
 
         writeln!(
@@ -92,11 +109,18 @@ impl Annotation {
                     marker_end = 0;
                 }
 
-                write!(f, "{}", " ".repeat(marker_start))?;
-                write!(f, "{} ", "^".repeat(marker_end - marker_start))?;
+                if let Some(note) = &self.note {
+                    write!(f, "{}", " ".repeat(marker_start - 1))?;
+                    writeln!(f, "-{}- {}", "^".repeat(marker_end - marker_start), note)?;
+                    writeln!(f, "{} |", " ".repeat(marker_start - 1))?;
+                    write!(f, "{} {}", " ".repeat(marker_start - 1), self.msg)?;
+                } else {
+                    write!(f, "{}", " ".repeat(marker_start))?;
+                    write!(f, "{} {}", "^".repeat(marker_end - marker_start), self.msg)?;
+                }
             }
         }
 
-        write!(f, "{}", self.msg)
+        Ok(())
     }
 }

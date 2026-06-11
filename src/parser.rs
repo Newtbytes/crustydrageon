@@ -45,7 +45,7 @@ impl Diagnostic for ParserError {
             ),
         };
 
-        diag.annotate(Annotation { span, msg });
+        diag.annotate(Annotation::new(span, msg));
 
         diag
     }
@@ -189,20 +189,24 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         let mut next_kind = self.peek().kind();
 
         while next_kind.is_binary_op() && next_kind.precedence() >= Some(min_prec) {
+            let right: Expr;
+            let op = self.parse_binary_op()?;
+
             if next_kind == TokenKind::Assign {
                 // parse assignment operators as right-associative
-                let op = self.parse_binary_op()?;
                 assert_eq!(op.kind, BinOpKind::Assign);
-
-                let right = self.parse_expr(next_kind.precedence().unwrap())?;
-
-                left.kind = ExprKind::Binary(op, Box::new(left.clone()), Box::new(right));
+                right = self.parse_expr(next_kind.precedence().unwrap())?;
             } else {
-                let op = self.parse_binary_op()?;
-                let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
-
-                left.kind = ExprKind::Binary(op, Box::new(left.clone()), Box::new(right));
+                right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
             }
+
+            left.kind = ExprKind::Binary(op, Box::new(left.clone()), Box::new(right.clone()));
+
+            left.span = self
+                .src
+                .subspan(left.span.start_index(), right.span.end_index())
+                .unwrap();
+
             next_kind = self.peek().kind();
         }
 
@@ -252,9 +256,14 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                 }
             }
             TokenKind::LParen => {
-                self.expect(TokenKind::LParen)?;
-                let inner_expr = self.parse_expr(Precedence::default())?;
-                self.expect(TokenKind::RParen)?;
+                let start_tok = self.expect(TokenKind::LParen)?;
+                let mut inner_expr = self.parse_expr(Precedence::default())?;
+                let end_tok = self.expect(TokenKind::RParen)?;
+
+                inner_expr.span = self
+                    .src
+                    .subspan(start_tok.span().start_index(), end_tok.span().end_index())
+                    .expect("Should have valid spans for this source");
 
                 cov_mark::hit!(parser_paren_pair_parsed);
 
@@ -514,6 +523,13 @@ mod tests {
         parser.parse_expr(Precedence::default()).unwrap_err();
     }
 
+    fn contains_unimplemented(tokens: &[Token]) -> bool {
+        // Parsing increment / decrement operators is not yet implemented
+        tokens
+            .iter()
+            .any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement))
+    }
+
     proptest! {
         #[test]
         fn test_parse_expr_roundtrip(expr: Expr) {
@@ -521,11 +537,24 @@ mod tests {
             let tokens: Vec<Token> = lexer::tokenize(&src).collect();
             let mut parser = parser(&tokens);
 
-            // Parsing increment / decrement operators is not yet implemented
-            prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
+            prop_assume!(!contains_unimplemented(&tokens));
 
-            let parsed = parser.parse_expr(Precedence::default());
-            prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
+            let parsed = parser.parse_expr(Precedence::default()).unwrap();
+            prop_assert_eq!(parsed.to_string(), expr.to_string());
+            prop_assert!(parsed.span.len() > 1);
+        }
+
+        #[test]
+        fn test_parse_decl_roundtrip(decl: Decl) {
+            let src: Source = decl.to_string().into();
+            let tokens: Vec<Token> = lexer::tokenize(&src).collect();
+            let mut parser = parser(&tokens);
+
+            prop_assume!(!contains_unimplemented(&tokens));
+
+            let parsed = parser.parse_decl().unwrap();
+            prop_assert_eq!(parsed.to_string(), decl.to_string());
+            prop_assert!(parsed.span.len() > 1);
         }
     }
 }

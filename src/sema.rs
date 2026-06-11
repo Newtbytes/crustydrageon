@@ -18,23 +18,31 @@ impl Diagnostic for ResolveError {
         let mut diag = Diag::new(DiagLevel::Error);
 
         match self {
-            Self::InvalidLvalue(expr) => diag.annotate(Annotation {
-                span: expr.span,
-                msg: "Invalid lvalue".to_owned(),
-            }),
+            Self::InvalidLvalue(expr) => {
+                diag.annotate(
+                    Annotation::new(
+                        expr.span,
+                        "Illegal left-hand side for assignment".to_owned(),
+                    )
+                    // TODO: explain what a valid l-value is here
+                    // variables are currently the only valid l-values, but in the future this will change
+                    // TODO: add a ", but got a {description of expression}" clause
+                    .with_note("Should be a variable".to_owned()),
+                )
+            }
             Self::DuplicateDecl { decl, prev } => diag
-                .annotate(Annotation {
-                    span: decl.span,
-                    msg: format!("Duplicate declaration of variable '{}'", decl.name),
-                })
-                .annotate(Annotation {
-                    span: prev.span,
-                    msg: "Previous declaration found here".to_owned(),
-                }),
-            Self::UnknownVar(expr) => diag.annotate(Annotation {
-                span: expr.span,
-                msg: "Undeclared variable".to_owned(),
-            }),
+                .annotate(Annotation::new(
+                    decl.span,
+                    format!("Duplicate declaration of variable '{}'", decl.name),
+                ))
+                .annotate(Annotation::new(
+                    prev.span,
+                    "Previous declaration found here".to_owned(),
+                )),
+            Self::UnknownVar(expr) => diag.annotate(Annotation::new(
+                expr.span.clone(),
+                format!("Undeclared variable '{}'", expr.span),
+            )),
         };
 
         diag
@@ -65,7 +73,7 @@ impl VariableResolver {
             ExprKind::Unary(_, expr) => self.resolve_expr(expr)?,
             ExprKind::Binary(op, a, b) => {
                 if op.kind == BinOpKind::Assign && !matches!(a.kind, ExprKind::Var(_)) {
-                    return Err(ResolveError::InvalidLvalue(expr.clone()));
+                    return Err(ResolveError::InvalidLvalue(*a.clone()));
                 }
                 self.resolve_expr(a)?;
                 self.resolve_expr(b)?;
