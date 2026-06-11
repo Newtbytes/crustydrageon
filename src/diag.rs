@@ -2,12 +2,59 @@ use std::fmt::{self, Debug};
 
 use crate::src::{self, Source};
 
-pub trait Annotation: Debug {
-    fn span(&self) -> &src::Span;
-    fn message(&self) -> String;
+#[derive(Debug)]
+pub enum DiagLevel {
+    Error,
+    Warn,
+    Info,
+}
 
+#[derive(Debug)]
+pub struct Diag {
+    level: DiagLevel,
+    annotations: Vec<Annotation>,
+}
+
+impl Diag {
+    pub fn new(level: DiagLevel) -> Self {
+        Diag {
+            level,
+            annotations: Vec::new(),
+        }
+    }
+
+    pub fn annotate(&mut self, annotation: Annotation) -> &mut Self {
+        self.annotations.push(annotation);
+        self
+    }
+
+    pub fn fmt_for(&self, f: &mut std::fmt::Formatter<'_>, src: &Source) -> fmt::Result {
+        writeln!(f, "{:?}:", self.level)?;
+
+        for (i, annotation) in self.annotations.iter().enumerate() {
+            if i != 0 {
+                write!(f, "\n\n")?;
+            }
+            annotation.fmt_for(f, src)?;
+        }
+
+        Ok(())
+    }
+}
+
+pub trait Diagnostic {
+    fn into_diag(self) -> Diag;
+}
+
+#[derive(Debug)]
+pub struct Annotation {
+    pub span: src::Span,
+    pub msg: String,
+}
+
+impl Annotation {
     fn fmt_for(&self, f: &mut std::fmt::Formatter<'_>, src: &Source) -> fmt::Result {
-        let span = self.span();
+        let span = &self.span;
 
         writeln!(
             f,
@@ -46,10 +93,10 @@ pub trait Annotation: Debug {
                 }
 
                 write!(f, "{}", " ".repeat(marker_start))?;
-                writeln!(f, "{}", "^".repeat(marker_end - marker_start))?;
+                write!(f, "{} ", "^".repeat(marker_end - marker_start))?;
             }
         }
 
-        write!(f, "{}", self.message())
+        write!(f, "{}", self.msg)
     }
 }

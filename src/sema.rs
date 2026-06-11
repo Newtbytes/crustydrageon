@@ -2,38 +2,48 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{BinOpKind, Decl, Expr, ExprKind, Function, Program, Stmt},
-    diag::Annotation,
+    diag::{Annotation, Diag, DiagLevel, Diagnostic},
     ir::VarID,
-    src,
 };
 
 #[derive(Debug)]
 pub enum ResolveError {
-    InvalidLvalue(src::Span),
-    DuplicateDecl(src::Span),
-    UnknownVar(src::Span),
+    InvalidLvalue(Expr),
+    DuplicateDecl { decl: Decl, prev: Decl },
+    UnknownVar(Expr),
 }
 
-impl Annotation for ResolveError {
-    fn span(&self) -> &src::Span {
-        match self {
-            Self::UnknownVar(span) | Self::DuplicateDecl(span) | Self::InvalidLvalue(span) => span,
-        }
-    }
+impl Diagnostic for ResolveError {
+    fn into_diag(self) -> Diag {
+        let mut diag = Diag::new(DiagLevel::Error);
 
-    fn message(&self) -> String {
         match self {
-            ResolveError::InvalidLvalue(_) => "Invalid lvalue",
-            ResolveError::DuplicateDecl(_) => "Duplicate declaration",
-            ResolveError::UnknownVar(_) => "Undeclared variable",
-        }
-        .to_owned()
+            Self::InvalidLvalue(expr) => diag.annotate(Annotation {
+                span: expr.span,
+                msg: "Invalid lvalue".to_owned(),
+            }),
+            Self::DuplicateDecl { decl, prev } => diag
+                .annotate(Annotation {
+                    span: decl.span,
+                    msg: format!("Duplicate declaration of variable '{}'", decl.name),
+                })
+                .annotate(Annotation {
+                    span: prev.span,
+                    msg: "Previous declaration found here".to_owned(),
+                }),
+            Self::UnknownVar(expr) => diag.annotate(Annotation {
+                span: expr.span,
+                msg: "Undeclared variable".to_owned(),
+            }),
+        };
+
+        diag
     }
 }
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
 
-type VarCtx = HashMap<String, String>;
+type VarCtx = HashMap<String, (String, Decl)>;
 
 struct VariableResolver {
     ctx: VarCtx,
@@ -49,13 +59,13 @@ impl VariableResolver {
         match kind {
             ExprKind::Var(id) => {
                 if !self.ctx.contains_key(id.value()) {
-                    return Err(ResolveError::UnknownVar(id.span().clone()));
+                    return Err(ResolveError::UnknownVar(expr.clone()));
                 }
             }
             ExprKind::Unary(_, expr) => self.resolve_expr(expr)?,
             ExprKind::Binary(op, a, b) => {
                 if op.kind == BinOpKind::Assign && !matches!(a.kind, ExprKind::Var(_)) {
-                    return Err(ResolveError::InvalidLvalue(a.span.clone()));
+                    return Err(ResolveError::InvalidLvalue(expr.clone()));
                 }
                 self.resolve_expr(a)?;
                 self.resolve_expr(b)?;
@@ -68,13 +78,17 @@ impl VariableResolver {
 
     fn resolve_decl(&mut self, decl: &mut Decl) -> ResolveResult<()> {
         if self.ctx.contains_key(decl.name.value()) {
-            return Err(ResolveError::DuplicateDecl(decl.span.clone()));
+            let (_, prev_decl) = self.ctx.get(decl.name.value()).unwrap();
+            return Err(ResolveError::DuplicateDecl {
+                decl: decl.clone(),
+                prev: prev_decl.clone(),
+            });
         }
 
         let prev_name = decl.name.value().to_owned();
         let curr_name = format!("{prev_name}.{}", VarID::new());
         decl.name.rename(curr_name.clone());
-        self.ctx.insert(prev_name, curr_name);
+        self.ctx.insert(prev_name, (curr_name, decl.clone()));
 
         if let Some(expr) = &mut decl.init {
             self.resolve_expr(expr)?;

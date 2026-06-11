@@ -5,7 +5,7 @@ use crate::{
         BinOp, BinOpKind, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
         Program, Stmt, Token, TokenKind, UnOp, UnOpKind,
     },
-    diag::Annotation,
+    diag::{Annotation, Diag, DiagLevel, Diagnostic},
     src::{self, Source},
 };
 
@@ -24,37 +24,30 @@ pub enum ParserError {
     ExpectedEOF(Token),
 }
 
-impl Annotation for ParserError {
-    fn span(&self) -> &src::Span {
-        match self {
-            Self::ExpectedToken {
-                expected: _,
-                actual: tok,
-            }
-            | Self::ExpectedString {
-                expected: _,
-                actual: tok,
-            }
-            | Self::ErrorToken(tok, _)
-            | Self::ExpectedEOF(tok) => tok.span(),
-            Self::UnexpectedEOF => todo!(),
-        }
-    }
+impl Diagnostic for ParserError {
+    fn into_diag(self) -> crate::diag::Diag {
+        let mut diag = Diag::new(DiagLevel::Error);
 
-    fn message(&self) -> String {
-        match self {
-            ParserError::ExpectedToken { expected, actual } => {
-                format!("Expected a {:?} but got a {:?}", expected, actual.kind())
-            }
-            ParserError::ExpectedString { expected, actual } => {
-                format!("Expected a {:?} but got a {:?}", expected, actual.kind())
-            }
-            ParserError::ErrorToken(_, msg) => msg.to_string(),
-            ParserError::UnexpectedEOF => "Unexpectedly reached end of file".to_string(),
-            ParserError::ExpectedEOF(tok) => {
-                format!("Expected end of file but got a {:?}", tok.kind())
-            }
-        }
+        let (span, msg) = match self {
+            Self::ExpectedToken { expected, actual } => (
+                actual.clone().into(),
+                format!("Expected a {:?} but got a {:?}", expected, actual.kind()),
+            ),
+            Self::ExpectedString { expected, actual } => (
+                actual.clone().into(),
+                format!("Expected a {:?} but got a {:?}", expected, actual.kind()),
+            ),
+            Self::ErrorToken(tok, msg) => (tok.into(), msg.to_owned()),
+            Self::UnexpectedEOF => todo!(),
+            Self::ExpectedEOF(tok) => (
+                tok.clone().into(),
+                format!("Expected end of file but got a {:?}", tok.kind()),
+            ),
+        };
+
+        diag.annotate(Annotation { span, msg });
+
+        diag
     }
 }
 
