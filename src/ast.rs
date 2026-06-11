@@ -28,6 +28,7 @@ pub enum TokenKind {
     And,        // &&
     Pipe,       // |
     Or,         // ||
+    Assign,     // =
     Equal,      // ==
     NotEqual,   // !=
     LT,         // <
@@ -101,6 +102,7 @@ impl TokenKind {
                 | tk::UpArrow
                 | tk::LShift
                 | tk::RShift
+                | tk::Assign
         )
     }
 
@@ -124,6 +126,7 @@ impl TokenKind {
             tk::Pipe => 12,
             tk::And => 10,
             tk::Or => 5,
+            tk::Assign => 1,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
             _ => return None,
         }))
@@ -181,11 +184,27 @@ pub struct Program {
 /// Keywords and user-defined identifiers (e.g. function names or variable names).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Identifier {
-    pub value: String,
-    pub span: Span,
+    names: Vec<String>,
+    span: Span,
 }
 
 impl Identifier {
+    /// Return the current value of the identifier, including all mangling that has been done so far.
+    #[requires(!self.names.is_empty())]
+    pub fn value(&self) -> &str {
+        self.names.last().unwrap()
+    }
+
+    pub fn rename(&mut self, name: String) {
+        self.names.push(name);
+    }
+
+    /// Get the original, demangled name from the name history.
+    #[requires(!self.names.is_empty())]
+    pub fn source_name(&self) -> &str {
+        self.names.first().unwrap()
+    }
+
     /// Check if a given string is a valid identifier.
     ///
     /// # Examples
@@ -224,30 +243,18 @@ impl Identifier {
     }
 
     /// Get the [`TokenKind`] of this [`Identifier`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use crustydrageon::{src, ast::{Identifier, TokenKind}};
-    ///
-    /// let mut id = Identifier { value: "hello_world".to_owned(), span: src::Span::default() };
-    ///
-    /// assert_eq!(id.tok_kind(), TokenKind::Ident);
-    ///
-    /// id.value = "int".to_owned();
-    /// assert_eq!(id.tok_kind(), TokenKind::Int);
-    ///
-    /// id.value = "return".to_owned();
-    /// assert_eq!(id.tok_kind(), TokenKind::Return);
-    /// ```
-    #[debug_requires(Self::is_ident(&self.value))]
+    #[debug_requires(Self::is_ident(self.source_name()))]
     pub fn tok_kind(&self) -> TokenKind {
-        match self.value.as_str() {
+        match self.source_name() {
             "int" => TokenKind::Int,
             "void" => TokenKind::Void,
             "return" => TokenKind::Return,
             _ => TokenKind::Ident,
         }
+    }
+
+    pub fn span(&self) -> &Span {
+        &self.span
     }
 }
 
@@ -261,21 +268,24 @@ impl From<Span> for Identifier {
     #[requires(Identifier::is_ident(&span.to_string()))]
     fn from(span: Span) -> Self {
         let value = span.to_string();
-        Self { span, value }
+        Self {
+            span,
+            names: vec![value],
+        }
     }
 }
 
 /// Function definition
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
-    pub body: Stmt,
+    pub body: Vec<BlockItem>,
 }
 
 impl Function {
     #[must_use]
-    pub fn new(name: Identifier, body: Stmt) -> Self {
+    pub fn new(name: Identifier, body: Vec<BlockItem>) -> Self {
         Function { name, body }
     }
 }
@@ -333,6 +343,9 @@ pub enum BinaryOp {
     Xor,
     LShift,
     RShift,
+
+    // Assignment
+    Assign,
 }
 
 impl Display for BinaryOp {
@@ -368,6 +381,7 @@ impl Display for BinaryOp {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expr {
     Const(i32),
+    Var(Identifier),
     Unary(UnaryOp, Box<Expr>),
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
 }
@@ -383,10 +397,26 @@ impl Display for Expr {
 }
 
 /// Statement
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
+    Expr(Expr),
     Return(Expr),
+    Null,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct Decl {
+    pub name: Identifier,
+    pub init: Option<Expr>,
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub enum BlockItem {
+    Stmt(Stmt),
+    Decl(Decl),
 }
 
 impl Display for Stmt {
@@ -423,7 +453,10 @@ pub mod strategy {
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            let leaf = any::<i32>().prop_map(Expr::Const);
+            let leaf = prop_oneof![
+                any::<i32>().prop_map(Expr::Const),
+                any::<Identifier>().prop_map(Expr::Var),
+            ];
 
             leaf.prop_recursive(
                 3,  // max depth
@@ -433,9 +466,9 @@ pub mod strategy {
                     prop_oneof![
                         (any::<UnaryOp>(), inner.clone())
                             .prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr))),
-                        (any::<BinaryOp>(), inner.clone(), inner.clone()).prop_map(
-                            |(op, lhs, rhs)| { Expr::Binary(op, Box::new(lhs), Box::new(rhs)) }
-                        ),
+                        (any::<BinaryOp>(), inner.clone(), inner).prop_map(|(op, lhs, rhs)| {
+                            Expr::Binary(op, Box::new(lhs), Box::new(rhs))
+                        }),
                     ]
                 },
             )
@@ -507,6 +540,22 @@ mod tests {
 
     use rstest::{fixture, rstest};
 
+    proptest! {
+        #[test]
+        fn test_identifier_rename(mut id: Identifier, new_name: String) {
+            let old_name = id.source_name().to_owned();
+
+            prop_assume!(old_name != new_name);
+
+            prop_assert_eq!(id.value(), &old_name);
+
+            id.rename(new_name.clone());
+
+            prop_assert_eq!(id.value(), &new_name);
+            prop_assert_eq!(id.source_name(), &old_name);
+        }
+    }
+
     /// See https://en.cppreference.com/c/language/operator_precedence
     mod precedence {
         use super::*;
@@ -525,6 +574,7 @@ mod tests {
                 vec![Pipe],
                 vec![And],
                 vec![Or],
+                vec![Assign],
             ]
         }
 

@@ -158,12 +158,6 @@ impl Iterator for Lexer<'_> {
         self.eat_while(|&c| c.is_whitespace());
         self.end_token();
 
-        macro_rules! todo_token {
-            ($msg:literal) => {
-                self.error(concat!("not yet implemented: ", $msg))
-            };
-        }
-
         let kind = match self.eat() {
             Some(c) => match c {
                 // structural tokens
@@ -184,11 +178,7 @@ impl Iterator for Lexer<'_> {
                 '!' => self.based_on_next('=', tk::Not, tk::NotEqual),
                 '&' => self.based_on_next('&', tk::Ampersand, tk::And),
                 '|' => self.based_on_next('|', tk::Pipe, tk::Or),
-                '=' => self.based_on_next(
-                    '=',
-                    todo_token!("tokenizing set variable operator: equal sign token"),
-                    tk::Equal,
-                ),
+                '=' => self.based_on_next('=', tk::Assign, tk::Equal),
                 '<' => match self.eat_if(|c| matches!(c, '=' | '<')) {
                     Some('=') => tk::LTE,
                     Some('<') => tk::LShift,
@@ -361,6 +351,8 @@ mod tests {
     #[case(">", [TokenKind::GT])]
     #[case("<=", [TokenKind::LTE])]
     #[case(">=", [TokenKind::GTE])]
+    // assignment operator
+    #[case("=", [TokenKind::Assign])]
     // identifiers and keywords
     #[case("voidx", [TokenKind::Ident])]
     #[case("int_", [TokenKind::Ident])]

@@ -65,7 +65,7 @@ fn test_invalid(
         .components()
         .find(|c| {
             let s = c.as_os_str().to_str().unwrap();
-            s == "lex" || s == "parse" || s == "ir" || s == "codegen"
+            s == "lex" || s == "parse" || s == "sema" || s == "ir" || s == "codegen"
         })
         .expect("Invalid test file path: should contain a stage component")
         .as_os_str()
@@ -75,6 +75,7 @@ fn test_invalid(
     let final_stage = match stage_str {
         // the lexer stage has error tokens, so we want to run the parser to see those errors
         "lex" | "parse" => driver::CompilerStage::Parse,
+        "sema" => driver::CompilerStage::Validate,
         "ir" => driver::CompilerStage::IR,
         "codegen" => driver::CompilerStage::Codegen,
         _ => panic!("Invalid stage component in test file path: {stage_str}"),
