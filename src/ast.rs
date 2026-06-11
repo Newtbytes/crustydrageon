@@ -372,6 +372,7 @@ impl Display for BinaryOp {
                 Self::Xor => "^",
                 Self::LShift => "<<",
                 Self::RShift => ">>",
+                Self::Assign => "=",
             }
         )
     }
@@ -389,9 +390,10 @@ pub enum Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Const(val) => write!(f, "{val}"),
-            Expr::Unary(op, expr) => write!(f, "{op}{expr}"),
-            Expr::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
+            Self::Const(val) => write!(f, "{val}"),
+            Self::Var(id) => write!(f, "{}", id.source_name()),
+            Self::Unary(op, expr) => write!(f, "{op}{expr}"),
+            Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
         }
     }
 }
@@ -422,7 +424,9 @@ pub enum BlockItem {
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Stmt::Return(expr) => write!(f, "return {};", expr),
+            Self::Expr(expr) => write!(f, "{};", expr),
+            Self::Return(expr) => write!(f, "return {};", expr),
+            Self::Null => write!(f, ";"),
         }
     }
 }
@@ -517,6 +521,7 @@ pub mod strategy {
                         TokenKind::UpArrow => "\\^",
                         TokenKind::LShift => "<<",
                         TokenKind::RShift => ">>",
+                        TokenKind::Assign => "=",
                         TokenKind::EOF => "",
                         TokenKind::Error(_) => "",
                     };
