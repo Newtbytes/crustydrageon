@@ -172,12 +172,6 @@ impl From<Token> for Span {
     }
 }
 
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 /// A C program
 /// Currently can only contain a single function.
 #[derive(Debug)]
@@ -315,6 +309,7 @@ pub enum UnOpKind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct UnOp {
     pub kind: UnOpKind,
     pub span: Span,
@@ -352,6 +347,7 @@ pub enum BinOpKind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct BinOp {
     pub kind: BinOpKind,
     pub span: Span,
@@ -416,22 +412,43 @@ pub mod strategy {
         }
     }
 
+    // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
     impl Arbitrary for Expr {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            todo!()
-        }
-    }
+            let leaf = prop_oneof![
+                any::<i32>().prop_map(ExprKind::Const),
+                any::<Identifier>().prop_map(ExprKind::Var),
+            ];
 
-    // This is a manual implementation as the Arbitrary derive impl overflows its stack because Expr is a recursive data structure
-    impl Arbitrary for ExprKind {
-        type Parameters = ();
-        type Strategy = BoxedStrategy<Self>;
-
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            todo!()
+            (leaf, any::<Span>())
+                .prop_map(|(kind, span)| Expr { kind, span })
+                .prop_recursive(
+                    3,  // max depth
+                    16, // max total size
+                    2,  // max branching factor
+                    |inner| {
+                        prop_oneof![
+                            (any::<UnOp>(), inner.clone(), any::<src::Span>()).prop_map(
+                                |(op, expr, span)| Expr {
+                                    kind: ExprKind::Unary(op, Box::new(expr)),
+                                    span
+                                }
+                            ),
+                            (any::<BinOp>(), inner.clone(), inner, any::<src::Span>()).prop_map(
+                                |(op, lhs, rhs, span)| {
+                                    Expr {
+                                        kind: ExprKind::Binary(op, Box::new(lhs), Box::new(rhs)),
+                                        span,
+                                    }
+                                }
+                            ),
+                        ]
+                    },
+                )
+                .boxed()
         }
     }
 }
