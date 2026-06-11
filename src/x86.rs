@@ -162,19 +162,19 @@ impl TryFrom<ir::BinaryOp> for Cond {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Label(String);
 
 impl Label {
     pub fn new() -> Self {
-        Self { 0: String::new() }
+        Self(String::new())
     }
 }
 
 impl From<String> for Label {
     fn from(label: String) -> Self {
-        Self { 0: label }
+        Self(label)
     }
 }
 
