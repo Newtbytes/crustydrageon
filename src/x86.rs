@@ -62,15 +62,19 @@ pub enum Register {
     DX,
     R10,
     R11,
+    CL,
+    ECX,
 }
 
 impl Display for Register {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Register::AX => "eax",
-            Register::DX => "edx",
-            Register::R10 => "r10d",
-            Register::R11 => "r11d",
+            Self::AX => "eax",
+            Self::DX => "edx",
+            Self::R10 => "r10d",
+            Self::R11 => "r11d",
+            Self::CL => "cl",
+            Self::ECX => "ecx",
         })
     }
 }
@@ -295,6 +299,11 @@ pub enum BinaryOp {
     Add,
     Sub,
     Mul,
+    And,
+    Or,
+    Xor,
+    Sal,
+    Sar,
 }
 
 impl Display for BinaryOp {
@@ -303,9 +312,14 @@ impl Display for BinaryOp {
             f,
             "{}",
             match self {
-                BinaryOp::Add => "addl",
-                BinaryOp::Sub => "subl",
-                BinaryOp::Mul => "imull",
+                Self::Add => "addl",
+                Self::Sub => "subl",
+                Self::Mul => "imull",
+                Self::And => "andl",
+                Self::Or => "orl",
+                Self::Xor => "xorl",
+                Self::Sal => "sall",
+                Self::Sar => "sarl",
             }
         )
     }
@@ -340,7 +354,14 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
             insts.push(Instruction::Unary(op.into(), dst.into()));
         }
         ir::Operation::Binary { op, a, b, dst } => match op {
-            ir::BinaryOp::Add | ir::BinaryOp::Sub | ir::BinaryOp::Mul => {
+            ir::BinaryOp::Add
+            | ir::BinaryOp::Sub
+            | ir::BinaryOp::Mul
+            | ir::BinaryOp::And
+            | ir::BinaryOp::Or
+            | ir::BinaryOp::Xor
+            | ir::BinaryOp::Ashl
+            | ir::BinaryOp::Ashr => {
                 insts.extend([
                     Instruction::Mov {
                         src: a.into(),
@@ -351,6 +372,11 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                             ir::BinaryOp::Add => BinaryOp::Add,
                             ir::BinaryOp::Sub => BinaryOp::Sub,
                             ir::BinaryOp::Mul => BinaryOp::Mul,
+                            ir::BinaryOp::And => BinaryOp::And,
+                            ir::BinaryOp::Or => BinaryOp::Or,
+                            ir::BinaryOp::Xor => BinaryOp::Xor,
+                            ir::BinaryOp::Ashl => BinaryOp::Sal,
+                            ir::BinaryOp::Ashr => BinaryOp::Sar,
                             _ => unreachable!(),
                         },
                         b.into(),
@@ -455,7 +481,10 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
             cov_mark::hit!(x86_stack_to_stack_mov_legalized);
         }
         Instruction::Binary(op, Operand::Stack(a), Operand::Stack(b))
-            if op == BinaryOp::Add || op == BinaryOp::Sub =>
+            if matches!(
+                op,
+                BinaryOp::Add | BinaryOp::Sub | BinaryOp::And | BinaryOp::Xor | BinaryOp::Or
+            ) =>
         {
             insts.extend([
                 Instruction::Mov {
@@ -494,6 +523,19 @@ pub fn legalize_inst(insts: &mut Vec<Instruction>, inst: Instruction) {
                     src: Register::R11.into(),
                     dst: Operand::Stack(b),
                 },
+            ]);
+        }
+        // Shift instructions require that the count operand is the CL reg or an immediate
+        Instruction::Binary(op, count, dst)
+            if matches!(op, BinaryOp::Sal | BinaryOp::Sar)
+                && !matches!(count, Operand::Reg(Register::CL) | Operand::Imm(_)) =>
+        {
+            insts.extend([
+                Instruction::Mov {
+                    src: count,
+                    dst: Register::ECX.into(),
+                },
+                Instruction::Binary(op, Register::CL.into(), dst),
             ]);
         }
         Instruction::Idiv(Operand::Imm(val)) => insts.extend([
@@ -570,9 +612,9 @@ mod tests {
                 let func = Function::new(id.clone(), Vec::new());
 
                 if cfg!(target_os = "macos") {
-                    assert_eq!(func.name.value, format!("_{}", id.value));
+                    assert_eq!(func.name.to_string(), format!("_{}", id));
                 } else {
-                    assert_eq!(func.name.value, id.value);
+                    assert_eq!(func.name.to_string(), id.to_string());
                 }
             }
 

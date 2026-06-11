@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 52cc8eb84ab5d6b072c498e902354de83a76636a840df9e99b862e6fd494ae97 # shrinks to expr = Binary(Add, Const(0), Binary(BitAnd, Const(0), Const(0)))
+cc 2f73542f55f56d74e0a3ef6da8b386c7e32537d5ac9b518ea324e92567970aa8 # shrinks to expr = Binary(Multiply, Binary(Subtract, Const(-1124919892), Const(502612130)), Binary(Multiply, Const(591279220), Const(-1892352259)))
+cc a086479c3933b2e94a09b21879241f2baec496cc08e5a55740de8334efb287a1 # shrinks to expr = Unary(Not, Unary(Not, Const(-457178535)))
+cc 934ebc08d266641268d090be80824a305da99641d9246300f8129660e0625c2b # shrinks to expr = Binary(Multiply, Binary(Multiply, Binary(Or, Const(-845551717), Const(1298588208)), Const(-1725708985)), Const(-2086790110))
+cc 2a26ede570fe5d458918c5eebd942f9dcc8e9ea98aa674a8fcea19fe9fd21581 # shrinks to expr = Unary(Complement, Binary(Add, Const(1458389874), Const(573522243)))

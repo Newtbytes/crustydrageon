@@ -105,7 +105,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         match tok.kind() {
             TokenKind::Complement => Ok(UnaryOp::Complement),
             TokenKind::Minus => Ok(UnaryOp::Negate),
-            TokenKind::LogicNot => Ok(UnaryOp::Not),
+            TokenKind::Not => Ok(UnaryOp::Not),
             kind if kind.is_unary_op() => {
                 todo!("parsing unary operator of kind {:?}", kind)
             }
@@ -133,6 +133,11 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             TokenKind::LTE => BinaryOp::LessOrEqual,
             TokenKind::GT => BinaryOp::GreaterThan,
             TokenKind::GTE => BinaryOp::GreaterOrEqual,
+            TokenKind::Ampersand => BinaryOp::BitAnd,
+            TokenKind::Pipe => BinaryOp::BitOr,
+            TokenKind::UpArrow => BinaryOp::Xor,
+            TokenKind::LShift => BinaryOp::LShift,
+            TokenKind::RShift => BinaryOp::RShift,
             kind if kind.is_binary_op() => {
                 todo!("parsing binary operator of kind {:?}", kind)
             }
@@ -218,12 +223,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_identifier(&mut self) -> ParseResult<Identifier> {
-        let tok = self.expect(TokenKind::Ident)?;
-
-        Ok(Identifier {
-            value: tok.lexeme().to_string(),
-            span: tok.span().clone(),
-        })
+        Ok(self.expect(TokenKind::Ident)?.span().clone().into())
     }
 
     fn parse_function(&mut self) -> ParseResult<Function> {
@@ -260,10 +260,7 @@ pub fn parse<'src>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        lexer,
-        src::{Source, Span},
-    };
+    use crate::{lexer, src::Source};
 
     use super::*;
 
@@ -276,14 +273,8 @@ mod tests {
     use rstest::{fixture, rstest};
     use rstest_reuse::{self, *};
 
-    fn src(content: &'static str) -> Source {
-        Source::new(content.to_owned())
-    }
-
     fn tok(kind: TokenKind, lexeme: &'static str) -> Token {
-        let mut span = Span::empty_at(&src(lexeme), 0).unwrap();
-        span.push_str(lexeme.to_owned());
-        Token::new(kind, span)
+        Token::new(kind, Source::new(lexeme.to_owned()).into())
     }
 
     #[fixture]
@@ -330,7 +321,7 @@ mod tests {
         Unary(Negate, Const(69).into())
     )]
     #[case(
-        &[tok(TokenKind::LogicNot, "!"), tok(TokenKind::Constant, "0")],
+        &[tok(TokenKind::Not, "!"), tok(TokenKind::Constant, "0")],
         Expr::Unary(UnaryOp::Not, Box::new(Expr::Const(0)))
     )]
     fn factors(#[case] tokens: &[Token], #[case] expected_expr: Expr) {}

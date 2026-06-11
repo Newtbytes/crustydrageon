@@ -28,7 +28,7 @@ impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         cov_mark::hit!(ir_pp_function);
 
-        writeln!(f, "fn {}() {{", self.id.value)?;
+        writeln!(f, "fn {}() {{", self.id)?;
 
         for op in &self.body {
             if !matches!(op, Operation::Label(_)) {
@@ -62,7 +62,7 @@ impl Display for Label {
         cov_mark::hit!(ir_pp_label);
 
         match self {
-            Label::Named(id) => write!(f, "{}", id.value),
+            Label::Named(id) => write!(f, "{id}"),
             Label::Anon(id) => write!(f, "{id}"),
         }
     }
@@ -207,6 +207,19 @@ pub enum BinaryOp {
     Lte,
     Gt,
     Gte,
+    /// Bitwise and.
+    And,
+    /// Bitwise or.
+    Or,
+    Xor,
+    /// Logical shift left.
+    ///
+    /// Shift bits to the left, filling new bits to the right with zeros.
+    Ashl,
+    /// Logical shift right.
+    ///
+    /// Shift bits to the right, filling new bits to the left with zeros.
+    Ashr,
 }
 
 impl Display for BinaryOp {
@@ -217,17 +230,22 @@ impl Display for BinaryOp {
             f,
             "{}",
             match self {
-                BinaryOp::Add => "add",
-                BinaryOp::Sub => "sub",
-                BinaryOp::Mul => "mul",
-                BinaryOp::Div => "div",
-                BinaryOp::Rem => "rem",
-                BinaryOp::Eq => "eq",
-                BinaryOp::Neq => "neq",
-                BinaryOp::Lt => "lt",
-                BinaryOp::Lte => "lte",
-                BinaryOp::Gt => "gt",
-                BinaryOp::Gte => "gte",
+                Self::Add => "add",
+                Self::Sub => "sub",
+                Self::Mul => "mul",
+                Self::Div => "div",
+                Self::Rem => "rem",
+                Self::Eq => "eq",
+                Self::Neq => "neq",
+                Self::Lt => "lt",
+                Self::Lte => "lte",
+                Self::Gt => "gt",
+                Self::Gte => "gte",
+                Self::And => "and",
+                Self::Or => "or",
+                Self::Xor => "xor",
+                Self::Ashl => "ashl",
+                Self::Ashr => "ashr",
             }
         )
     }
@@ -249,6 +267,11 @@ impl TryFrom<ast::BinaryOp> for BinaryOp {
             ast::BinaryOp::LessOrEqual => Ok(Self::Lte),
             ast::BinaryOp::GreaterThan => Ok(Self::Gt),
             ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
+            ast::BinaryOp::BitAnd => Ok(Self::And),
+            ast::BinaryOp::BitOr => Ok(Self::Or),
+            ast::BinaryOp::Xor => Ok(Self::Xor),
+            ast::BinaryOp::LShift => Ok(Self::Ashl),
+            ast::BinaryOp::RShift => Ok(Self::Ashr),
             ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
         }
     }
@@ -434,8 +457,6 @@ pub fn lower_program(program: ast::Program) -> Program {
     }
 }
 
-// TODO: implement proptest strategies
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -598,7 +619,6 @@ mod tests {
     /// Test pretty printing & Display implementations
     mod pretty {
         use super::*;
-        use crate::src;
 
         mod value {
             use super::*;
@@ -659,7 +679,7 @@ mod tests {
                 #[test]
                 fn pp_contains_named_id(id in any::<ast::Identifier>()) {
                     let l = Label::Named(id.clone()).to_string();
-                    assert!(l.contains(&id.value));
+                    assert!(l.contains(&id.to_string()));
                 }
             }
         }
@@ -683,17 +703,11 @@ mod tests {
                 cond: Value::Var(2),
                 then_label: Label::Anon(5),
                 else_label: Label::Named(
-                    ast::Identifier {
-                        value: "test".to_owned(), span: src::Span::default()
-                    }
+                    ast::Identifier::default()
                 )
             })]
             #[case(Operation::Label(Label::Anon(2)))]
-            #[case(Operation::Label(Label::Named(
-                ast::Identifier {
-                    value: "test".to_owned(), span: src::Span::default()
-                }
-            )))]
+            #[case(Operation::Label(Label::Named(ast::Identifier::default())))]
             #[case(Operation::BranchWhen { cond: Value::Constant(5), when_label: Label::Anon(2) })]
             fn test_op_contains_info(#[case] op: Operation) {
                 cov_mark::check!(ir_pp_op);
