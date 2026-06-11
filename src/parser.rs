@@ -2,7 +2,8 @@ use std::{fmt, iter};
 
 use crate::{
     ast::{
-        BinaryOp, Expr, Function, Identifier, Precedence, Program, Stmt, Token, TokenKind, UnaryOp,
+        BinaryOp, BlockItem, Decl, Expr, Function, Identifier, Precedence, Program, Stmt, Token,
+        TokenKind, UnaryOp,
     },
     src,
 };
@@ -99,6 +100,10 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
     }
 
+    fn next_is(&mut self, kind: TokenKind) -> bool {
+        self.peek().kind() == kind
+    }
+
     fn parse_unary_op(&mut self) -> ParseResult<UnaryOp> {
         let tok = self.take()?;
 
@@ -138,6 +143,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             TokenKind::UpArrow => BinaryOp::Xor,
             TokenKind::LShift => BinaryOp::LShift,
             TokenKind::RShift => BinaryOp::RShift,
+            TokenKind::Assign => BinaryOp::Assign,
             kind if kind.is_binary_op() => {
                 todo!("parsing binary operator of kind {:?}", kind)
             }
@@ -150,17 +156,32 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         })
     }
 
+    fn parse_block_item(&mut self) -> ParseResult<BlockItem> {
+        Ok(if self.peek().kind() == TokenKind::Int {
+            BlockItem::Decl(self.parse_decl()?)
+        } else {
+            BlockItem::Stmt(self.parse_stmt()?)
+        })
+    }
+
     fn parse_expr(&mut self, min_prec: Precedence) -> ParseResult<Expr> {
         let mut left = self.parse_factor()?;
 
         let mut next_kind = self.peek().kind();
 
         while next_kind.is_binary_op() && next_kind.precedence() >= Some(min_prec) {
-            let op = self.parse_binary_op()?;
-            let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
+            if next_kind == TokenKind::Assign {
+                // parse assignment operators as right-associative
+                self.expect(TokenKind::Assign)?;
+                let right = self.parse_expr(next_kind.precedence().unwrap())?;
 
-            left = Expr::Binary(op, Box::new(left), Box::new(right));
+                left = Expr::Binary(BinaryOp::Assign, Box::new(left), Box::new(right));
+            } else {
+                let op = self.parse_binary_op()?;
+                let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
 
+                left = Expr::Binary(op, Box::new(left), Box::new(right));
+            }
             next_kind = self.peek().kind();
         }
 
@@ -187,6 +208,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
                     expr
                 }
+                TokenKind::Ident => Expr::Var(self.parse_identifier()?),
                 kind if kind.is_unary_op() => {
                     let op = self.parse_unary_op()?;
                     Expr::Unary(op, Box::new(self.parse_factor()?))
@@ -215,11 +237,36 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_stmt(&mut self) -> ParseResult<Stmt> {
-        self.expect(TokenKind::Return)?;
-        let ret_val = self.parse_expr(Precedence::default())?;
-        self.expect(TokenKind::Semicolon)?;
+        if self.next_is(TokenKind::Return) {
+            self.expect(TokenKind::Return)?;
+            let ret_val = self.parse_expr(Precedence::default())?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Return(ret_val))
+        } else if self.next_is(TokenKind::Semicolon) {
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Null)
+        } else {
+            let expr = self.parse_expr(Precedence::default())?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Expr(expr))
+        }
+    }
 
-        Ok(Stmt::Return(ret_val))
+    fn parse_decl(&mut self) -> ParseResult<Decl> {
+        self.expect(TokenKind::Int)?;
+
+        let name = self.parse_identifier()?;
+
+        let init = if self.peek().kind() == TokenKind::Semicolon {
+            None
+        } else {
+            self.expect(TokenKind::Assign)?;
+            let expr = self.parse_expr(Precedence::default())?;
+            self.expect(TokenKind::Semicolon)?;
+            Some(expr)
+        };
+
+        Ok(Decl { name, init })
     }
 
     fn parse_identifier(&mut self) -> ParseResult<Identifier> {
@@ -228,6 +275,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
     fn parse_function(&mut self) -> ParseResult<Function> {
         self.expect(TokenKind::Int)?;
+
         let name = self.parse_identifier()?;
 
         self.expect(TokenKind::LParen)?;
@@ -235,7 +283,12 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::RParen)?;
 
         self.expect(TokenKind::LBrace)?;
-        let body = self.parse_stmt()?;
+
+        let mut body = Vec::new();
+        while self.peek().kind() != TokenKind::RBrace {
+            body.push(self.parse_block_item()?);
+        }
+
         self.expect(TokenKind::RBrace)?;
 
         Ok(Function::new(name, body))

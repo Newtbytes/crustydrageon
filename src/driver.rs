@@ -8,7 +8,7 @@ use std::{
 use crate::{
     ast::Token,
     error::{CompilerError, CompilerResult},
-    ir, lexer, parser,
+    ir, lexer, parser, sema,
     src::Source,
     x86,
 };
@@ -243,6 +243,7 @@ impl SysCompiler {
 pub enum CompilerStage {
     Lex,
     Parse,
+    Validate,
     IR,
     Codegen,
 }
@@ -263,11 +264,18 @@ pub fn compile(
         return Ok(None);
     }
 
-    let ast = parser::parse(tokens.peekable())
+    let mut ast = parser::parse(tokens.peekable())
         .map_err(|e| CompilerError::ParserError(src.clone(), Box::new(e)))?;
     cov_mark::hit!(parse);
 
     if verbose || stop_at == Some(CompilerStage::Parse) {
+        println!("{ast:#?}");
+        return Ok(None);
+    }
+
+    sema::resolve(&mut ast).map_err(|e| CompilerError::ResolutionError(src, e))?;
+
+    if verbose || stop_at == Some(CompilerStage::Validate) {
         println!("{ast:#?}");
         return Ok(None);
     }

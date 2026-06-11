@@ -1,12 +1,13 @@
 use std::{fmt, process};
 
-use crate::{parser::ParserError, src::Source};
+use crate::{parser::ParserError, sema::ResolveError, src::Source};
 
 #[derive(Debug)]
 pub enum CompilerError {
     SysCompilerNotFound(&'static str),
     SysCompilerError(process::ExitStatus),
     ParserError(Source, Box<ParserError>),
+    ResolutionError(Source, ResolveError),
     IoError,
 }
 
@@ -20,11 +21,11 @@ impl CompilerError {
 impl fmt::Display for CompilerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CompilerError::SysCompilerError(exit_status) => write!(
+            Self::SysCompilerError(exit_status) => write!(
                 f,
                 "A system compiler exited with status code {exit_status} during the compilation"
             ),
-            CompilerError::ParserError(src, parser_error) => {
+            Self::ParserError(src, parser_error) => {
                 writeln!(f, "Error while parsing:")?;
 
                 if let Some(span) = parser_error.span() {
@@ -71,8 +72,11 @@ impl fmt::Display for CompilerError {
                 }
                 write!(f, "{parser_error}")
             }
-            CompilerError::IoError => todo!(),
-            CompilerError::SysCompilerNotFound(msg) => write!(f, "{msg}"),
+            Self::IoError => todo!(),
+            Self::SysCompilerNotFound(msg) => write!(f, "{msg}"),
+            Self::ResolutionError(_, msg) => {
+                write!(f, "Error during variable resolution {msg}")
+            }
         }
     }
 }
