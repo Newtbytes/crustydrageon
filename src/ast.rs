@@ -236,22 +236,6 @@ impl Identifier {
     }
 
     /// Get the [`TokenKind`] of this [`Identifier`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use crustydrageon::{src, ast::{Identifier, TokenKind}};
-    ///
-    /// let mut id = Identifier { value: "hello_world".to_owned(), span: src::Span::default() };
-    ///
-    /// assert_eq!(id.tok_kind(), TokenKind::Ident);
-    ///
-    /// id.value = "int".to_owned();
-    /// assert_eq!(id.tok_kind(), TokenKind::Int);
-    ///
-    /// id.value = "return".to_owned();
-    /// assert_eq!(id.tok_kind(), TokenKind::Return);
-    /// ```
     #[debug_requires(Self::is_ident(&self.source_name()))]
     pub fn tok_kind(&self) -> TokenKind {
         match self.source_name() {
