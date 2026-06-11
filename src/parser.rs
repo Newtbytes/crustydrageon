@@ -49,8 +49,8 @@ impl Annotation for ParserError {
             ParserError::ExpectedString { expected, actual } => {
                 format!("Expected a {:?} but got a {:?}", expected, actual.kind())
             }
-            ParserError::ErrorToken(_tok, msg) => format!("{msg}"),
-            ParserError::UnexpectedEOF => format!("Unexpectedly reached end of file"),
+            ParserError::ErrorToken(_, msg) => msg.to_string(),
+            ParserError::UnexpectedEOF => "Unexpectedly reached end of file".to_string(),
             ParserError::ExpectedEOF(tok) => {
                 format!("Expected end of file but got a {:?}", tok.kind())
             }

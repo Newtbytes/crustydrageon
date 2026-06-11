@@ -626,7 +626,7 @@ mod tests {
             // expect:
             //  negate      #42 -> %0
             //  complement  %0  -> %1
-            ast::Expr::unary(ast::UnOpKind::Complement, 
+            ast::Expr::unary(ast::UnOpKind::Complement,
                 ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(42))
             ),
             vec![

@@ -7,7 +7,7 @@ use proptest::prelude::*;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
-use crate::src::{self, Span};
+use crate::src::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -480,7 +480,7 @@ pub enum Stmt {
 pub struct Decl {
     pub name: Identifier,
     pub init: Option<Expr>,
-    pub span: src::Span,
+    pub span: Span,
 }
 
 impl PartialEq for Decl {
@@ -599,13 +599,13 @@ pub mod strategy {
                     2,  // max branching factor
                     |inner| {
                         prop_oneof![
-                            (any::<UnOp>(), inner.clone(), any::<src::Span>()).prop_map(
+                            (any::<UnOp>(), inner.clone(), any::<Span>()).prop_map(
                                 |(op, expr, span)| Expr {
                                     kind: ExprKind::Unary(op, Box::new(expr)),
                                     span
                                 }
                             ),
-                            (any::<BinOp>(), inner.clone(), inner, any::<src::Span>()).prop_map(
+                            (any::<BinOp>(), inner.clone(), inner, any::<Span>()).prop_map(
                                 |(op, lhs, rhs, span)| {
                                     Expr {
                                         kind: ExprKind::Binary(op, Box::new(lhs), Box::new(rhs)),

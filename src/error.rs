@@ -5,7 +5,7 @@ use crate::{diag::Annotation, src::Source};
 #[derive(Debug)]
 pub enum CompilerError {
     SysCompilerNotFound(&'static str),
-    SysCompilerError(process::ExitStatus),
+    SysCompilerRaised(process::ExitStatus),
     SourceDiagnostic(Source, Box<dyn Annotation>),
     IoError,
 }
@@ -13,14 +13,14 @@ pub enum CompilerError {
 impl CompilerError {
     #[must_use]
     pub fn sys_cc_err(status: process::ExitStatus) -> Self {
-        CompilerError::SysCompilerError(status)
+        CompilerError::SysCompilerRaised(status)
     }
 }
 
 impl fmt::Display for CompilerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::SysCompilerError(exit_status) => write!(
+            Self::SysCompilerRaised(exit_status) => write!(
                 f,
                 "A system compiler exited with status code {exit_status} during the compilation"
             ),
