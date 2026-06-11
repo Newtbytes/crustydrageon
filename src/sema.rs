@@ -22,7 +22,7 @@ impl VariableResolver {
     fn resolve_expr(&mut self, expr: &mut Expr) -> ResolveResult<()> {
         match expr {
             Expr::Var(id) => {
-                if let None = self.ctx.get(id.value()) {
+                if !self.ctx.contains_key(id.value()) {
                     return Err("Undeclared variable".to_owned());
                 }
             }

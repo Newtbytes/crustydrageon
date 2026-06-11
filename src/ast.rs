@@ -183,7 +183,7 @@ pub struct Identifier {
 
 impl Identifier {
     /// Return the current value of the identifier, including all mangling that has been done so far.
-    #[requires(self.names.len() >0)]
+    #[requires(!self.names.is_empty())]
     pub fn value(&self) -> &str {
         self.names.last().unwrap()
     }
@@ -193,7 +193,7 @@ impl Identifier {
     }
 
     /// Get the original, demangled name from the name history.
-    #[requires(self.names.len() >0)]
+    #[requires(!self.names.is_empty())]
     pub fn source_name(&self) -> &str {
         self.names.first().unwrap()
     }
@@ -236,7 +236,7 @@ impl Identifier {
     }
 
     /// Get the [`TokenKind`] of this [`Identifier`].
-    #[debug_requires(Self::is_ident(&self.source_name()))]
+    #[debug_requires(Self::is_ident(self.source_name()))]
     pub fn tok_kind(&self) -> TokenKind {
         match self.source_name() {
             "int" => TokenKind::Int,

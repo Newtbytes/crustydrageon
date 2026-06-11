@@ -283,7 +283,7 @@ pub mod VarID {
     use std::cell::Cell;
 
     thread_local! {
-        static COUNTER: Cell<usize> = Cell::new(0);
+        static COUNTER: Cell<usize> = const { Cell::new(0) };
     }
 
     /// Create a new temporary variable with a unique ID.
