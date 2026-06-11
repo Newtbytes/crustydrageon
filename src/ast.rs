@@ -336,6 +336,12 @@ pub struct UnOp {
     pub span: Span,
 }
 
+impl Display for UnOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BinOpKind {
@@ -404,6 +410,12 @@ pub struct BinOp {
     pub span: Span,
 }
 
+impl Display for BinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
 /// Expression
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExprKind {
@@ -432,12 +444,7 @@ pub struct Expr {
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Const(val) => write!(f, "{val}"),
-            Self::Var(id) => write!(f, "{}", id.source_name()),
-            Self::Unary(op, expr) => write!(f, "{op}{expr}"),
-            Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
-        }
+        self.kind.fmt(f)
     }
 }
 

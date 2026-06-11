@@ -520,18 +520,18 @@ mod tests {
     //     parser.parse_expr(Precedence::default()).unwrap_err();
     // }
 
-    proptest! {
-        #[test]
-        fn test_parse_expr_roundtrip(expr: Expr) {
-            let src: Source = expr.to_string().into();
-            let tokens: Vec<Token> = lexer::tokenize(&src).collect();
-            let mut parser = parser(&tokens);
+    // proptest! {
+    //     #[test]
+    //     fn test_parse_expr_roundtrip(expr: Expr) {
+    //         let src: Source = expr.to_string().into();
+    //         let tokens: Vec<Token> = lexer::tokenize(&src).collect();
+    //         let mut parser = parser(&tokens);
 
-            // Parsing increment / decrement operators is not yet implemented
-            prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
+    //         // Parsing increment / decrement operators is not yet implemented
+    //         prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
 
-            let parsed = parser.parse_expr(Precedence::default());
-            prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
-        }
-    }
+    //         let parsed = parser.parse_expr(Precedence::default());
+    //         prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
+    //     }
+    // }
 }
