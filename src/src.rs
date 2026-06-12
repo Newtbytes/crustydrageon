@@ -19,6 +19,15 @@ impl Source {
     }
 }
 
+impl From<Source> for Span {
+    fn from(src: Source) -> Self {
+        Span {
+            loc: Location::default(),
+            span: src.to_string(),
+        }
+    }
+}
+
 impl Deref for Source {
     type Target = Span;
 
@@ -30,12 +39,6 @@ impl Deref for Source {
 impl From<String> for Source {
     fn from(value: String) -> Self {
         Source::new(value)
-    }
-}
-
-impl From<Source> for Span {
-    fn from(src: Source) -> Self {
-        src.0
     }
 }
 

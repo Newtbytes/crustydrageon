@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 114ffa78a615dce345fcfde101d65d1bb1b5f67a7c12a8a07f126db10182d34f # shrinks to id = Identifier { names: ["_A"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "_A" } }
