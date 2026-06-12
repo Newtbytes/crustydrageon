@@ -167,9 +167,15 @@ impl Token {
     }
 }
 
+impl From<Token> for Span {
+    fn from(tok: Token) -> Self {
+        tok.lexeme
+    }
+}
+
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.lexeme())
+        write!(f, "{}", self.lexeme)
     }
 }
 
@@ -275,6 +281,12 @@ impl From<Span> for Identifier {
     }
 }
 
+impl From<Identifier> for Span {
+    fn from(id: Identifier) -> Self {
+        id.span
+    }
+}
+
 /// Function definition
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -292,7 +304,7 @@ impl Function {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum UnaryOp {
+pub enum UnOpKind {
     // Arithmetic
     Negate,
 
@@ -303,23 +315,42 @@ pub enum UnaryOp {
     Not,
 }
 
-impl Display for UnaryOp {
+impl Display for UnOpKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                UnaryOp::Negate => "-",
-                UnaryOp::Complement => "~",
-                UnaryOp::Not => "!",
+                Self::Negate => "-",
+                Self::Complement => "~",
+                Self::Not => "!",
             }
         )
     }
 }
 
+#[derive(Debug, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct UnOp {
+    pub kind: UnOpKind,
+    pub span: Span,
+}
+
+impl PartialEq for UnOp {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Display for UnOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
-pub enum BinaryOp {
+pub enum BinOpKind {
     // Arithmetic
     Add,
     Subtract,
@@ -348,7 +379,7 @@ pub enum BinaryOp {
     Assign,
 }
 
-impl Display for BinaryOp {
+impl Display for BinOpKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -378,16 +409,35 @@ impl Display for BinaryOp {
     }
 }
 
-/// Expression
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Expr {
-    Const(i32),
-    Var(Identifier),
-    Unary(UnaryOp, Box<Expr>),
-    Binary(BinaryOp, Box<Expr>, Box<Expr>),
+#[derive(Debug, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct BinOp {
+    pub kind: BinOpKind,
+    pub span: Span,
 }
 
-impl Display for Expr {
+impl PartialEq for BinOp {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Display for BinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+/// Expression
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ExprKind {
+    Const(i32),
+    Var(Identifier),
+    Unary(UnOp, Box<Expr>),
+    Binary(BinOp, Box<Expr>, Box<Expr>),
+}
+
+impl Display for ExprKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Const(val) => write!(f, "{val}"),
@@ -398,8 +448,26 @@ impl Display for Expr {
     }
 }
 
+#[derive(Debug, Eq, Clone)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
+}
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
 /// Statement
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
     Expr(Expr),
@@ -407,14 +475,21 @@ pub enum Stmt {
     Null,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Decl {
     pub name: Identifier,
     pub init: Option<Expr>,
+    pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+impl PartialEq for Decl {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.init == other.init
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BlockItem {
     Stmt(Stmt),
@@ -427,6 +502,60 @@ impl Display for Stmt {
             Self::Expr(expr) => write!(f, "{};", expr),
             Self::Return(expr) => write!(f, "return {};", expr),
             Self::Null => write!(f, ";"),
+        }
+    }
+}
+
+/// Constructors for test dummies of AST nodes which don't include [`Span`] information, for example.
+///
+/// Used for easing the definition of test cases.
+#[cfg(test)]
+pub mod dummy {
+    use super::*;
+
+    pub fn ident(value: &str) -> Identifier {
+        Identifier {
+            names: vec![value.to_owned()],
+            span: Span::default(),
+        }
+    }
+
+    pub fn expr(kind: ExprKind) -> Expr {
+        Expr {
+            kind,
+            span: Span::default(),
+        }
+    }
+
+    pub fn unop(kind: UnOpKind) -> UnOp {
+        UnOp {
+            kind,
+            span: Span::default(),
+        }
+    }
+
+    pub fn binop(kind: BinOpKind) -> BinOp {
+        BinOp {
+            kind,
+            span: Span::default(),
+        }
+    }
+
+    impl Expr {
+        pub fn constant(value: i32) -> Self {
+            expr(ExprKind::Const(value))
+        }
+
+        pub fn var(name: &str) -> Self {
+            expr(ExprKind::Var(ident(name)))
+        }
+
+        pub fn unary(kind: UnOpKind, operand: Expr) -> Self {
+            expr(ExprKind::Unary(unop(kind), operand.into()))
+        }
+
+        pub fn binary(kind: BinOpKind, a: Expr, b: Expr) -> Self {
+            expr(ExprKind::Binary(binop(kind), a.into(), b.into()))
         }
     }
 }
@@ -458,25 +587,36 @@ pub mod strategy {
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
             let leaf = prop_oneof![
-                any::<i32>().prop_map(Expr::Const),
-                any::<Identifier>().prop_map(Expr::Var),
+                any::<i32>().prop_map(ExprKind::Const),
+                any::<Identifier>().prop_map(ExprKind::Var),
             ];
 
-            leaf.prop_recursive(
-                3,  // max depth
-                16, // max total size
-                2,  // max branching factor
-                |inner| {
-                    prop_oneof![
-                        (any::<UnaryOp>(), inner.clone())
-                            .prop_map(|(op, expr)| Expr::Unary(op, Box::new(expr))),
-                        (any::<BinaryOp>(), inner.clone(), inner).prop_map(|(op, lhs, rhs)| {
-                            Expr::Binary(op, Box::new(lhs), Box::new(rhs))
-                        }),
-                    ]
-                },
-            )
-            .boxed()
+            (leaf, any::<Span>())
+                .prop_map(|(kind, span)| Expr { kind, span })
+                .prop_recursive(
+                    3,  // max depth
+                    16, // max total size
+                    2,  // max branching factor
+                    |inner| {
+                        prop_oneof![
+                            (any::<UnOp>(), inner.clone(), any::<Span>()).prop_map(
+                                |(op, expr, span)| Expr {
+                                    kind: ExprKind::Unary(op, Box::new(expr)),
+                                    span
+                                }
+                            ),
+                            (any::<BinOp>(), inner.clone(), inner, any::<Span>()).prop_map(
+                                |(op, lhs, rhs, span)| {
+                                    Expr {
+                                        kind: ExprKind::Binary(op, Box::new(lhs), Box::new(rhs)),
+                                        span,
+                                    }
+                                }
+                            ),
+                        ]
+                    },
+                )
+                .boxed()
         }
     }
 

@@ -1,7 +1,8 @@
 pub mod ast;
 pub mod cli;
+mod diag;
 pub mod driver;
-pub mod error;
+mod error;
 pub mod ir;
 pub mod lexer;
 pub mod parser;

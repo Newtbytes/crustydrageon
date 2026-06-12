@@ -167,13 +167,19 @@ pub enum UnaryOp {
     Not,
 }
 
-impl From<ast::UnaryOp> for UnaryOp {
-    fn from(op: ast::UnaryOp) -> Self {
+impl From<ast::UnOpKind> for UnaryOp {
+    fn from(op: ast::UnOpKind) -> Self {
         match op {
-            ast::UnaryOp::Complement => Self::Complement,
-            ast::UnaryOp::Negate => Self::Negate,
-            ast::UnaryOp::Not => Self::Not,
+            ast::UnOpKind::Complement => Self::Complement,
+            ast::UnOpKind::Negate => Self::Negate,
+            ast::UnOpKind::Not => Self::Not,
         }
+    }
+}
+
+impl From<ast::UnOp> for UnaryOp {
+    fn from(op: ast::UnOp) -> Self {
+        Self::from(op.kind)
     }
 }
 
@@ -251,29 +257,37 @@ impl Display for BinaryOp {
     }
 }
 
-impl TryFrom<ast::BinaryOp> for BinaryOp {
+impl TryFrom<ast::BinOpKind> for BinaryOp {
     type Error = ();
 
-    fn try_from(value: ast::BinaryOp) -> Result<Self, Self::Error> {
-        match value {
-            ast::BinaryOp::Add => Ok(Self::Add),
-            ast::BinaryOp::Subtract => Ok(Self::Sub),
-            ast::BinaryOp::Multiply => Ok(Self::Mul),
-            ast::BinaryOp::Divide => Ok(Self::Div),
-            ast::BinaryOp::Modulo => Ok(Self::Rem),
-            ast::BinaryOp::Equal => Ok(Self::Eq),
-            ast::BinaryOp::NotEqual => Ok(Self::Neq),
-            ast::BinaryOp::LessThan => Ok(Self::Lt),
-            ast::BinaryOp::LessOrEqual => Ok(Self::Lte),
-            ast::BinaryOp::GreaterThan => Ok(Self::Gt),
-            ast::BinaryOp::GreaterOrEqual => Ok(Self::Gte),
-            ast::BinaryOp::BitAnd => Ok(Self::And),
-            ast::BinaryOp::BitOr => Ok(Self::Or),
-            ast::BinaryOp::Xor => Ok(Self::Xor),
-            ast::BinaryOp::LShift => Ok(Self::Ashl),
-            ast::BinaryOp::RShift => Ok(Self::Ashr),
-            ast::BinaryOp::Assign | ast::BinaryOp::And | ast::BinaryOp::Or => Err(()), // handled separately in lower_expr
+    fn try_from(kind: ast::BinOpKind) -> Result<Self, Self::Error> {
+        match kind {
+            ast::BinOpKind::Add => Ok(Self::Add),
+            ast::BinOpKind::Subtract => Ok(Self::Sub),
+            ast::BinOpKind::Multiply => Ok(Self::Mul),
+            ast::BinOpKind::Divide => Ok(Self::Div),
+            ast::BinOpKind::Modulo => Ok(Self::Rem),
+            ast::BinOpKind::Equal => Ok(Self::Eq),
+            ast::BinOpKind::NotEqual => Ok(Self::Neq),
+            ast::BinOpKind::LessThan => Ok(Self::Lt),
+            ast::BinOpKind::LessOrEqual => Ok(Self::Lte),
+            ast::BinOpKind::GreaterThan => Ok(Self::Gt),
+            ast::BinOpKind::GreaterOrEqual => Ok(Self::Gte),
+            ast::BinOpKind::BitAnd => Ok(Self::And),
+            ast::BinOpKind::BitOr => Ok(Self::Or),
+            ast::BinOpKind::Xor => Ok(Self::Xor),
+            ast::BinOpKind::LShift => Ok(Self::Ashl),
+            ast::BinOpKind::RShift => Ok(Self::Ashr),
+            ast::BinOpKind::Assign | ast::BinOpKind::And | ast::BinOpKind::Or => Err(()), // handled separately in lower_expr
         }
+    }
+}
+
+impl TryFrom<ast::BinOp> for BinaryOp {
+    type Error = ();
+
+    fn try_from(op: ast::BinOp) -> Result<Self, Self::Error> {
+        op.kind.try_into()
     }
 }
 
@@ -359,9 +373,9 @@ fn jneq(ops: &mut Vec<Operation>, a: Value, b: Value, label: Label) {
 }
 
 pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
-    let dst = match expr {
-        ast::Expr::Const(val) => Value::Constant(val),
-        ast::Expr::Unary(unary_op, expr) => {
+    let dst = match expr.kind {
+        ast::ExprKind::Const(val) => Value::Constant(val),
+        ast::ExprKind::Unary(unary_op, expr) => {
             let src = lower_expr(ops, *expr);
             let dst = Value::new_var();
 
@@ -375,20 +389,22 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::Expr::Binary(op, a, b) if op == ast::BinaryOp::And || op == ast::BinaryOp::Or => {
+        ast::ExprKind::Binary(op, a, b)
+            if op.kind == ast::BinOpKind::And || op.kind == ast::BinOpKind::Or =>
+        {
             let skip_label = Label::new();
             let end_label = Label::new();
             let result = Value::new_var();
 
             let a = lower_expr(ops, *a);
-            if op == ast::BinaryOp::And {
+            if op.kind == ast::BinOpKind::And {
                 jeq(ops, a, Value::Constant(0), skip_label.clone());
             } else {
                 jneq(ops, a, Value::Constant(0), skip_label.clone());
             }
 
             let b = lower_expr(ops, *b);
-            if op == ast::BinaryOp::And {
+            if op.kind == ast::BinOpKind::And {
                 jeq(ops, b, Value::Constant(0), skip_label.clone());
             } else {
                 jneq(ops, b, Value::Constant(0), skip_label.clone());
@@ -396,13 +412,13 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             ops.extend([
                 Operation::Copy {
-                    src: Value::Constant(if op == ast::BinaryOp::And { 1 } else { 0 }),
+                    src: Value::Constant(if op.kind == ast::BinOpKind::And { 1 } else { 0 }),
                     dst: result.clone(),
                 },
                 Operation::Branch(end_label.clone()),
                 Operation::Label(skip_label),
                 Operation::Copy {
-                    src: Value::Constant(if op == ast::BinaryOp::And { 0 } else { 1 }),
+                    src: Value::Constant(if op.kind == ast::BinOpKind::And { 0 } else { 1 }),
                     dst: result.clone(),
                 },
                 Operation::Label(end_label),
@@ -410,7 +426,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             result
         }
-        ast::Expr::Binary(ast::BinaryOp::Assign, dst, src) => {
+        ast::ExprKind::Binary(op, dst, src) if op.kind == ast::BinOpKind::Assign => {
             let dst = lower_expr(ops, *dst);
             let src = lower_expr(ops, *src);
 
@@ -421,7 +437,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::Expr::Binary(binary_op, a, b) => {
+        ast::ExprKind::Binary(binary_op, a, b) => {
             let a = lower_expr(ops, *a);
             let b = lower_expr(ops, *b);
             let dst = Value::new_var();
@@ -437,7 +453,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::Expr::Var(identifier) => Value::Var(identifier.to_string()),
+        ast::ExprKind::Var(identifier) => Value::Var(identifier.to_string()),
     };
 
     cov_mark::hit!(ir_expr_lowered);
@@ -593,12 +609,12 @@ mod tests {
         use super::*;
 
         #[rstest]
-        #[case::constants(ast::Expr::Const(5), vec![], Value::Constant(5))]
+        #[case::constants(ast::Expr::constant(5), vec![], Value::Constant(5))]
         #[case::negate(
             // given: -5
             // expect:
             //  negate #5 -> %0
-            ast::Expr::Unary(ast::UnaryOp::Negate, Box::new(ast::Expr::Const(5))),
+            ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(5)),
             vec![Operation::Unary {
                     op: UnaryOp::Negate,
                     src: Value::Constant(5),
@@ -610,9 +626,9 @@ mod tests {
             // expect:
             //  negate      #42 -> %0
             //  complement  %0  -> %1
-            ast::Expr::Unary(ast::UnaryOp::Complement, Box::new(
-                ast::Expr::Unary(ast::UnaryOp::Negate, Box::new(ast::Expr::Const(42)))
-            )),
+            ast::Expr::unary(ast::UnOpKind::Complement,
+                ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(42))
+            ),
             vec![
                 Operation::Unary {
                     op: UnaryOp::Negate,

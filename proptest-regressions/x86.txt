@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 114ffa78a615dce345fcfde101d65d1bb1b5f67a7c12a8a07f126db10182d34f # shrinks to id = Identifier { names: ["_A"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "_A" } }
+cc e18dffc293f7649e240ef12082a9bea468b20cfd84210b980ecfc724d881a11c # shrinks to id = Identifier { names: ["A0"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "A0" } }
