@@ -1,3 +1,5 @@
+//! Type definitions for the AST.
+
 use std::{fmt::Display, ops};
 
 use contracts::{debug_requires, requires};
@@ -13,45 +15,78 @@ use crate::src::Span;
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum TokenKind {
     // Literals
+    /// An [integer constant](https://cppreference.net/c/language/integer_constant.html) literal.
     Constant,
+    /// An [identifier](https://cppreference.net/c/language/identifiers.html).
     Ident,
 
     // Operators
-    Complement, // ~
-    Minus,      // -
-    Plus,       // +
-    Divide,     // /
-    Star,       // *
-    Modulo,     // %
-    Not,        // !
-    Ampersand,  // &
-    And,        // &&
-    Pipe,       // |
-    Or,         // ||
-    Assign,     // =
-    Equal,      // ==
-    NotEqual,   // !=
-    LT,         // <
-    GT,         // >
-    LTE,        // <=
-    GTE,        // >=
-    UpArrow,    // ^
-    LShift,     // <<
-    RShift,     // >>
+    /// `~`
+    Complement,
+    /// `-`
+    Minus,
+    /// `+`
+    Plus,
+    /// `/`
+    Divide,
+    /// `*`
+    Star,
+    /// `%`
+    Modulo,
+    /// `!`
+    Not,
+    /// `&`
+    Ampersand,
+    /// `&&`
+    And,
+    /// `|`
+    Pipe,
+    /// `||`
+    Or,
+    /// `=`
+    Assign,
+    /// `==`
+    Equal,
+    /// `!=`
+    NotEqual,
+    /// `<`
+    LT,
+    /// `>`
+    GT,
+    /// `<=`
+    LTE,
+    /// `>=`
+    GTE,
+    /// `^`
+    UpArrow,
+    /// `<<`
+    LShift,
+    /// `>>`
+    RShift,
 
-    Decrement, // ++
-    Increment, // --
+    /// `--`
+    Decrement,
+    /// `++`
+    Increment,
 
     // Structural
+    /// `(`
     LParen,
+    /// `)`
     RParen,
+    /// `{`
     LBrace,
+    /// `}`
     RBrace,
+    /// `;`
     Semicolon,
 
     // Keywords
+    /// `int`
     Int,
+    /// `void`
     Void,
+    /// `return`
     Return,
 
     #[cfg_attr(test, proptest(skip))]
@@ -60,6 +95,7 @@ pub enum TokenKind {
     Error(&'static str),
 }
 
+/// Represents the [precedence](https://en.cppreference.com/c/language/operator_precedence) of a binary operator.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Precedence(usize);
@@ -73,12 +109,49 @@ impl ops::Add<usize> for Precedence {
 }
 
 impl TokenKind {
+    /// Returns `true` if this TokenKind can be parsed into a [`UnOp`]
+    ///
+    /// # Examples
+    /// ```
+    /// # use crustydrageon::ast::TokenKind;
+    /// assert_eq!(TokenKind::Minus.is_unary_op(), true);
+    /// assert_eq!(TokenKind::Complement.is_unary_op(), true);
+    /// assert_eq!(TokenKind::Not.is_unary_op(), true);
+    ///
+    /// assert_eq!(TokenKind::Semicolon.is_unary_op(), false);
+    /// assert_eq!(TokenKind::LBrace.is_unary_op(), false);
+    /// assert_eq!(TokenKind::RBrace.is_unary_op(), false);
+    ///
+    /// // binary operators which are not unary operators
+    /// assert_eq!(TokenKind::Plus.is_unary_op(), false);
+    /// assert_eq!(TokenKind::Star.is_unary_op(), false);
+    /// assert_eq!(TokenKind::Divide.is_unary_op(), false);
+    /// ```
     #[must_use]
     pub fn is_unary_op(&self) -> bool {
         use TokenKind::{Complement, Minus, Not};
         matches!(self, Minus | Complement | Not)
     }
 
+    /// Returns `true` if this TokenKind can be parsed into a [`BinOp`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::ast::TokenKind;
+    /// assert_eq!(TokenKind::Plus.is_binary_op(), true);
+    /// assert_eq!(TokenKind::Minus.is_binary_op(), true);
+    /// assert_eq!(TokenKind::Star.is_binary_op(), true);
+    /// assert_eq!(TokenKind::Divide.is_binary_op(), true);
+    ///
+    /// assert_eq!(TokenKind::Semicolon.is_binary_op(), false);
+    /// assert_eq!(TokenKind::LBrace.is_binary_op(), false);
+    /// assert_eq!(TokenKind::RBrace.is_binary_op(), false);
+    ///
+    /// // unary operators which are not binary operators
+    /// assert_eq!(TokenKind::Complement.is_binary_op(), false);
+    /// assert_eq!(TokenKind::Not.is_binary_op(), false);
+    /// ```
     #[must_use]
     pub fn is_binary_op(&self) -> bool {
         use TokenKind as tk;
@@ -107,9 +180,21 @@ impl TokenKind {
     }
 
     // TODO: this really should be a method of BinaryOp
+    /// Get the [`Precedence`] of a binary operator token.
+    ///
+    /// Returns [`None`] for tokens which are not binary operators.
+    ///
+    /// ```
+    /// # use crustydrageon::ast::TokenKind;
+    ///
+    /// assert_eq!(TokenKind::Plus.precedence(), TokenKind::Minus.precedence());
+    /// assert!(TokenKind::RShift.precedence() > TokenKind::Equal.precedence());
+    ///
+    /// assert!(TokenKind::Semicolon.precedence().is_none());
+    /// ```
     #[must_use]
     pub fn precedence(&self) -> Option<Precedence> {
-        //! See https://en.cppreference.com/c/language/operator_precedence
+        //! See <https://en.cppreference.com/c/language/operator_precedence>
 
         use TokenKind as tk;
 
@@ -133,6 +218,7 @@ impl TokenKind {
     }
 }
 
+/// A single lexical unit, comprised of a [kind](Token::kind) and a [lexeme](Token::lexeme).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     kind: TokenKind,
@@ -180,6 +266,7 @@ impl Display for Token {
 }
 
 /// A C program
+///
 /// Currently can only contain a single function.
 #[derive(Debug)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -201,11 +288,12 @@ impl Identifier {
         self.names.last().unwrap()
     }
 
+    /// Rename (or 'mangle') this identifier, storing the original name in the name history.
     pub fn rename(&mut self, name: String) {
         self.names.push(name);
     }
 
-    /// Get the original, demangled name from the name history.
+    /// Get the original, demangled name from the name historya
     #[requires(!self.names.is_empty())]
     pub fn source_name(&self) -> &str {
         self.names.first().unwrap()
@@ -287,7 +375,7 @@ impl From<Identifier> for Span {
     }
 }
 
-/// Function definition
+/// Node representing a function definition.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
@@ -305,13 +393,13 @@ impl Function {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum UnOpKind {
-    // Arithmetic
+    /// Negation: `-`
     Negate,
 
-    // Bitwise
+    /// Bitwise complement: `~`
     Complement,
 
-    // Logical
+    /// Logical not: `!`
     Not,
 }
 
@@ -329,6 +417,9 @@ impl Display for UnOpKind {
     }
 }
 
+/// Unary operator node.
+///
+/// Wraps a [`UnOpKind`] with a [`Span`].
 #[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct UnOp {
@@ -337,6 +428,7 @@ pub struct UnOp {
 }
 
 impl PartialEq for UnOp {
+    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](UnOp::span).
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind
     }
@@ -409,6 +501,9 @@ impl Display for BinOpKind {
     }
 }
 
+/// Binary operator node.
+///
+/// Wraps a [`BinOpKind`] with a [`Span`].
 #[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct BinOp {
@@ -417,6 +512,7 @@ pub struct BinOp {
 }
 
 impl PartialEq for BinOp {
+    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](BinOp::span).
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind
     }
@@ -428,7 +524,6 @@ impl Display for BinOp {
     }
 }
 
-/// Expression
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExprKind {
     Const(i32),
@@ -448,6 +543,9 @@ impl Display for ExprKind {
     }
 }
 
+/// Expression node.
+///
+/// Wraps a [`ExprKind`] with a [`Span`].
 #[derive(Debug, Eq, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -455,6 +553,7 @@ pub struct Expr {
 }
 
 impl PartialEq for Expr {
+    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](Expr::span).
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind
     }
@@ -466,15 +565,17 @@ impl Display for Expr {
     }
 }
 
-/// Statement
+/// Statement node.
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
     Expr(Expr),
     Return(Expr),
+    /// Null statement
     Null,
 }
 
+/// Declaration node.
 #[derive(Debug, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Decl {
@@ -484,11 +585,13 @@ pub struct Decl {
 }
 
 impl PartialEq for Decl {
+    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](Decl::span).
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.init == other.init
     }
 }
 
+/// Node representing a single element of a block.
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BlockItem {
@@ -506,7 +609,7 @@ impl Display for Stmt {
     }
 }
 
-/// Constructors for test dummies of AST nodes which don't include [`Span`] information, for example.
+/// Constructors for test dummies of nodes which don't include [`Span`] information, for example.
 ///
 /// Used for easing the definition of test cases.
 #[cfg(test)]
@@ -754,6 +857,7 @@ mod tests {
             #[test]
             fn test_binop_has_precedence(kind: TokenKind) {
                 prop_assert_eq!(kind.precedence() > Some(Precedence::default()), kind.is_binary_op());
+                prop_assert_eq!(kind.precedence().is_some(), kind.is_binary_op());
             }
         }
 
