@@ -1,12 +1,12 @@
 use std::{fmt, process};
 
-use crate::{diag::Annotation, src::Source};
+use crate::{diag::Diag, src::Source};
 
 #[derive(Debug)]
 pub enum CompilerError {
     SysCompilerNotFound(&'static str),
     SysCompilerRaised(process::ExitStatus),
-    SourceDiagnostic(Source, Box<dyn Annotation>),
+    SourceDiagnostic(Source, Diag),
     IoError,
 }
 
@@ -24,7 +24,7 @@ impl fmt::Display for CompilerError {
                 f,
                 "A system compiler exited with status code {exit_status} during the compilation"
             ),
-            Self::SourceDiagnostic(src, annotation) => annotation.fmt_for(f, src),
+            Self::SourceDiagnostic(src, diag) => diag.fmt_for(f, src),
             Self::IoError => todo!(),
             Self::SysCompilerNotFound(msg) => write!(f, "{msg}"),
         }

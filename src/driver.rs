@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     ast::Token,
+    diag::Diagnostic,
     error::{CompilerError, CompilerResult},
     ir, lexer, parser, sema,
     src::Source,
@@ -265,7 +266,7 @@ pub fn compile(
     }
 
     let mut ast = parser::parse(src.clone(), tokens.peekable())
-        .map_err(|e| CompilerError::SourceDiagnostic(src.clone(), Box::new(e)))?;
+        .map_err(|e| CompilerError::SourceDiagnostic(src.clone(), e.into_diag()))?;
     cov_mark::hit!(parse);
 
     if verbose || stop_at == Some(CompilerStage::Parse) {
@@ -273,7 +274,7 @@ pub fn compile(
         return Ok(None);
     }
 
-    sema::resolve(&mut ast).map_err(|e| CompilerError::SourceDiagnostic(src, Box::new(e)))?;
+    sema::resolve(&mut ast).map_err(|e| CompilerError::SourceDiagnostic(src, e.into_diag()))?;
 
     if verbose || stop_at == Some(CompilerStage::Validate) {
         println!("{ast:#?}");

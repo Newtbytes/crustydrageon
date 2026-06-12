@@ -2,38 +2,56 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{BinOpKind, Decl, Expr, ExprKind, Function, Program, Stmt},
-    diag::Annotation,
+    diag::{Annotation, Diag, DiagLevel, Diagnostic},
     ir::VarID,
-    src,
 };
 
 #[derive(Debug)]
 pub enum ResolveError {
-    InvalidLvalue(src::Span),
-    DuplicateDecl(src::Span),
-    UnknownVar(src::Span),
+    InvalidLvalue(Expr),
+    DuplicateDecl { decl: Decl, prev: Decl },
+    UnknownVar(Expr),
 }
 
-impl Annotation for ResolveError {
-    fn span(&self) -> &src::Span {
-        match self {
-            Self::UnknownVar(span) | Self::DuplicateDecl(span) | Self::InvalidLvalue(span) => span,
-        }
-    }
+impl Diagnostic for ResolveError {
+    fn into_diag(self) -> Diag {
+        let mut diag = Diag::new(DiagLevel::Error);
 
-    fn message(&self) -> String {
         match self {
-            ResolveError::InvalidLvalue(_) => "Invalid lvalue",
-            ResolveError::DuplicateDecl(_) => "Duplicate declaration",
-            ResolveError::UnknownVar(_) => "Undeclared variable",
-        }
-        .to_owned()
+            Self::InvalidLvalue(expr) => {
+                diag.annotate(
+                    Annotation::new(
+                        expr.span,
+                        "Illegal left-hand side for assignment".to_owned(),
+                    )
+                    // TODO: explain what a valid l-value is here
+                    // variables are currently the only valid l-values, but in the future this will change
+                    // TODO: add a ", but got a {description of expression}" clause
+                    .with_note("Should be a variable".to_owned()),
+                )
+            }
+            Self::DuplicateDecl { decl, prev } => diag
+                .annotate(Annotation::new(
+                    decl.span,
+                    format!("Duplicate declaration of variable '{}'", decl.name),
+                ))
+                .annotate(Annotation::new(
+                    prev.span,
+                    "Previous declaration found here".to_owned(),
+                )),
+            Self::UnknownVar(expr) => diag.annotate(Annotation::new(
+                expr.span.clone(),
+                format!("Undeclared variable '{}'", expr.span),
+            )),
+        };
+
+        diag
     }
 }
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
 
-type VarCtx = HashMap<String, String>;
+type VarCtx = HashMap<String, (String, Decl)>;
 
 struct VariableResolver {
     ctx: VarCtx,
@@ -49,13 +67,13 @@ impl VariableResolver {
         match kind {
             ExprKind::Var(id) => {
                 if !self.ctx.contains_key(id.value()) {
-                    return Err(ResolveError::UnknownVar(id.span().clone()));
+                    return Err(ResolveError::UnknownVar(expr.clone()));
                 }
             }
             ExprKind::Unary(_, expr) => self.resolve_expr(expr)?,
             ExprKind::Binary(op, a, b) => {
                 if op.kind == BinOpKind::Assign && !matches!(a.kind, ExprKind::Var(_)) {
-                    return Err(ResolveError::InvalidLvalue(a.span.clone()));
+                    return Err(ResolveError::InvalidLvalue(*a.clone()));
                 }
                 self.resolve_expr(a)?;
                 self.resolve_expr(b)?;
@@ -68,13 +86,17 @@ impl VariableResolver {
 
     fn resolve_decl(&mut self, decl: &mut Decl) -> ResolveResult<()> {
         if self.ctx.contains_key(decl.name.value()) {
-            return Err(ResolveError::DuplicateDecl(decl.span.clone()));
+            let (_, prev_decl) = self.ctx.get(decl.name.value()).unwrap();
+            return Err(ResolveError::DuplicateDecl {
+                decl: decl.clone(),
+                prev: prev_decl.clone(),
+            });
         }
 
         let prev_name = decl.name.value().to_owned();
         let curr_name = format!("{prev_name}.{}", VarID::new());
         decl.name.rename(curr_name.clone());
-        self.ctx.insert(prev_name, curr_name);
+        self.ctx.insert(prev_name, (curr_name, decl.clone()));
 
         if let Some(expr) = &mut decl.init {
             self.resolve_expr(expr)?;

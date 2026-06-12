@@ -489,6 +489,18 @@ impl PartialEq for Decl {
     }
 }
 
+impl Display for Decl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "int {}", self.name)?;
+
+        if let Some(init) = &self.init {
+            write!(f, " = {}", init)?;
+        }
+
+        write!(f, ";")
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BlockItem {
