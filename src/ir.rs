@@ -469,7 +469,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
                     src: true_val,
                     dst: dst.clone(),
                 },
-                Operation::Branch(end),
+                Operation::Branch(end.clone()),
             ]);
 
             ops.push(Operation::Label(when_false));
@@ -478,6 +478,8 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
                 src: false_val,
                 dst: dst.clone(),
             }]);
+
+            ops.push(Operation::Label(end));
 
             dst
         }
@@ -555,9 +557,7 @@ pub fn lower_func(func: ast::Function) -> Function {
         }
     }
 
-    if !ops.iter().any(|op| matches!(op, Operation::Return(_))) {
-        ops.push(Operation::Return(Value::Constant(0)));
-    }
+    ops.push(Operation::Return(Value::Constant(0)));
 
     Function {
         id: func.name,
