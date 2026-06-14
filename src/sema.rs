@@ -60,6 +60,11 @@ impl VariableResolver {
                 self.resolve_expr(a)?;
                 self.resolve_expr(b)?;
             }
+            ExprKind::Cond(cond, if_true, if_false) => {
+                self.resolve_expr(cond)?;
+                self.resolve_expr(if_true)?;
+                self.resolve_expr(if_false)?;
+            }
             ExprKind::Const(_) => (),
         };
 
@@ -86,6 +91,13 @@ impl VariableResolver {
     fn resolve_stmt(&mut self, stmt: &mut Stmt) -> ResolveResult<()> {
         match stmt {
             Stmt::Return(expr) | Stmt::Expr(expr) => self.resolve_expr(expr)?,
+            Stmt::If(cond, if_true, if_false) => {
+                self.resolve_expr(cond)?;
+                self.resolve_stmt(if_true)?;
+                if let Some(if_false) = if_false {
+                    self.resolve_stmt(if_false)?;
+                }
+            }
             Stmt::Null => (),
         };
 

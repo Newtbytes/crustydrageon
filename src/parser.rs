@@ -195,7 +195,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
         let mut next_kind = self.peek().kind();
 
-        while next_kind.is_binary_op() && next_kind.precedence() >= Some(min_prec) {
+        while (next_kind.is_binary_op() || next_kind.is_ternary_op())
+            && next_kind.precedence() >= Some(min_prec)
+        {
             if next_kind == TokenKind::Assign {
                 // parse assignment operators as right-associative
                 let op = self.parse_binary_op()?;
@@ -204,6 +206,12 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                 let right = self.parse_expr(next_kind.precedence().unwrap())?;
 
                 left.kind = ExprKind::Binary(op, Box::new(left.clone()), Box::new(right));
+            } else if next_kind == TokenKind::Question {
+                let middle = self.parse_ternary_middle()?;
+                let right = self.parse_expr(next_kind.precedence().unwrap())?;
+
+                left.kind =
+                    ExprKind::Cond(Box::new(left.clone()), Box::new(middle), Box::new(right))
             } else {
                 let op = self.parse_binary_op()?;
                 let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
@@ -220,6 +228,14 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
 
         Ok(left)
+    }
+
+    fn parse_ternary_middle(&mut self) -> ParseResult<Expr> {
+        self.expect(TokenKind::Question)?;
+        let middle = self.parse_expr(Default::default())?;
+        self.expect(TokenKind::Colon)?;
+
+        Ok(middle)
     }
 
     fn parse_factor(&mut self) -> ParseResult<Expr> {
@@ -287,6 +303,22 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             let ret_val = self.parse_expr(Precedence::default())?;
             self.expect(TokenKind::Semicolon)?;
             Ok(Stmt::Return(ret_val))
+        } else if self.check(TokenKind::If) {
+            self.expect(TokenKind::If)?;
+
+            self.expect(TokenKind::LParen)?;
+            let cond = self.parse_expr(Default::default())?;
+            self.expect(TokenKind::RParen)?;
+
+            let if_true = Box::new(self.parse_stmt()?);
+            let if_false = if self.check(TokenKind::Else) {
+                self.expect(TokenKind::Else)?;
+                Some(Box::new(self.parse_stmt()?))
+            } else {
+                None
+            };
+
+            Ok(Stmt::If(cond, if_true, if_false))
         } else if self.check(TokenKind::Semicolon) {
             self.expect(TokenKind::Semicolon)?;
             Ok(Stmt::Null)
@@ -492,6 +524,13 @@ mod tests {
             Expr::constant(1),
         )
     )]
+    #[case(
+        &[tok(tk::Constant, "7"), tok(tk::Question, "?"), 
+            tok(tk::Constant, "1"),
+            tok(tk::Colon, ":"),
+            tok(tk::Constant, "5")],
+        Expr::cond(Expr::constant(7), Expr::constant(1), Expr::constant(5))
+    )]
     fn test_parse_expr_matches_expected(
         #[case] _tokens: &[Token],
         #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
@@ -535,4 +574,7 @@ mod tests {
             prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
         }
     }
+
+    // TODO: test stmt parsing
+    // TODO: test if statement parsing ok and err cases
 }
