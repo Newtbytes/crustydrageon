@@ -308,7 +308,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
             self.expect(TokenKind::LParen)?;
             let cond = self.parse_expr(Default::default())?;
-            self.expect(TokenKind::LParen)?;
+            self.expect(TokenKind::RParen)?;
 
             let if_true = Box::new(self.parse_stmt()?);
             let if_false = if self.check(TokenKind::Else) {
@@ -574,4 +574,7 @@ mod tests {
             prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
         }
     }
+
+    // TODO: test stmt parsing
+    // TODO: test if statement parsing ok and err cases
 }
