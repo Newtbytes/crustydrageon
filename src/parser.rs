@@ -585,9 +585,6 @@ mod tests {
     mod stmt {
         use super::*;
 
-        // TODO: test stmt parsing
-        // TODO: test if statement parsing ok and err cases
-
         #[rstest]
         #[case(
             &[tok(tk::Return, "return"), tok(tk::Constant, "5"), tok(tk::Semicolon, ";")],
