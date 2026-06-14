@@ -98,28 +98,64 @@ impl Span {
         self.span.is_empty()
     }
 
+    /// Return an iterator over the [`char`]s in this span.
+    ///
+    /// See [`str::chars`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// let src = Source::new("Hello, world!".to_owned());
+    /// let mut chars = src.chars();
+    ///
+    /// assert_eq!(chars.next(), Some('H'));
+    /// assert_eq!(chars.next(), Some('e'));
+    /// assert_eq!(chars.next(), Some('l'));
+    /// assert_eq!(chars.next(), Some('l'));
+    /// assert_eq!(chars.next(), Some('o'));
+    ///
+    /// assert!(src.chars().eq("Hello, world!".chars()));
+    /// ```
     pub fn chars(&self) -> std::str::Chars<'_> {
         self.span.chars()
     }
 
+    /// Return the [`Location`] within the parent span pointing to the first character in this span.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// let src = Source::new("Hello, world!".to_owned());
+    ///
+    /// assert_eq!(src.empty_at(0).unwrap().start(), src.location_at(0).unwrap());
+    /// assert_eq!(src.empty_at(5).unwrap().start(), src.location_at(5).unwrap());
+    ///
+    /// let hello_span = src.subspan(0, 5).unwrap();
+    /// assert_eq!(hello_span.start(), src.location_at(0).unwrap());
+    ///
+    /// let world_span = src.subspan(7, 12).unwrap();
+    /// assert_eq!(world_span.start(), src.location_at(7).unwrap());
+    /// ```
     #[must_use]
     pub fn start(&self) -> Location {
         self.loc
     }
 
-    /// Return the index into the Source string that this span starts at
+    /// Return the index into the Source string that this span starts at.
     #[must_use]
     pub fn start_index(&self) -> usize {
         self.loc.index
     }
 
-    /// Return the index into the Source string that this span ends at
+    /// Return the index into the Source string that this span ends at.
     #[must_use]
     pub fn end_index(&self) -> usize {
         self.loc.index + self.len()
     }
 
-    /// Returns the line number of the line containing index i
+    /// Returns the line number of the line containing index `i`.
     pub fn find_line(&self, i: usize) -> Result<usize, String> {
         // count number of lines before index i
         let all_before_idx = self.get(..i).ok_or(format!(
@@ -130,7 +166,7 @@ impl Span {
         Ok(all_before_idx.matches('\n').count())
     }
 
-    /// Returns the line number of the line containing index `i``.
+    /// Returns the line number of the line containing index `i`.
     pub fn find_column(&self, i: usize) -> Result<usize, String> {
         let line = self.find_line(i)?;
 
