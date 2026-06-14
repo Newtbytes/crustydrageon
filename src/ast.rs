@@ -64,10 +64,19 @@ pub enum TokenKind {
     /// `>>`
     RShift,
 
+    /// `?`
+    Question,
+    /// `:`
+    Colon,
+
     /// `--`
     Decrement,
     /// `++`
     Increment,
+
+    // Statement
+    If,
+    Else,
 
     // Structural
     /// `(`
@@ -179,6 +188,16 @@ impl TokenKind {
         )
     }
 
+    #[must_use]
+    pub fn is_ternary_op(&self) -> bool {
+        matches!(self, Self::Question)
+    }
+
+    #[must_use]
+    pub fn is_op(&self) -> bool {
+        self.is_unary_op() || self.is_binary_op() || self.is_ternary_op()
+    }
+
     // TODO: this really should be a method of BinaryOp
     /// Get the [`Precedence`] of a binary operator token.
     ///
@@ -211,6 +230,7 @@ impl TokenKind {
             tk::Pipe => 12,
             tk::And => 10,
             tk::Or => 5,
+            tk::Question => 3,
             tk::Assign => 1,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
             _ => return None,
@@ -269,7 +289,7 @@ impl Display for Token {
 ///
 /// Currently can only contain a single function.
 #[derive(Debug)]
-#[cfg_attr(test, derive(Arbitrary))]
+// #[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
 }
@@ -377,7 +397,7 @@ impl From<Identifier> for Span {
 
 /// Node representing a function definition.
 #[derive(Debug, Clone)]
-#[cfg_attr(test, derive(Arbitrary))]
+// #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
     pub body: Vec<BlockItem>,
@@ -530,6 +550,7 @@ pub enum ExprKind {
     Var(Identifier),
     Unary(UnOp, Box<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    Cond(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 impl Display for ExprKind {
@@ -539,6 +560,7 @@ impl Display for ExprKind {
             Self::Var(id) => write!(f, "{}", id.source_name()),
             Self::Unary(op, expr) => write!(f, "{op}{expr}"),
             Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
+            Self::Cond(cond, if_true, if_false) => write!(f, "{cond} ? {if_true} : {if_false}"),
         }
     }
 }
@@ -567,12 +589,30 @@ impl Display for Expr {
 
 /// Statement node.
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(test, derive(Arbitrary))]
+// #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
     Expr(Expr),
     Return(Expr),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     /// Null statement
     Null,
+}
+
+impl Display for Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Expr(expr) => write!(f, "{};", expr),
+            Self::Return(expr) => write!(f, "return {};", expr),
+            Self::If(cond, if_true, if_false) => {
+                write!(f, "if {cond} {if_true}")?;
+                if let Some(if_false) = if_false {
+                    write!(f, " {if_false}")?;
+                }
+                Ok(())
+            }
+            Self::Null => write!(f, ";"),
+        }
+    }
 }
 
 /// Declaration node.
@@ -597,16 +637,6 @@ impl PartialEq for Decl {
 pub enum BlockItem {
     Stmt(Stmt),
     Decl(Decl),
-}
-
-impl Display for Stmt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Expr(expr) => write!(f, "{};", expr),
-            Self::Return(expr) => write!(f, "return {};", expr),
-            Self::Null => write!(f, ";"),
-        }
-    }
 }
 
 /// Constructors for test dummies of nodes which don't include [`Span`] information, for example.
@@ -660,6 +690,10 @@ pub mod dummy {
         pub fn binary(kind: BinOpKind, a: Expr, b: Expr) -> Self {
             expr(ExprKind::Binary(binop(kind), a.into(), b.into()))
         }
+
+        pub fn cond(cond: Expr, if_true: Expr, if_false: Expr) -> Self {
+            expr(ExprKind::Cond(cond.into(), if_true.into(), if_false.into()))
+        }
     }
 }
 
@@ -708,7 +742,7 @@ pub mod strategy {
                                     span
                                 }
                             ),
-                            (any::<BinOp>(), inner.clone(), inner, any::<Span>()).prop_map(
+                            (any::<BinOp>(), inner.clone(), inner.clone(), any::<Span>()).prop_map(
                                 |(op, lhs, rhs, span)| {
                                     Expr {
                                         kind: ExprKind::Binary(op, Box::new(lhs), Box::new(rhs)),
@@ -716,6 +750,18 @@ pub mod strategy {
                                     }
                                 }
                             ),
+                            (inner.clone(), inner.clone(), inner, any::<Span>()).prop_map(
+                                |(cond, if_true, if_false, span)| {
+                                    Expr {
+                                        kind: ExprKind::Cond(
+                                            cond.into(),
+                                            if_true.into(),
+                                            if_false.into(),
+                                        ),
+                                        span,
+                                    }
+                                }
+                            )
                         ]
                     },
                 )
@@ -765,6 +811,10 @@ pub mod strategy {
                         TokenKind::LShift => "<<",
                         TokenKind::RShift => ">>",
                         TokenKind::Assign => "=",
+                        TokenKind::Question => "\\?",
+                        TokenKind::Colon => ":",
+                        TokenKind::If => "if",
+                        TokenKind::Else => "else",
                         TokenKind::EOF => "",
                         TokenKind::Error(_) => "",
                     };
@@ -804,6 +854,32 @@ mod tests {
         }
     }
 
+    mod op {
+        use super::*;
+
+        proptest! {
+            #[test]
+            fn unary_binary_ternary_are_separate(kind: TokenKind) {
+                prop_assume!(kind.is_op());
+
+                prop_assert_eq!(
+                    kind.is_ternary_op(), !kind.is_binary_op() && !kind.is_unary_op(),
+                    "if {:?} is a ternary operator, it shouldn't be a binary or unary operator",
+                    kind
+                );
+            }
+
+            #[test]
+            fn ops_are_unop_binop_or_ternary(kind: TokenKind) {
+                prop_assert_eq!(
+                    kind.is_op(), kind.is_unary_op() || kind.is_binary_op() || kind.is_ternary_op(),
+                    "if {:?} is an operator, it is either a unary, binary, or ternary operator",
+                    kind
+                );
+            }
+        }
+    }
+
     /// See https://en.cppreference.com/c/language/operator_precedence
     mod precedence {
         use super::*;
@@ -822,6 +898,7 @@ mod tests {
                 vec![Pipe],
                 vec![And],
                 vec![Or],
+                vec![Question],
                 vec![Assign],
             ]
         }
@@ -855,27 +932,24 @@ mod tests {
 
         proptest! {
             #[test]
-            fn test_binop_has_precedence(kind: TokenKind) {
-                prop_assert_eq!(kind.precedence() > Some(Precedence::default()), kind.is_binary_op());
-                prop_assert_eq!(kind.precedence().is_some(), kind.is_binary_op());
+            fn test_binop_and_ternary_has_precedence(kind: TokenKind) {
+                prop_assert_eq!(
+                    kind.precedence() > Some(Precedence::default()),
+                    kind.is_binary_op() || kind.is_ternary_op()
+                );
+                prop_assert_eq!(kind.precedence().is_some(), kind.is_binary_op() || kind.is_ternary_op());
             }
-        }
 
-        proptest! {
             #[test]
             fn test_symmetric(a: TokenKind, b: TokenKind) {
                 prop_assert_eq!(a == b, b == a);
             }
-        }
 
-        proptest! {
             #[test]
             fn test_reflexive(kind: TokenKind) {
                 prop_assert_eq!(kind.precedence(), kind.precedence());
             }
-        }
 
-        proptest! {
             #[test]
             fn test_substitution(a: TokenKind, b: TokenKind, c: TokenKind) {
                 if (a == c) && (a == b) {

@@ -7,3 +7,5 @@
 cc 5350d3ba88c4311f3d2ad1ec43e54fcb8a516cd5305a84e2cf19580adf8a27b6 # shrinks to kind = Ampersand
 cc a8c8965a2444dc23e83b7c729564f99f031c973457c24fe854e7fc663a0010a7 # shrinks to kind = UpArrow
 cc 69f012b19519c0f28c69cc87f6062a45c422da5b9cde300c03dff734bf056621 # shrinks to kind = LShift
+cc caaadbf983e40c5c2fd73ab2859796f5288a35ebf2d2045372574ac7c309a622 # shrinks to kind = Question
+cc b9634180b4d6a4aa356f0c134af79669b0f5a7099a35322d78f9aa734bc63d29 # shrinks to kind = Colon
