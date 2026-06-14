@@ -289,7 +289,7 @@ impl Display for Token {
 ///
 /// Currently can only contain a single function.
 #[derive(Debug)]
-// #[cfg_attr(test, derive(Arbitrary))]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
 }
@@ -397,7 +397,7 @@ impl From<Identifier> for Span {
 
 /// Node representing a function definition.
 #[derive(Debug, Clone)]
-// #[cfg_attr(test, derive(Arbitrary))]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
     pub body: Vec<BlockItem>,
@@ -589,7 +589,6 @@ impl Display for Expr {
 
 /// Statement node.
 #[derive(Debug, PartialEq, Eq, Clone)]
-// #[cfg_attr(test, derive(Arbitrary))]
 pub enum Stmt {
     Expr(Expr),
     Return(Expr),
@@ -766,6 +765,37 @@ pub mod strategy {
                     },
                 )
                 .boxed()
+        }
+    }
+
+    impl Arbitrary for Stmt {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            let leaf = prop_oneof![any::<Expr>().prop_map(Stmt::Expr), Just(Stmt::Null),];
+
+            leaf.prop_recursive(
+                3,  // max depth
+                16, // max total size
+                2,  // max branching factor
+                |inner| {
+                    prop_oneof![
+                        any::<Expr>().prop_map(Stmt::Return),
+                        (any::<Expr>(), inner.clone(), any::<bool>(), inner).prop_map(
+                            |(cond, if_true, has_else, if_false)| {
+                                let else_branch = if has_else {
+                                    Some(Box::new(if_false))
+                                } else {
+                                    None
+                                };
+                                Stmt::If(cond, Box::new(if_true), else_branch)
+                            }
+                        ),
+                    ]
+                },
+            )
+            .boxed()
         }
     }
 
