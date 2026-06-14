@@ -313,7 +313,7 @@ impl Identifier {
         self.names.push(name);
     }
 
-    /// Get the original, demangled name from the name historya
+    /// Get the original, demangled name from the name history.
     #[requires(!self.names.is_empty())]
     pub fn source_name(&self) -> &str {
         self.names.first().unwrap()
