@@ -454,7 +454,33 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
             dst
         }
         ast::ExprKind::Var(identifier) => Value::Var(identifier.to_string()),
-        ast::ExprKind::Cond(expr, expr1, expr2) => todo!(),
+        ast::ExprKind::Cond(cond, if_true, if_false) => {
+            let cond = lower_expr(ops, *cond);
+            let dst = Value::new_var();
+
+            let when_false = Label::new();
+            let end = Label::new();
+
+            jeq(ops, cond, Value::Constant(0), when_false.clone());
+
+            let true_val = lower_expr(ops, *if_true);
+            ops.extend([
+                Operation::Copy {
+                    src: true_val,
+                    dst: dst.clone(),
+                },
+                Operation::Branch(end),
+            ]);
+
+            ops.push(Operation::Label(when_false));
+            let false_val = lower_expr(ops, *if_false);
+            ops.extend([Operation::Copy {
+                src: false_val,
+                dst: dst.clone(),
+            }]);
+
+            dst
+        }
     };
 
     cov_mark::hit!(ir_expr_lowered);
@@ -476,7 +502,26 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
         ast::Stmt::Null => {
             cov_mark::hit!(ir_null_stmt_lowered);
         }
-        ast::Stmt::If(expr, stmt, stmt1) => todo!(),
+        ast::Stmt::If(cond, if_true, if_false) => {
+            let cond = lower_expr(ops, cond);
+            let end = Label::new();
+
+            if let Some(if_false) = if_false {
+                let when_false = Label::new();
+
+                jeq(ops, cond, Value::Constant(0), when_false.clone());
+                lower_stmt(ops, *if_true);
+                ops.push(Operation::Branch(end.clone()));
+
+                ops.push(Operation::Label(when_false));
+                lower_stmt(ops, *if_false);
+            } else {
+                jeq(ops, cond, Value::Constant(0), end.clone());
+                lower_stmt(ops, *if_true);
+            }
+
+            ops.push(Operation::Label(end));
+        }
     }
 
     cov_mark::hit!(ir_stmt_lowered);
