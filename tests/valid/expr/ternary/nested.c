@@ -5,3 +5,5 @@ int main(void) {
 
     return a > b ? 5 : flag ? 6 : 7;
 }
+
+//$ CHECK STATUS : 7

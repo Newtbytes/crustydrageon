@@ -5,3 +5,5 @@ int main(void) {
         b = 1;
     return b;
 }
+
+//$ CHECK STATUS : 0

@@ -4,3 +4,5 @@ int main(void) {
     y = (x = 5) ? x : 2;
     return (x == 5 && y == 5);
 }
+
+//$ CHECK STATUS : 1

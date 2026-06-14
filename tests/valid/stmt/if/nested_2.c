@@ -7,3 +7,5 @@ int main(void) {
         b = 2;
     return b;
 }
+
+//$ CHECK STATUS : 2

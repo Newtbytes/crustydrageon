@@ -4,3 +4,5 @@ int main(void) {
     flag ? a = 1 : (a = 0);
     return a;
 }
+
+//$ CHECK STATUS : 1

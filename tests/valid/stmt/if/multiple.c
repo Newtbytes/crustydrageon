@@ -14,3 +14,5 @@ int main(void) {
 
     return a + b;
 }
+
+//$ CHECK STATUS : 8

@@ -6,3 +6,5 @@ int main(void) {
         x = 1;
     return x;
 }
+
+//$ CHECK STATUS : 1

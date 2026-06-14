@@ -5,3 +5,5 @@ int main(void) {
     else
         return 2;
 }
+
+//$ CHECK STATUS : 2

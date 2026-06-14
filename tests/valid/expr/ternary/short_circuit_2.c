@@ -4,3 +4,5 @@ int main(void) {
     a ? (b = 1) : (b = 2);
     return b;
 }
+
+//$ CHECK STATUS : 2

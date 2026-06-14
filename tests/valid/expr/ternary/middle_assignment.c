@@ -3,3 +3,5 @@ int main(void) {
     a != 2 ? a = 2 : 0;
     return a;
 }
+
+//$ CHECK STATUS : 2
