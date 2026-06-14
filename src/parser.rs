@@ -446,135 +446,170 @@ mod tests {
         }
     }
 
-    #[template]
-    #[rstest]
-    #[case(
-        &[tok(tk::Complement, "~"), tok(tk::Constant, "5")],
-        Expr::unary(Complement, Expr::constant(5))
-    )]
-    #[case(
-        &[tok(tk::Complement, "~"), tok(tk::Complement, "~"), tok(tk::Constant, "42")],
-        Expr::unary(Complement, Expr::unary(Complement, Expr::constant(42)))
-    )]
-    #[case(
-        &[tok(tk::Minus, "-"), tok(tk::LParen, "("), tok(tk::Constant, "69"), tok(tk::RParen, ")")],
-        Expr::unary(Negate, Expr::constant(69))
-    )]
-    #[case(
-        &[tok(TokenKind::Not, "!"), tok(TokenKind::Constant, "0")],
-        Expr::unary(Not, Expr::constant(0))
-    )]
-    fn factors(#[case] tokens: &[Token], #[case] expected_expr: Expr) {}
+    mod expr {
+        use super::*;
 
-    // TODO: unit test comparison operators
+        // TODO: unit test comparison operators
 
-    #[apply(factors)]
-    fn test_parse_factor_matches_expected(#[case] tokens: &[Token], #[case] expected_expr: Expr) {
-        cov_mark::check!(parser_factor_parsed);
+        #[template]
+        #[rstest]
+        #[case(
+            &[tok(tk::Complement, "~"), tok(tk::Constant, "5")],
+            Expr::unary(Complement, Expr::constant(5))
+        )]
+        #[case(
+            &[tok(tk::Complement, "~"), tok(tk::Complement, "~"), tok(tk::Constant, "42")],
+            Expr::unary(Complement, Expr::unary(Complement, Expr::constant(42)))
+        )]
+        #[case(
+            &[tok(tk::Minus, "-"), tok(tk::LParen, "("), tok(tk::Constant, "69"), tok(tk::RParen, ")")],
+            Expr::unary(Negate, Expr::constant(69))
+        )]
+        #[case(
+            &[tok(TokenKind::Not, "!"), tok(TokenKind::Constant, "0")],
+            Expr::unary(Not, Expr::constant(0))
+        )]
+        fn factors(#[case] tokens: &[Token], #[case] expected_expr: Expr) {}
 
-        let mut parser = parser(tokens);
-        let actual_expr = parser.parse_factor().unwrap();
+        #[apply(factors)]
+        fn test_parse_factor_matches_expected(
+            #[case] tokens: &[Token],
+            #[case] expected_expr: Expr,
+        ) {
+            cov_mark::check!(parser_factor_parsed);
 
-        assert_eq!(expected_expr, actual_expr);
-    }
+            let mut parser = parser(tokens);
+            let actual_expr = parser.parse_factor().unwrap();
 
-    #[apply(factors)]
-    fn test_parse_expr_parses_factors(#[case] tokens: &[Token], _expected_expr: Expr) {
-        cov_mark::check!(parser_factor_parsed);
-        cov_mark::check!(parser_expr_parsed);
+            assert_eq!(expected_expr, actual_expr);
+        }
 
-        let mut parser = parser(tokens);
-        let _ = parser.parse_expr(Precedence::default());
-    }
+        #[apply(factors)]
+        fn test_parse_expr_parses_factors(#[case] tokens: &[Token], _expected_expr: Expr) {
+            cov_mark::check!(parser_factor_parsed);
+            cov_mark::check!(parser_expr_parsed);
 
-    #[apply(factors)]
-    #[case(
-        &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2")],
-        Expr::binary(Add, Expr::constant(4), Expr::constant(2))
-    )]
-    #[case(
-        &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Minus, "+"), tok(tk::Constant, "6")],
-        Expr::binary(
-            Subtract,
-            Expr::binary(Add, Expr::constant(4), Expr::constant(2)),
-            Expr::constant(6),
-        ),
-    )]
-    #[case(
-        &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Star, "*"), tok(tk::Constant, "3")],
-        Expr::binary(
-            Add,
-            Expr::constant(4),
-            Expr::binary(Multiply, Expr::constant(2), Expr::constant(3)),
-        )
-    )]
-    #[case(
-        &[tok(tk::Constant, "4"), tok(tk::Star, "*"), tok(tk::Constant, "2"), tok(tk::Plus, "+"), tok(tk::Constant, "3")],
-        Expr::binary(
-            Add,
-            Expr::binary(Multiply, Expr::constant(4), Expr::constant(2)),
-            Expr::constant(3),
-        )
-    )]
-    #[case(
-        &[tok(tk::Constant, "7"), tok(tk::Star, "*"), tok(tk::Constant, "3"), tok(tk::Minus, "-"), tok(tk::Constant, "1")],
-        Expr::binary(
-            Subtract,
-            Expr::binary(Multiply, Expr::constant(7), Expr::constant(3)),
-            Expr::constant(1),
-        )
-    )]
-    #[case(
-        &[tok(tk::Constant, "7"), tok(tk::Question, "?"), 
-            tok(tk::Constant, "1"),
-            tok(tk::Colon, ":"),
-            tok(tk::Constant, "5")],
-        Expr::cond(Expr::constant(7), Expr::constant(1), Expr::constant(5))
-    )]
-    fn test_parse_expr_matches_expected(
-        #[case] _tokens: &[Token],
-        #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
-        #[case] expected_expr: Expr,
-    ) {
-        let actual_expr = parser.parse_expr(Precedence::default()).unwrap();
+            let mut parser = parser(tokens);
+            let _ = parser.parse_expr(Precedence::default());
+        }
 
-        assert_eq!(expected_expr, actual_expr);
-    }
+        #[apply(factors)]
+        #[case(
+            &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2")],
+            Expr::binary(Add, Expr::constant(4), Expr::constant(2))
+        )]
+        #[case(
+            &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Minus, "+"), tok(tk::Constant, "6")],
+            Expr::binary(
+                Subtract,
+                Expr::binary(Add, Expr::constant(4), Expr::constant(2)),
+                Expr::constant(6),
+            ),
+        )]
+        #[case(
+            &[tok(tk::Constant, "4"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Star, "*"), tok(tk::Constant, "3")],
+            Expr::binary(
+                Add,
+                Expr::constant(4),
+                Expr::binary(Multiply, Expr::constant(2), Expr::constant(3)),
+            )
+        )]
+        #[case(
+            &[tok(tk::Constant, "4"), tok(tk::Star, "*"), tok(tk::Constant, "2"), tok(tk::Plus, "+"), tok(tk::Constant, "3")],
+            Expr::binary(
+                Add,
+                Expr::binary(Multiply, Expr::constant(4), Expr::constant(2)),
+                Expr::constant(3),
+            )
+        )]
+        #[case(
+            &[tok(tk::Constant, "7"), tok(tk::Star, "*"), tok(tk::Constant, "3"), tok(tk::Minus, "-"), tok(tk::Constant, "1")],
+            Expr::binary(
+                Subtract,
+                Expr::binary(Multiply, Expr::constant(7), Expr::constant(3)),
+                Expr::constant(1),
+            )
+        )]
+        #[case(
+            &[tok(tk::Constant, "7"), tok(tk::Question, "?"), 
+                tok(tk::Constant, "1"),
+                tok(tk::Colon, ":"),
+                tok(tk::Constant, "5")],
+            Expr::cond(Expr::constant(7), Expr::constant(1), Expr::constant(5))
+        )]
+        fn test_parse_matches_expected(
+            #[case] _tokens: &[Token],
+            #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+            #[case] expected_expr: Expr,
+        ) {
+            let actual_expr = parser.parse_expr(Precedence::default()).unwrap();
 
-    #[rstest]
-    #[case(&[tok(tk::Complement, "~"), tok(tk::LParen, ")")])]
-    #[case(&[tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::RParen, "(")])]
-    #[case(&[tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::LParen, ")")])]
-    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), tok(tk::RParen, "(")])]
-    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), tok(tk::LParen, ")")])]
-    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("),
-        tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::LParen, ")"),
-    tok(tk::LParen, ")")])]
-    #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("),
-        tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::RParen, "("),
-    tok(tk::RParen, "(")])]
-    fn test_parse_expr_err(
-        #[case] _tokens: &[Token],
-        #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
-    ) {
-        parser.parse_expr(Precedence::default()).unwrap_err();
-    }
+            assert_eq!(expected_expr, actual_expr);
+        }
 
-    proptest! {
-        #[test]
-        fn test_parse_expr_roundtrip(expr: Expr) {
-            let src: Source = expr.to_string().into();
-            let tokens: Vec<Token> = lexer::tokenize(&src).collect();
-            let mut parser = parser(&tokens);
+        #[rstest]
+        #[case(&[tok(tk::Complement, "~"), tok(tk::LParen, ")")])]
+        #[case(&[tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::RParen, "(")])]
+        #[case(&[tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::LParen, ")")])]
+        #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), tok(tk::RParen, "(")])]
+        #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("), tok(tk::LParen, ")")])]
+        #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("),
+            tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::LParen, ")"),
+        tok(tk::LParen, ")")])]
+        #[case(&[tok(tk::Complement, "~"), tok(tk::RParen, "("),
+            tok(tk::Complement, "-"), tok(tk::RParen, "("), tok(tk::RParen, "("),
+        tok(tk::RParen, "(")])]
+        fn test_parse_err(
+            #[case] _tokens: &[Token],
+            #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+        ) {
+            parser.parse_expr(Precedence::default()).unwrap_err();
+        }
 
-            // Parsing increment / decrement operators is not yet implemented
-            prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
+        proptest! {
+            #[test]
+            fn test_parse_roundtrip(expr: Expr) {
+                let src: Source = expr.to_string().into();
+                let tokens: Vec<Token> = lexer::tokenize(&src).collect();
+                let mut parser = parser(&tokens);
 
-            let parsed = parser.parse_expr(Precedence::default());
-            prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
+                // Parsing increment / decrement operators is not yet implemented
+                prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
+
+                let parsed = parser.parse_expr(Precedence::default());
+                prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
+            }
         }
     }
 
-    // TODO: test stmt parsing
-    // TODO: test if statement parsing ok and err cases
+    mod stmt {
+        use super::*;
+
+        // TODO: test stmt parsing
+        // TODO: test if statement parsing ok and err cases
+
+        #[rstest]
+        #[case(
+            &[tok(tk::Return, "return"), tok(tk::Constant, "5"), tok(tk::Semicolon, ";")],
+            Stmt::Return(Expr::constant(5))
+        )]
+        #[case(
+            &[tok(tk::If, "if"), tok(tk::LParen, "("), tok(tk::Constant, "1"), tok(tk::RParen, ")"),
+                tok(tk::Return, "return"), tok(tk::Constant, "42"), tok(tk::Semicolon, ";")],
+            Stmt::If(Expr::constant(1), Stmt::Return(Expr::constant(42)).into(), None)
+        )]
+        #[case(
+            &[tok(tk::Constant, "1"), tok(tk::Plus, "+"), tok(tk::Constant, "2"), tok(tk::Semicolon, ";")],
+            Stmt::Expr(Expr::binary(BinOpKind::Add, Expr::constant(1), Expr::constant(2)))
+        )]
+        fn test_parse_matches_expected(
+            #[case] _tokens: &[Token],
+            #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+            #[case] expected_stmt: Stmt,
+        ) {
+            let actual_stmt = parser.parse_stmt().unwrap();
+
+            assert_eq!(expected_stmt, actual_stmt);
+        }
+    }
 }
