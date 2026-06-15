@@ -1,6 +1,5 @@
 //! Type definitions for the AST.
 
-use std::{fmt::Display, ops};
 use std::{
     fmt::{Debug, Display},
     ops::{self, Deref, DerefMut},
