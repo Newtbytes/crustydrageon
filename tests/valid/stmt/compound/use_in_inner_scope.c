@@ -8,3 +8,5 @@ int main(void)
         return x;
     }
 }
+
+//$ CHECK STATUS : 3

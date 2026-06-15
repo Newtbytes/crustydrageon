@@ -8,3 +8,5 @@ int main(void) {
     }
     return b == 8 && a == -4;
 }
+
+//$ CHECK STATUS : 1

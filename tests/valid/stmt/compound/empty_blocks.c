@@ -5,3 +5,5 @@ int main(void) {
     {{}}
     return ten + twenty;
 }
+
+//$ CHECK STATUS : 30

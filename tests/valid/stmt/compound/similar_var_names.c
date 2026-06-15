@@ -47,3 +47,5 @@ int main(void) {
     }
     return result + a1;
 }
+
+//$ CHECK STATUS : 28

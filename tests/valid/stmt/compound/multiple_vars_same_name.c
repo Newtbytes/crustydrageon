@@ -10,3 +10,5 @@ int main(void) {
     }
     return a;
 }
+
+//$ CHECK STATUS : 2
