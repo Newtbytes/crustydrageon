@@ -66,7 +66,6 @@ impl Location {
 }
 
 /// A reference to a contiguous range of characters in a source string.
-/// Used to track the source spans.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Span {
@@ -158,18 +157,38 @@ impl Span {
         self.loc.index + self.len()
     }
 
-    /// Returns the line number of the line containing index `i`.
+    /// Returns the line number of the line containing the byte at index `i`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    ///
+    /// let two_decls = Source::new("int a;\nint b;".to_owned());
+    ///
+    /// assert_eq!(two_decls.find_line(4).unwrap(), 0);
+    /// assert_eq!(two_decls.find_line(11).unwrap(), 1);
+    ///
+    /// // using an out of bounds index is an error
+    /// assert!(two_decls.find_line(13).is_err());
+    /// ```
     pub fn find_line(&self, i: usize) -> Result<usize, String> {
-        // count number of lines before index i
-        let all_before_idx = self.get(..i).ok_or(format!(
+        let err = format!(
             "Index {} out of bounds for Source of length {}",
             i,
             self.len()
-        ))?;
+        );
+
+        if i >= self.len() {
+            return Err(err);
+        }
+
+        // count number of lines before index i
+        let all_before_idx = self.get(..i).ok_or(err)?;
         Ok(all_before_idx.matches('\n').count())
     }
 
-    /// Returns the line number of the line containing index `i`.
+    /// Returns the line number of the line containing the byte at index `i`.
     pub fn find_column(&self, i: usize) -> Result<usize, String> {
         let line = self.find_line(i)?;
 
