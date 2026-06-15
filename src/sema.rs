@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{BinOpKind, Decl, Expr, ExprKind, Function, Program, Stmt},
+    ast::{BinOpKind, Block, Decl, Expr, ExprKind, Function, Program, Stmt},
     diag::Annotation,
     ir::VarID,
     src,
@@ -98,21 +98,26 @@ impl VariableResolver {
                     self.resolve_stmt(if_false)?;
                 }
             }
+            Stmt::Compound(block) => self.resolve_block(block)?,
             Stmt::Null => (),
         };
 
         Ok(())
     }
 
-    fn resolve_function(&mut self, func: &mut Function) -> ResolveResult<()> {
-        for block_item in &mut func.body {
-            match block_item {
+    fn resolve_block(&mut self, block: &mut Block) -> ResolveResult<()> {
+        for item in block.iter_mut() {
+            match item {
                 crate::ast::BlockItem::Stmt(stmt) => self.resolve_stmt(stmt)?,
                 crate::ast::BlockItem::Decl(decl) => self.resolve_decl(decl)?,
             }
         }
 
         Ok(())
+    }
+
+    fn resolve_function(&mut self, func: &mut Function) -> ResolveResult<()> {
+        self.resolve_block(&mut func.body)
     }
 
     fn resolve_program(&mut self, prg: &mut Program) -> ResolveResult<()> {

@@ -2,7 +2,7 @@ use std::iter;
 
 use crate::{
     ast::{
-        BinOp, BinOpKind, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
+        BinOp, BinOpKind, Block, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
         Program, Stmt, Token, TokenKind, UnOp, UnOpKind,
     },
     diag::Annotation,
@@ -367,14 +367,22 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::Void)?;
         self.expect(TokenKind::RParen)?;
 
-        self.expect(TokenKind::LBrace)?;
+        let block_start = self.expect(TokenKind::LBrace)?;
 
-        let mut body = Vec::new();
+        let mut body = Block::new();
         while self.peek().kind() != TokenKind::RBrace {
             body.push(self.parse_block_item()?);
         }
 
-        self.expect(TokenKind::RBrace)?;
+        let block_end = self.expect(TokenKind::RBrace)?;
+
+        body.span = self
+            .src
+            .subspan(
+                block_start.span().start_index(),
+                block_end.span().end_index(),
+            )
+            .unwrap();
 
         Ok(Function::new(name, body))
     }
