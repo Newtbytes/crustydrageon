@@ -42,6 +42,7 @@ impl From<String> for Source {
     }
 }
 
+/// A character index into source code with line and column information.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Location {
@@ -51,11 +52,13 @@ pub struct Location {
 }
 
 impl Location {
+    /// Get the line number.
     #[must_use]
     pub fn line(&self) -> usize {
         self.line
     }
 
+    /// Get the column number.
     #[must_use]
     pub fn column(&self) -> usize {
         self.column
