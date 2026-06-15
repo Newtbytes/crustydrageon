@@ -46,12 +46,12 @@ impl EnvCtx {
         self.scopes.push(HashMap::new());
     }
 
-    pub fn end_scrope(&mut self) {
+    pub fn end_scope(&mut self) {
         self.scopes.pop();
     }
 
     pub fn get(&self, k: &str) -> Option<&String> {
-        for scope in &self.scopes {
+        for scope in self.scopes.iter().rev() {
             if let Some(v) = scope.get(k) {
                 return Some(v);
             }
@@ -158,7 +158,7 @@ impl VariableResolver {
             }
         }
 
-        self.ctx.end_scrope();
+        self.ctx.end_scope();
 
         Ok(())
     }

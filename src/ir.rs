@@ -453,7 +453,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::ExprKind::Var(identifier) => Value::Var(identifier.to_string()),
+        ast::ExprKind::Var(identifier) => Value::Var(identifier.value().to_owned()),
         ast::ExprKind::Cond(cond, if_true, if_false) => {
             let cond = lower_expr(ops, *cond);
             let dst = Value::new_var();
@@ -536,7 +536,7 @@ pub fn lower_decl(ops: &mut Vec<Operation>, decl: ast::Decl) {
 
         ops.push(Operation::Copy {
             src: init,
-            dst: Value::Var(decl.name.to_string()),
+            dst: Value::Var(decl.name.value().to_owned()),
         });
     }
 }
