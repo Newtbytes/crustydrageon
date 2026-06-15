@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{BinOpKind, Decl, Expr, ExprKind, Function, Program, Stmt},
+    ast::{BinOpKind, Block, Decl, Expr, ExprKind, Function, Program, Stmt},
     diag::Annotation,
     ir::VarID,
     src,
@@ -33,22 +33,59 @@ impl Annotation for ResolveError {
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
 
-type VarCtx = HashMap<String, String>;
+struct EnvCtx {
+    scopes: Vec<HashMap<String, String>>,
+}
+
+impl EnvCtx {
+    pub fn new() -> Self {
+        Self { scopes: Vec::new() }
+    }
+
+    pub fn begin_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    pub fn end_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    pub fn get(&self, k: &str) -> Option<&String> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(v) = scope.get(k) {
+                return Some(v);
+            }
+        }
+
+        None
+    }
+
+    pub fn insert(&mut self, k: String, v: String) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert(k, v);
+        } else {
+            self.begin_scope();
+            self.insert(k, v);
+        }
+    }
+}
 
 struct VariableResolver {
-    ctx: VarCtx,
+    ctx: EnvCtx,
 }
 
 impl VariableResolver {
     pub fn new() -> Self {
-        Self { ctx: VarCtx::new() }
+        Self { ctx: EnvCtx::new() }
     }
 
     fn resolve_expr(&mut self, expr: &mut Expr) -> ResolveResult<()> {
         let kind = &mut expr.kind;
         match kind {
             ExprKind::Var(id) => {
-                if !self.ctx.contains_key(id.value()) {
+                if let Some(renamed) = self.ctx.get(id.value()) {
+                    id.rename(renamed.clone());
+                } else {
                     return Err(ResolveError::UnknownVar(id.span().clone()));
                 }
             }
@@ -72,7 +109,13 @@ impl VariableResolver {
     }
 
     fn resolve_decl(&mut self, decl: &mut Decl) -> ResolveResult<()> {
-        if self.ctx.contains_key(decl.name.value()) {
+        if self
+            .ctx
+            .scopes
+            .last()
+            .expect("resolving declarations should always happen after a scope has started")
+            .contains_key(decl.name.value())
+        {
             return Err(ResolveError::DuplicateDecl(decl.span.clone()));
         }
 
@@ -98,21 +141,30 @@ impl VariableResolver {
                     self.resolve_stmt(if_false)?;
                 }
             }
+            Stmt::Compound(block) => self.resolve_block(block)?,
             Stmt::Null => (),
         };
 
         Ok(())
     }
 
-    fn resolve_function(&mut self, func: &mut Function) -> ResolveResult<()> {
-        for block_item in &mut func.body {
-            match block_item {
+    fn resolve_block(&mut self, block: &mut Block) -> ResolveResult<()> {
+        self.ctx.begin_scope();
+
+        for item in block.iter_mut() {
+            match item {
                 crate::ast::BlockItem::Stmt(stmt) => self.resolve_stmt(stmt)?,
                 crate::ast::BlockItem::Decl(decl) => self.resolve_decl(decl)?,
             }
         }
 
+        self.ctx.end_scope();
+
         Ok(())
+    }
+
+    fn resolve_function(&mut self, func: &mut Function) -> ResolveResult<()> {
+        self.resolve_block(&mut func.body)
     }
 
     fn resolve_program(&mut self, prg: &mut Program) -> ResolveResult<()> {
