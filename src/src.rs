@@ -175,7 +175,6 @@ impl Span {
     ///
     /// ```
     /// # use crustydrageon::src::*;
-    ///
     /// let two_decls = Source::new("int a;\nint b;".to_owned());
     ///
     /// assert_eq!(two_decls.find_line(4).unwrap(), 0);
