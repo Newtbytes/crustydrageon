@@ -16,11 +16,11 @@ use contracts::ensures;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
+/// A top-level [`Span`] referring to the entire source file.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Source(Span);
 
-/// A top-level [`Span`] referring to the entire source file.
 impl Source {
     #[must_use]
     pub fn new(src: String) -> Self {
