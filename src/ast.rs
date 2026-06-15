@@ -559,7 +559,7 @@ impl Display for BlockItem {
     }
 }
 
-#[derive(Debug, Eq, Clone)]
+#[derive(Debug, Eq, Clone, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Block {
     pub items: Vec<BlockItem>,
