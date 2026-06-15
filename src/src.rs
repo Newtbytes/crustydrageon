@@ -1,3 +1,15 @@
+//! Source code location and span tracking.
+//!
+//! This module provides abstractions for tracking positions and ranges within source code.
+//! It defines the following main types:
+//!
+//! - [`Source`]: A wrapper around the entire source file as a top-level span
+//! - [`Location`]: A byte index with line and column information
+//! - [`Span`]: A contiguous range of characters in source code
+//!
+//! These types are used throughout the compiler to associate syntax elements with their
+//! original source locations.
+
 use std::{fmt, ops::Deref};
 
 use contracts::ensures;
