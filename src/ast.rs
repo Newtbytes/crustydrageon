@@ -1,9 +1,14 @@
 //! Type definitions for the AST.
 
 use std::{fmt::Display, ops};
+use std::{
+    fmt::{Debug, Display},
+    ops::{self, Deref, DerefMut},
+};
 
 use contracts::{debug_requires, requires};
 use cov_mark;
+use itertools::Itertools;
 #[cfg(test)]
 use proptest::prelude::*;
 #[cfg(test)]
@@ -400,12 +405,12 @@ impl From<Identifier> for Span {
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
-    pub body: Vec<BlockItem>,
+    pub body: Block,
 }
 
 impl Function {
     #[must_use]
-    pub fn new(name: Identifier, body: Vec<BlockItem>) -> Self {
+    pub fn new(name: Identifier, body: Block) -> Self {
         Function { name, body }
     }
 }
@@ -456,7 +461,7 @@ impl PartialEq for UnOp {
 
 impl Display for UnOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.kind.fmt(f)
+        Display::fmt(&self.kind, f)
     }
 }
 
@@ -540,7 +545,7 @@ impl PartialEq for BinOp {
 
 impl Display for BinOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.kind.fmt(f)
+        Display::fmt(&self.kind, f)
     }
 }
 
@@ -583,7 +588,7 @@ impl PartialEq for Expr {
 
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.kind.fmt(f)
+        Display::fmt(&self.kind, f)
     }
 }
 
@@ -593,6 +598,7 @@ pub enum Stmt {
     Expr(Expr),
     Return(Expr),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    Compound(Block),
     /// Null statement
     Null,
 }
@@ -609,6 +615,7 @@ impl Display for Stmt {
                 }
                 Ok(())
             }
+            Self::Compound(block) => write!(f, "{{ {} }}", block),
             Self::Null => write!(f, ";"),
         }
     }
@@ -630,6 +637,18 @@ impl PartialEq for Decl {
     }
 }
 
+impl Display for Decl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "int {}", self.name.source_name())?;
+
+        if let Some(init) = &self.init {
+            write!(f, " = {}", init)?;
+        }
+
+        write!(f, ";")
+    }
+}
+
 /// Node representing a single element of a block.
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -637,6 +656,88 @@ pub enum BlockItem {
     Stmt(Stmt),
     Decl(Decl),
 }
+
+impl Display for BlockItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Stmt(stmt) => Display::fmt(stmt, f),
+            Self::Decl(decl) => Display::fmt(decl, f),
+        }
+    }
+}
+
+#[derive(Debug, Eq, Clone, Default)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct Block {
+    pub items: Vec<BlockItem>,
+    pub span: Span,
+}
+
+impl Block {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            span: Default::default(),
+        }
+    }
+
+    /// Append a [`BlockItem`] to the end of the block.
+    ///
+    /// Equivalent to [`Vec<BlockItem>::push`].
+    pub fn push(&mut self, item: BlockItem) {
+        self.items.push(item);
+    }
+
+    /// Check if the block is empty.
+    ///
+    /// Equivalent to [`Vec<BlockItem>::is_empty`].
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+}
+
+impl Deref for Block {
+    type Target = Vec<BlockItem>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl DerefMut for Block {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.items
+    }
+}
+
+impl IntoIterator for Block {
+    type Item = BlockItem;
+    type IntoIter = <Vec<BlockItem> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
+impl From<Block> for Vec<BlockItem> {
+    fn from(block: Block) -> Self {
+        block.items
+    }
+}
+
+impl PartialEq for Block {
+    fn eq(&self, other: &Self) -> bool {
+        self.items == other.items
+    }
+}
+
+impl Display for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.items.iter().join(" "))
+    }
+}
+
+// TODO: Implement block! macro
 
 /// Constructors for test dummies of nodes which don't include [`Span`] information, for example.
 ///

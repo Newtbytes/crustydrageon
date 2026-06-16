@@ -453,7 +453,7 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
-        ast::ExprKind::Var(identifier) => Value::Var(identifier.to_string()),
+        ast::ExprKind::Var(identifier) => Value::Var(identifier.value().to_owned()),
         ast::ExprKind::Cond(cond, if_true, if_false) => {
             let cond = lower_expr(ops, *cond);
             let dst = Value::new_var();
@@ -524,6 +524,7 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
 
             ops.push(Operation::Label(end));
         }
+        ast::Stmt::Compound(block) => lower_block(ops, block),
     }
 
     cov_mark::hit!(ir_stmt_lowered);
@@ -535,7 +536,7 @@ pub fn lower_decl(ops: &mut Vec<Operation>, decl: ast::Decl) {
 
         ops.push(Operation::Copy {
             src: init,
-            dst: Value::Var(decl.name.to_string()),
+            dst: Value::Var(decl.name.value().to_owned()),
         });
     }
 }
@@ -547,15 +548,19 @@ pub fn lower_block_item(ops: &mut Vec<Operation>, block_item: ast::BlockItem) {
     }
 }
 
+pub fn lower_block(ops: &mut Vec<Operation>, block: ast::Block) {
+    if !block.is_empty() {
+        for block_item in block {
+            lower_block_item(ops, block_item);
+        }
+    }
+}
+
 #[must_use]
 pub fn lower_func(func: ast::Function) -> Function {
     let mut ops = Vec::new();
 
-    if !func.body.is_empty() {
-        for block_item in func.body {
-            lower_block_item(&mut ops, block_item);
-        }
-    }
+    lower_block(&mut ops, func.body);
 
     ops.push(Operation::Return(Value::Constant(0)));
 

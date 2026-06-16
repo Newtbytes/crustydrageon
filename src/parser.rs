@@ -2,7 +2,7 @@ use std::iter;
 
 use crate::{
     ast::{
-        BinOp, BinOpKind, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
+        BinOp, BinOpKind, Block, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
         Program, Stmt, Token, TokenKind, UnOp, UnOpKind,
     },
     diag::Annotation,
@@ -319,6 +319,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             };
 
             Ok(Stmt::If(cond, if_true, if_false))
+        } else if self.check(TokenKind::LBrace) {
+            let block = self.parse_block()?;
+            Ok(Stmt::Compound(block))
         } else if self.check(TokenKind::Semicolon) {
             self.expect(TokenKind::Semicolon)?;
             Ok(Stmt::Null)
@@ -354,6 +357,27 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         })
     }
 
+    fn parse_block(&mut self) -> ParseResult<Block> {
+        let block_start = self.expect(TokenKind::LBrace)?;
+
+        let mut block = Block::new();
+        while self.peek().kind() != TokenKind::RBrace {
+            block.push(self.parse_block_item()?);
+        }
+
+        let block_end = self.expect(TokenKind::RBrace)?;
+
+        block.span = self
+            .src
+            .subspan(
+                block_start.span().start_index(),
+                block_end.span().end_index(),
+            )
+            .unwrap();
+
+        Ok(block)
+    }
+
     fn parse_identifier(&mut self) -> ParseResult<Identifier> {
         Ok(self.expect(TokenKind::Ident)?.span().clone().into())
     }
@@ -367,14 +391,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::Void)?;
         self.expect(TokenKind::RParen)?;
 
-        self.expect(TokenKind::LBrace)?;
-
-        let mut body = Vec::new();
-        while self.peek().kind() != TokenKind::RBrace {
-            body.push(self.parse_block_item()?);
-        }
-
-        self.expect(TokenKind::RBrace)?;
+        let body = self.parse_block()?;
 
         Ok(Function::new(name, body))
     }
