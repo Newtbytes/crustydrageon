@@ -1,14 +1,26 @@
+//! Source code location and span tracking.
+//!
+//! This module provides abstractions for tracking positions and ranges within source code.
+//! It defines the following main types:
+//!
+//! - [`Source`]: A wrapper around the entire source file as a top-level span
+//! - [`Location`]: A byte index with line and column information
+//! - [`Span`]: A contiguous range of characters in source code
+//!
+//! These types are used throughout the compiler to associate syntax elements with their
+//! original source locations.
+
 use std::{fmt, ops::Deref};
 
 use contracts::ensures;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
+/// A top-level [`Span`] referring to the entire source file.
 #[derive(Debug, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Source(Span);
 
-/// A top-level [`Span`] referring to the entire source file.
 impl Source {
     #[must_use]
     pub fn new(src: String) -> Self {
@@ -42,6 +54,7 @@ impl From<String> for Source {
     }
 }
 
+/// A character index into source code with line and column information.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Location {
@@ -51,11 +64,13 @@ pub struct Location {
 }
 
 impl Location {
+    /// Get the line number.
     #[must_use]
     pub fn line(&self) -> usize {
         self.line
     }
 
+    /// Get the column number.
     #[must_use]
     pub fn column(&self) -> usize {
         self.column
@@ -63,7 +78,6 @@ impl Location {
 }
 
 /// A reference to a contiguous range of characters in a source string.
-/// Used to track the source spans.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Span {
@@ -98,39 +112,94 @@ impl Span {
         self.span.is_empty()
     }
 
+    /// Return an iterator over the [`char`]s in this span.
+    ///
+    /// See [`str::chars`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// let src = Source::new("Hello, world!".to_owned());
+    /// let mut chars = src.chars();
+    ///
+    /// assert_eq!(chars.next(), Some('H'));
+    /// assert_eq!(chars.next(), Some('e'));
+    /// assert_eq!(chars.next(), Some('l'));
+    /// assert_eq!(chars.next(), Some('l'));
+    /// assert_eq!(chars.next(), Some('o'));
+    ///
+    /// assert!(src.chars().eq("Hello, world!".chars()));
+    /// ```
     pub fn chars(&self) -> std::str::Chars<'_> {
         self.span.chars()
     }
 
+    /// Return the [`Location`] within the parent span pointing to the first character in this span.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// let src = Source::new("Hello, world!".to_owned());
+    ///
+    /// assert_eq!(src.empty_at(0).unwrap().start(), src.location_at(0).unwrap());
+    /// assert_eq!(src.empty_at(5).unwrap().start(), src.location_at(5).unwrap());
+    ///
+    /// let hello_span = src.subspan(0, 5).unwrap();
+    /// assert_eq!(hello_span.start(), src.location_at(0).unwrap());
+    ///
+    /// let world_span = src.subspan(7, 12).unwrap();
+    /// assert_eq!(world_span.start(), src.location_at(7).unwrap());
+    /// ```
     #[must_use]
     pub fn start(&self) -> Location {
         self.loc
     }
 
-    /// Return the index into the Source string that this span starts at
+    /// Return the index into the Source string that this span starts at.
     #[must_use]
     pub fn start_index(&self) -> usize {
         self.loc.index
     }
 
-    /// Return the index into the Source string that this span ends at
+    /// Return the index into the Source string that this span ends at.
     #[must_use]
     pub fn end_index(&self) -> usize {
         self.loc.index + self.len()
     }
 
-    /// Returns the line number of the line containing index i
+    /// Returns the line number of the line containing the byte at index `i`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use crustydrageon::src::*;
+    /// let two_decls = Source::new("int a;\nint b;".to_owned());
+    ///
+    /// assert_eq!(two_decls.find_line(4).unwrap(), 0);
+    /// assert_eq!(two_decls.find_line(11).unwrap(), 1);
+    ///
+    /// // using an out of bounds index is an error
+    /// assert!(two_decls.find_line(13).is_err());
+    /// ```
     pub fn find_line(&self, i: usize) -> Result<usize, String> {
-        // count number of lines before index i
-        let all_before_idx = self.get(..i).ok_or(format!(
+        let err = format!(
             "Index {} out of bounds for Source of length {}",
             i,
             self.len()
-        ))?;
+        );
+
+        if i >= self.len() {
+            return Err(err);
+        }
+
+        // count number of lines before index i
+        let all_before_idx = self.get(..i).ok_or(err)?;
         Ok(all_before_idx.matches('\n').count())
     }
 
-    /// Returns the line number of the line containing index `i``.
+    /// Returns the line number of the line containing the byte at index `i`.
     pub fn find_column(&self, i: usize) -> Result<usize, String> {
         let line = self.find_line(i)?;
 
