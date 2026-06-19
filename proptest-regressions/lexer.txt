@@ -9,3 +9,4 @@ cc f797d28f7d87d10714ef817ea66b0243de418c0939d62b32d082a0ea10492400 # shrinks to
 cc 2e7a044ac17d9b9b1a3c27199fa9a4e979e3c8d4f28bb46fd0432ee2b7e7a849 # shrinks to src = Source("\u{bbe}￼")
 cc 2aedb0849b08511125c7c8663dc89f68b9ed86ca07c53bda6ac6b134f4bf8c73 # shrinks to src = Source("A%")
 cc 1c20511b26b6827677d78e5b6dac15e3a5321e1beb5fb5bf5b9458e1d70c4c6e # shrinks to tokens = [Token { kind: Constant, lexeme: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "0" } }, Token { kind: Constant, lexeme: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "0" } }]cc ba1d30f7a952dcc5182ffc5bb3b83ac403d4c247375f00d4c5a084a666b4e001 # shrinks to s = " a"
+cc 2688661871d22c18e5eb45f0717bb7f04b4095c14771583a29178cafd6e52aba # shrinks to s = " A"

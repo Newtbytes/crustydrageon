@@ -576,7 +576,9 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
         legalize_inst(&mut insts, inst);
     }
 
-    insts.insert(0, Instruction::Alloca(stack_size as usize));
+    if stack_size > 0 {
+        insts.insert(0, Instruction::Alloca(stack_size as usize));
+    }
 
     cov_mark::hit!(x86_block_legalized);
 
@@ -585,6 +587,7 @@ pub fn legalize_block(block: Vec<Instruction>) -> Vec<Instruction> {
 
 #[must_use]
 pub fn lower_func(func: ir::Function) -> Function {
+    cov_mark::hit!(x86_func_lowered);
     Function::new(func.id, legalize_block(lower_block(func.body)))
 }
 
@@ -601,89 +604,87 @@ mod tests {
 
     use proptest::prelude::*;
 
-    mod function {
+    mod emission {
         use super::*;
 
-        proptest! {
-            /// On macOS, function names must be prefixed with an underscore
-            #[test]
-            fn test_macos_name_prefix(id in any::<ast::Identifier>()) {
-                let func = Function::new(id.clone(), Vec::new());
+        mod function {
+            use super::*;
 
-                if cfg!(target_os = "macos") {
-                    assert_eq!(func.name.value(), format!("_{}", id));
-                } else {
-                    assert_eq!(func.name.value(), id.value());
+            proptest! {
+                /// On macOS, function names must be prefixed with an underscore
+                #[test]
+                fn test_macos_name_prefix(id in any::<ast::Identifier>()) {
+                    let func = Function::new(id.clone(), Vec::new());
+
+                    if cfg!(target_os = "macos") {
+                        assert_eq!(func.name.value(), format!("_{}", id));
+                    } else {
+                        assert_eq!(func.name.value(), id.value());
+                    }
+                }
+
+                #[test]
+                fn test_emit(id in any::<ast::Identifier>(), block in prop::collection::vec(any::<Instruction>(), 0..10)) {
+                    let func = Function::new(id.clone(), block.clone());
+                    let fmt = format!("{func}");
+
+                    // emitted code should contain the correct global directive and label for the function
+                    assert!(fmt.contains(&format!(".globl {}", func.name.value())));
+                    assert!(fmt.contains(&format!("{}:", func.name.value())));
+
+                    // emitted code should contain the function prologue
+                    assert!(fmt.contains("pushq %rbp"));
+                    assert!(fmt.contains("movq %rsp, %rbp"));
                 }
             }
-
-            #[test]
-            fn test_function_fmt(id in any::<ast::Identifier>(), block in prop::collection::vec(any::<Instruction>(), 0..10)) {
-                let func = Function::new(id.clone(), block.clone());
-                let fmt = format!("{func}");
-
-                // emitted code should contain the correct global directive and label for the function
-                assert!(fmt.contains(&format!(".globl {}", func.name.value())));
-                assert!(fmt.contains(&format!("{}:", func.name.value())));
-
-                // emitted code should contain the function prologue
-                assert!(fmt.contains("pushq %rbp"));
-                assert!(fmt.contains("movq %rsp, %rbp"));
-            }
         }
-    }
 
-    mod label {
-        use super::*;
+        mod label {
+            use super::*;
 
-        proptest! {
-            #[test]
-            fn test_label_pp_macos(label: Label) {
-                let label_pp = label.to_string();
-                if cfg!(target_os = "macos") {
-                    assert!(!label_pp.starts_with("."));
-                } else {
-                    assert!(label_pp.starts_with("."));
+            proptest! {
+                #[test]
+                fn test_macos(label: Label) {
+                    let label_pp = label.to_string();
+                    if cfg!(target_os = "macos") {
+                        assert!(!label_pp.starts_with("."));
+                    } else {
+                        assert!(label_pp.starts_with("."));
+                    }
+                }
+
+                #[test]
+                fn test_contains_info(label: Label) {
+                    assert!(label.to_string().contains(&label.0));
                 }
             }
-
-            #[test]
-            fn test_label_pp_contains_info(label: Label) {
-                assert!(label.to_string().contains(&label.0));
-            }
-
-            #[test]
-            fn test_anon_ir_label_to_x86_label(id: usize) {
-                let ir_label = ir::Label::Anon(id);
-                let x86_label = Label::from(id.to_string());
-
-                assert_eq!(Label::from(ir_label), x86_label);
-            }
         }
-    }
 
-    mod instruction {
-        use super::*;
+        mod instruction {
+            use super::*;
 
-        proptest! {
-            #[test]
-            fn test_instruction_not_empty(inst: Instruction) {
-                let fmt = format!("{inst}");
-                assert!(!fmt.is_empty());
-            }
+            proptest! {
+                #[test]
+                fn test_instruction_not_empty(inst: Instruction) {
+                    let fmt = format!("{inst}");
+                    assert!(!fmt.is_empty());
+                }
 
-            #[test]
-            fn test_instruction_contains_operands(mut inst: Instruction) {
-                let fmt = format!("{inst}");
+                #[test]
+                fn test_instruction_contains_operands(mut inst: Instruction) {
+                    let fmt = format!("{inst}");
 
-                for operand in inst.get_operands_mut() {
-                    assert!(fmt.contains(&operand.to_string()));
+                    for operand in inst.get_operands_mut() {
+                        assert!(fmt.contains(&operand.to_string()));
+                    }
                 }
             }
         }
     }
 
     mod lowering {
+        use std::cmp::max;
+
         use super::*;
 
         #[test]
@@ -691,12 +692,72 @@ mod tests {
             assert_eq!(UnaryOp::from(ir::UnaryOp::Complement), UnaryOp::Not);
             assert_eq!(UnaryOp::from(ir::UnaryOp::Negate), UnaryOp::Neg);
         }
+
+        proptest! {
+            #[test]
+            fn test_anon_ir_label_to_x86_label(id: usize) {
+                let ir_label = ir::Label::Anon(id);
+                let x86_label = Label::from(id.to_string());
+
+                assert_eq!(Label::from(ir_label), x86_label);
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_lower_func(ir_func: ir::Function) {
+                cov_mark::check_count!(x86_func_lowered, 1);
+                cov_mark::check!(x86_block_lowered);
+
+                let x86_func = lower_func(ir_func.clone());
+
+                prop_assert_eq!(
+                    x86_func.name.source_name(), ir_func.id.source_name(),
+                    "the lowered function should have the same source name as the IR function"
+                );
+                prop_assert_eq!(
+                    x86_func.name.span(), ir_func.id.span(),
+                    "the lowered function should refer to the same ident span as the IR function"
+                );
+
+                prop_assert!(
+                    x86_func.name.value().len() >= ir_func.id.value().len(),
+                    "the renamed function name should be at least as long as the original function name"
+                );
+
+                prop_assert_eq!(x86_func.body.is_empty(), ir_func.body.is_empty());
+
+                if ir_func.body.is_empty() {
+                    prop_assert!(
+                        x86_func.body.len() <= 5,
+                        "an empty ir function implies that the x86 function should be small, but got:\n{}",
+                        x86_func
+                    );
+                }
+
+                // the instruction count is within plus or minus 15% of the IR opcount
+                let coeff = 6.;
+                let upper = max((coeff * ir_func.body.len() as f64) as usize, 2);
+                let lower = (-coeff * ir_func.body.len() as f64) as usize;
+
+                prop_assert!(
+                    x86_func.body.len() <= upper,
+                    "expected {} x86 insts <= {}: the x86 function inst count is not within the expected range:\n{}",
+                    x86_func.body.len(), upper, x86_func
+                );
+                prop_assert!(
+                    lower <= x86_func.body.len(),
+                    "expected {} <= {} x86 insts: the x86 function inst count is not a within the expected range:\n{}",
+                    lower, x86_func.body.len(), x86_func
+                );
+            }
+        }
     }
 
     mod legalization {
         use super::*;
 
-        fn check_legalized(inst: Instruction) -> bool {
+        // TODO: refactor legalization and move where knowledge of whether an inst is legal or not somewhere else
+        fn check_legalized(inst: &Instruction) -> bool {
             !matches!(
                 inst,
                 Instruction::Mov {
@@ -705,8 +766,6 @@ mod tests {
                 }
             )
         }
-
-        // TODO: test that pseudo registers replacement
 
         proptest! {
             #[test]
@@ -738,14 +797,38 @@ mod tests {
                     }
                 );
 
-                assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
+                assert!(insts.iter().all(|inst| check_legalized(inst)));
             }
 
             #[test]
             fn test_other_instructions(inst in any::<Instruction>()) {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
-                assert!(insts.iter().all(|inst| check_legalized(inst.clone())));
+                assert!(insts.iter().all(|inst| check_legalized(inst)));
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_legalized_block_len(block: Vec<Instruction>) {
+                let legalized_block = legalize_block(block.clone());
+
+                assert!(
+                    block.len() <= legalized_block.len(),
+                    "before:\n{:?}\n\nafter:\n{:?}", legalized_block, block
+                );
+                assert!(
+                    legalized_block.len() <= (block.len() + 1) * 3, // + 1 for block.len()==0 case
+                    "before:\n{:?}\n\nafter:\n{:?}", legalized_block, block
+                );
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_no_pseudo_regs_after_replacement(block: Vec<Instruction>) {
+                let mut legalized_block = legalize_block(block);
+                let mut operands = legalized_block.iter_mut().map(|inst| inst.get_operands_mut());
+
+                prop_assert!(operands.all(|operands| operands.iter().all(|operand| !matches!(operand, Operand::Pseudo(_)))))
             }
         }
     }

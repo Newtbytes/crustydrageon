@@ -292,10 +292,16 @@ impl Display for Token {
 /// A C program
 ///
 /// Currently can only contain a single function.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
+}
+
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.body, f)
+    }
 }
 
 /// Keywords and user-defined identifiers (e.g. function names or variable names).
@@ -367,6 +373,8 @@ impl Identifier {
             "int" => TokenKind::Int,
             "void" => TokenKind::Void,
             "return" => TokenKind::Return,
+            "if" => TokenKind::If,
+            "else" => TokenKind::Else,
             _ => TokenKind::Ident,
         }
     }
@@ -400,11 +408,17 @@ impl From<Identifier> for Span {
 }
 
 /// Node representing a function definition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
     pub body: Block,
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "int {}(void) {}", self.name, self.body)
+    }
 }
 
 impl Function {
@@ -614,7 +628,7 @@ impl Display for Stmt {
                 }
                 Ok(())
             }
-            Self::Compound(block) => write!(f, "{{ {} }}", block),
+            Self::Compound(block) => write!(f, "{}", block),
             Self::Null => write!(f, ";"),
         }
     }
@@ -732,7 +746,7 @@ impl PartialEq for Block {
 
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.items.iter().join(" "))
+        write!(f, "{{ {} }}", self.items.iter().join(" "))
     }
 }
 
@@ -812,6 +826,9 @@ pub mod strategy {
                 .prop_map(Source::new)
                 .prop_map(Span::from)
                 .prop_map(Identifier::from)
+                .prop_filter("identifier should have an Ident TokenKind", |id| {
+                    id.tok_kind() == TokenKind::Ident
+                })
                 .boxed()
         }
     }
@@ -908,7 +925,6 @@ pub mod strategy {
                 .prop_flat_map(|k| {
                     let regex_str = match k {
                         TokenKind::Constant => "[0-9]",
-                        // FIXME: ensure keywords are never generated here
                         TokenKind::Ident => "[_a-zA-Z][_a-zA-Z0-9]+",
                         TokenKind::Complement => "~",
                         TokenKind::Minus => "-",
@@ -956,6 +972,14 @@ pub mod strategy {
                             .prop_map(Span::from),
                     )
                 })
+                // ensure that we never end up with an identifier token that should be a keyword
+                .prop_map(|(kind, lexeme)| {
+                    if matches!(kind, TokenKind::Ident) {
+                        (Identifier::from(lexeme.clone()).tok_kind(), lexeme)
+                    } else {
+                        (kind, lexeme)
+                    }
+                })
                 .prop_map(|(kind, lexeme)| Token::new(kind, lexeme))
                 .boxed()
         }
@@ -968,19 +992,29 @@ mod tests {
 
     use rstest::{fixture, rstest};
 
-    proptest! {
-        #[test]
-        fn test_identifier_rename(mut id: Identifier, new_name: String) {
-            let old_name = id.source_name().to_owned();
+    mod ident {
+        use super::*;
 
-            prop_assume!(old_name != new_name);
+        #[rstest]
+        #[case(" A", false)]
+        fn test_is_ident(#[case] given: &'static str, #[case] expected: bool) {
+            assert_eq!(Identifier::is_ident(given), expected);
+        }
 
-            prop_assert_eq!(id.value(), &old_name);
+        proptest! {
+            #[test]
+            fn test_rename(mut id: Identifier, new_name: String) {
+                let old_name = id.source_name().to_owned();
 
-            id.rename(new_name.clone());
+                prop_assume!(old_name != new_name);
 
-            prop_assert_eq!(id.value(), &new_name);
-            prop_assert_eq!(id.source_name(), &old_name);
+                prop_assert_eq!(id.value(), &old_name);
+
+                id.rename(new_name.clone());
+
+                prop_assert_eq!(id.value(), &new_name);
+                prop_assert_eq!(id.source_name(), &old_name);
+            }
         }
     }
 

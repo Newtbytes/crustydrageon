@@ -435,7 +435,10 @@ mod tests {
             prop_assume!(!is_keyword(&s.to_string()));
             prop_assume!(!s.is_empty());
 
-            fn lexer_is_ident(s: String) -> bool {
+            // the lexer skips whitespace, but Identifier::is_ident does not, so we trim the input
+            let s = s.trim();
+
+            fn lexer_is_ident(s: &str) -> bool {
                 let src = Source::new(s.to_string());
                 let tokens = tokenize(&src).collect::<Vec<Token>>();
 

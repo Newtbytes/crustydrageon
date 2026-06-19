@@ -604,7 +604,11 @@ mod tests {
                 prop_assume!(!tokens.iter().any(|t| matches!(t.kind(), TokenKind::Increment | TokenKind::Decrement)));
 
                 let parsed = parser.parse_expr(Precedence::default());
-                prop_assert_eq!(parsed.unwrap().to_string(), expr.to_string());
+                prop_assert_eq!(
+                    parsed.map_or_else(|err| format!("{:?}", err), |expr| ToString::to_string(&expr)), expr.to_string(),
+                    "parser roundtrip failed, given source: {}",
+                    expr.to_string()
+                );
             }
         }
     }
@@ -635,5 +639,11 @@ mod tests {
 
             assert_eq!(expected_stmt, actual_stmt);
         }
+
+        // TODO: implement roundtrip parsing test for parse_stmt
     }
+
+    // TODO: implement roundtrip parsing test for parse_decl
+
+    // TODO: implemenet roundtrip parsing test for parse_block
 }
