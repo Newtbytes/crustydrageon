@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_returns_empty() {
-        let src = Source::new("".to_owned());
+        let src = Source::new(String::new());
         let tokens = tokenize(&src);
 
         assert_eq!(tokens.count(), 0);
@@ -392,7 +392,7 @@ mod tests {
             "expected {} tokens, got {}: {:?}",
             tokens.len(),
             S,
-            tokens.iter().map(|t| t.kind()).collect::<Vec<tk>>()
+            tokens.iter().map(Token::kind).collect::<Vec<tk>>()
         );
 
         // check that the token kinds match the expected kinds
@@ -412,7 +412,7 @@ mod tests {
         #[test]
         fn test_is_word(s in r"[a-zA-Z_0-9]" /* FIXME: should be \w but unicode isn't supported yet */) {
             let c = s.chars().next().unwrap();
-            assert!(is_word(&c))
+            assert!(is_word(&c));
         }
 
         #[test]
@@ -432,7 +432,7 @@ mod tests {
         #[test]
         fn test_is_ident_equivalence(s: String) {
             // skip keywords
-            prop_assume!(!is_keyword(&s.to_string()));
+            prop_assume!(!is_keyword(&s.clone()));
             prop_assume!(!s.is_empty());
 
             // the lexer skips whitespace, but Identifier::is_ident does not, so we trim the input
@@ -445,7 +445,7 @@ mod tests {
                 tokens.len() == 1 && tokens[0].kind() == tk::Ident
             }
 
-            prop_assert_eq!(Identifier::is_ident(&s), lexer_is_ident(s));
+            prop_assert_eq!(Identifier::is_ident(s), lexer_is_ident(s));
         }
 
         #[test]

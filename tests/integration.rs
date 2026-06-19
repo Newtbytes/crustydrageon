@@ -21,7 +21,7 @@ struct TestOutput(Option<PathBuf>);
 
 impl Drop for TestOutput {
     fn drop(&mut self) {
-        cleanup_out(self.0.clone())
+        cleanup_out(self.0.clone());
     }
 }
 
@@ -34,7 +34,7 @@ fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
         let expected_status = {
             let status = src[idx..].trim_start_matches(directive);
             let status = status.lines().next().unwrap().trim();
-            let status = status.trim_start_matches(":").trim();
+            let status = status.trim_start_matches(':').trim();
             status.parse::<i32>()?
         };
 
@@ -91,7 +91,7 @@ fn test_invalid(
         Err(e) => {
             if stage_str == "lex" {
                 // for lex stage tests, we expect a parser error due to the presence of error tokens
-                let msg = format!("{:?}", e).to_lowercase();
+                let msg = format!("{e:?}").to_lowercase();
                 assert!(
                     matches!(msg, _ if
                         msg.contains("errortoken")

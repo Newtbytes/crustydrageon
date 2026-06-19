@@ -759,6 +759,7 @@ impl Display for Block {
 pub mod dummy {
     use super::*;
 
+    #[must_use] 
     pub fn ident(value: &str) -> Identifier {
         Identifier {
             names: vec![value.to_owned()],
@@ -766,6 +767,7 @@ pub mod dummy {
         }
     }
 
+    #[must_use] 
     pub fn expr(kind: ExprKind) -> Expr {
         Expr {
             kind,
@@ -773,6 +775,7 @@ pub mod dummy {
         }
     }
 
+    #[must_use] 
     pub fn unop(kind: UnOpKind) -> UnOp {
         UnOp {
             kind,
@@ -780,6 +783,7 @@ pub mod dummy {
         }
     }
 
+    #[must_use] 
     pub fn binop(kind: BinOpKind) -> BinOp {
         BinOp {
             kind,
@@ -788,22 +792,27 @@ pub mod dummy {
     }
 
     impl Expr {
+        #[must_use] 
         pub fn constant(value: i32) -> Self {
             expr(ExprKind::Const(value))
         }
 
+        #[must_use] 
         pub fn var(name: &str) -> Self {
             expr(ExprKind::Var(ident(name)))
         }
 
+        #[must_use] 
         pub fn unary(kind: UnOpKind, operand: Expr) -> Self {
             expr(ExprKind::Unary(unop(kind), operand.into()))
         }
 
+        #[must_use] 
         pub fn binary(kind: BinOpKind, a: Expr, b: Expr) -> Self {
             expr(ExprKind::Binary(binop(kind), a.into(), b.into()))
         }
 
+        #[must_use] 
         pub fn cond(cond: Expr, if_true: Expr, if_false: Expr) -> Self {
             expr(ExprKind::Cond(cond.into(), if_true.into(), if_false.into()))
         }
@@ -821,7 +830,7 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             "[a-zA-Z_][0-9a-zA-Z_]"
                 .prop_map(Source::new)
                 .prop_map(Span::from)
@@ -838,7 +847,7 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             let leaf = prop_oneof![
                 any::<i32>().prop_map(ExprKind::Const),
                 any::<Identifier>().prop_map(ExprKind::Var),
@@ -889,7 +898,7 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             let leaf = prop_oneof![any::<Expr>().prop_map(Stmt::Expr), Just(Stmt::Null),];
 
             leaf.prop_recursive(
@@ -920,7 +929,7 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = proptest::prelude::BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             any::<TokenKind>()
                 .prop_flat_map(|k| {
                     let regex_str = match k {
@@ -1044,7 +1053,7 @@ mod tests {
         }
     }
 
-    /// See https://en.cppreference.com/c/language/operator_precedence
+    /// See <https://en.cppreference.com/c/language/operator_precedence>
     mod precedence {
         use super::*;
 
@@ -1075,7 +1084,7 @@ mod tests {
                         group
                             .iter()
                             .all(|item| item.precedence() == first.precedence())
-                    )
+                    );
                 }
             }
         }

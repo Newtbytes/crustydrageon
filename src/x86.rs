@@ -617,7 +617,7 @@ mod tests {
                     let func = Function::new(id.clone(), Vec::new());
 
                     if cfg!(target_os = "macos") {
-                        assert_eq!(func.name.value(), format!("_{}", id));
+                        assert_eq!(func.name.value(), format!("_{id}"));
                     } else {
                         assert_eq!(func.name.value(), id.value());
                     }
@@ -647,9 +647,9 @@ mod tests {
                 fn test_macos(label: Label) {
                     let label_pp = label.to_string();
                     if cfg!(target_os = "macos") {
-                        assert!(!label_pp.starts_with("."));
+                        assert!(!label_pp.starts_with('.'));
                     } else {
-                        assert!(label_pp.starts_with("."));
+                        assert!(label_pp.starts_with('.'));
                     }
                 }
 
@@ -797,14 +797,14 @@ mod tests {
                     }
                 );
 
-                assert!(insts.iter().all(|inst| check_legalized(inst)));
+                assert!(insts.iter().all(check_legalized));
             }
 
             #[test]
             fn test_other_instructions(inst in any::<Instruction>()) {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
-                assert!(insts.iter().all(|inst| check_legalized(inst)));
+                assert!(insts.iter().all(check_legalized));
             }
 
             #[test]
@@ -814,11 +814,11 @@ mod tests {
 
                 assert!(
                     block.len() <= legalized_block.len(),
-                    "before:\n{:?}\n\nafter:\n{:?}", legalized_block, block
+                    "before:\n{legalized_block:?}\n\nafter:\n{block:?}"
                 );
                 assert!(
                     legalized_block.len() <= (block.len() + 1) * 3, // + 1 for block.len()==0 case
-                    "before:\n{:?}\n\nafter:\n{:?}", legalized_block, block
+                    "before:\n{legalized_block:?}\n\nafter:\n{block:?}"
                 );
             }
 
@@ -828,7 +828,7 @@ mod tests {
                 let mut legalized_block = legalize_block(block);
                 let mut operands = legalized_block.iter_mut().map(|inst| inst.get_operands_mut());
 
-                prop_assert!(operands.all(|operands| operands.iter().all(|operand| !matches!(operand, Operand::Pseudo(_)))))
+                prop_assert!(operands.all(|operands| operands.iter().all(|operand| !matches!(operand, Operand::Pseudo(_)))));
             }
         }
     }

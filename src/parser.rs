@@ -558,7 +558,7 @@ mod tests {
             )
         )]
         #[case(
-            &[tok_const(7), tok(tk::Question), 
+            &[tok_const(7), tok(tk::Question),
                 tok_const(1),
                 tok(tk::Colon),
                 tok_const(5)],
@@ -605,7 +605,7 @@ mod tests {
 
                 let parsed = parser.parse_expr(Precedence::default());
                 prop_assert_eq!(
-                    parsed.map_or_else(|err| format!("{:?}", err), |expr| ToString::to_string(&expr)), expr.to_string(),
+                    parsed.map_or_else(|err| format!("{err:?}"), |expr| ToString::to_string(&expr)), expr.to_string(),
                     "parser roundtrip failed, given source: {}",
                     expr.to_string()
                 );
