@@ -162,7 +162,7 @@ impl Display for Operation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
-    Complement,
+    Flip,
     Negate,
     Not,
 }
@@ -170,7 +170,7 @@ pub enum UnaryOp {
 impl From<ast::UnOpKind> for UnaryOp {
     fn from(op: ast::UnOpKind) -> Self {
         match op {
-            ast::UnOpKind::Complement => Self::Complement,
+            ast::UnOpKind::Complement => Self::Flip,
             ast::UnOpKind::Negate => Self::Negate,
             ast::UnOpKind::Not => Self::Not,
         }
@@ -191,7 +191,7 @@ impl Display for UnaryOp {
             f,
             "{}",
             match self {
-                UnaryOp::Complement => "not",
+                UnaryOp::Flip => "flip",
                 UnaryOp::Negate => "neg",
                 UnaryOp::Not => "not",
             }
@@ -688,7 +688,7 @@ mod tests {
                     dst: Value::Var(0.to_string()),
                 },
                 Operation::Unary {
-                    op: UnaryOp::Complement,
+                    op: UnaryOp::Flip,
                     src: Value::Var(0.to_string()),
                     dst: Value::Var(1.to_string()),
                 }

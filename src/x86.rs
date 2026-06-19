@@ -270,12 +270,23 @@ pub enum UnaryOp {
     Not,
 }
 
-impl From<ir::UnaryOp> for UnaryOp {
-    fn from(op: ir::UnaryOp) -> Self {
+impl TryFrom<ir::UnaryOp> for UnaryOp {
+    type Error = ();
+
+    fn try_from(op: ir::UnaryOp) -> Result<Self, Self::Error> {
+        Ok(match op {
+            ir::UnaryOp::Flip => Self::Not,
+            ir::UnaryOp::Negate => Self::Neg,
+            ir::UnaryOp::Not => return Err(()),
+        })
+    }
+}
+
+impl From<UnaryOp> for ir::UnaryOp {
+    fn from(op: UnaryOp) -> Self {
         match op {
-            ir::UnaryOp::Complement => UnaryOp::Not,
-            ir::UnaryOp::Negate => UnaryOp::Neg,
-            ir::UnaryOp::Not => UnaryOp::Not,
+            UnaryOp::Neg => ir::UnaryOp::Negate,
+            UnaryOp::Not => ir::UnaryOp::Flip,
         }
     }
 }
@@ -351,7 +362,12 @@ pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {
                 src: src.into(),
                 dst: dst.clone().into(),
             });
-            insts.push(Instruction::Unary(op.into(), dst.into()));
+            insts.push(Instruction::Unary(
+                op.try_into().expect(
+                    "unary operators with no direct lowering should already have been handled",
+                ),
+                dst.into(),
+            ));
         }
         ir::Operation::Binary { op, a, b, dst } => match op {
             ir::BinaryOp::Add
@@ -689,8 +705,8 @@ mod tests {
 
         #[test]
         fn test_from_ir_unary_op() {
-            assert_eq!(UnaryOp::from(ir::UnaryOp::Complement), UnaryOp::Not);
-            assert_eq!(UnaryOp::from(ir::UnaryOp::Negate), UnaryOp::Neg);
+            assert_eq!(UnaryOp::try_from(ir::UnaryOp::Flip), Ok(UnaryOp::Not));
+            assert_eq!(UnaryOp::try_from(ir::UnaryOp::Negate), Ok(UnaryOp::Neg));
         }
 
         proptest! {
