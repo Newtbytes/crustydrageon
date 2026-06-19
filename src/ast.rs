@@ -759,7 +759,7 @@ impl Display for Block {
 pub mod dummy {
     use super::*;
 
-    #[must_use] 
+    #[must_use]
     pub fn ident(value: &str) -> Identifier {
         Identifier {
             names: vec![value.to_owned()],
@@ -767,7 +767,7 @@ pub mod dummy {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn expr(kind: ExprKind) -> Expr {
         Expr {
             kind,
@@ -775,7 +775,7 @@ pub mod dummy {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn unop(kind: UnOpKind) -> UnOp {
         UnOp {
             kind,
@@ -783,7 +783,7 @@ pub mod dummy {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn binop(kind: BinOpKind) -> BinOp {
         BinOp {
             kind,
@@ -792,27 +792,27 @@ pub mod dummy {
     }
 
     impl Expr {
-        #[must_use] 
+        #[must_use]
         pub fn constant(value: i32) -> Self {
             expr(ExprKind::Const(value))
         }
 
-        #[must_use] 
+        #[must_use]
         pub fn var(name: &str) -> Self {
             expr(ExprKind::Var(ident(name)))
         }
 
-        #[must_use] 
+        #[must_use]
         pub fn unary(kind: UnOpKind, operand: Expr) -> Self {
             expr(ExprKind::Unary(unop(kind), operand.into()))
         }
 
-        #[must_use] 
+        #[must_use]
         pub fn binary(kind: BinOpKind, a: Expr, b: Expr) -> Self {
             expr(ExprKind::Binary(binop(kind), a.into(), b.into()))
         }
 
-        #[must_use] 
+        #[must_use]
         pub fn cond(cond: Expr, if_true: Expr, if_false: Expr) -> Self {
             expr(ExprKind::Cond(cond.into(), if_true.into(), if_false.into()))
         }
