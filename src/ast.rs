@@ -122,7 +122,7 @@ impl ops::Add<usize> for Precedence {
 }
 
 impl TokenKind {
-    /// Returns `true` if this TokenKind can be parsed into a [`UnOp`]
+    /// Returns `true` if this `TokenKind` can be parsed into a [`UnOp`]
     ///
     /// # Examples
     /// ```
@@ -146,7 +146,7 @@ impl TokenKind {
         matches!(self, Minus | Complement | Not)
     }
 
-    /// Returns `true` if this TokenKind can be parsed into a [`BinOp`]
+    /// Returns `true` if this `TokenKind` can be parsed into a [`BinOp`]
     ///
     /// # Examples
     ///
@@ -358,6 +358,7 @@ impl Identifier {
     /// # use crustydrageon::ast::Identifier;
     /// assert_eq!(Identifier::is_ident(""), false);
     /// ```
+    #[must_use] 
     pub fn is_ident(s: &str) -> bool {
         cov_mark::hit!(ast_is_ident);
 
@@ -379,6 +380,7 @@ impl Identifier {
         }
     }
 
+    #[must_use] 
     pub fn span(&self) -> &Span {
         &self.span
     }
@@ -619,8 +621,8 @@ pub enum Stmt {
 impl Display for Stmt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Expr(expr) => write!(f, "{};", expr),
-            Self::Return(expr) => write!(f, "return {};", expr),
+            Self::Expr(expr) => write!(f, "{expr};"),
+            Self::Return(expr) => write!(f, "return {expr};"),
             Self::If(cond, if_true, if_false) => {
                 write!(f, "if {cond} {if_true}")?;
                 if let Some(if_false) = if_false {
@@ -628,7 +630,7 @@ impl Display for Stmt {
                 }
                 Ok(())
             }
-            Self::Compound(block) => write!(f, "{}", block),
+            Self::Compound(block) => write!(f, "{block}"),
             Self::Null => write!(f, ";"),
         }
     }
@@ -655,7 +657,7 @@ impl Display for Decl {
         write!(f, "int {}", self.name.source_name())?;
 
         if let Some(init) = &self.init {
-            write!(f, " = {}", init)?;
+            write!(f, " = {init}")?;
         }
 
         write!(f, ";")
@@ -687,6 +689,7 @@ pub struct Block {
 }
 
 impl Block {
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
@@ -704,6 +707,7 @@ impl Block {
     /// Check if the block is empty.
     ///
     /// Equivalent to [`Vec<BlockItem>::is_empty`].
+    #[must_use] 
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }

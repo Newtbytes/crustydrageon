@@ -31,10 +31,10 @@ impl Display for Function {
         writeln!(f, "fn {}() {{", self.id)?;
 
         for op in &self.body {
-            if !matches!(op, Operation::Label(_)) {
-                writeln!(f, "  {op}")?;
-            } else {
+            if matches!(op, Operation::Label(_)) {
                 writeln!(f, "{op}")?;
+            } else {
+                writeln!(f, "  {op}")?;
             }
         }
 
@@ -101,6 +101,7 @@ pub enum Operation {
 }
 
 impl Operation {
+    #[must_use]
     pub fn get_operands(&self) -> Vec<&Value> {
         match self {
             Operation::Return(value) => vec![value],
@@ -119,6 +120,7 @@ impl Operation {
         }
     }
 
+    #[must_use]
     pub fn is_branch(&self) -> bool {
         match self {
             Operation::Branch(_) | Operation::BranchIf { .. } | Operation::BranchWhen { .. } => {
@@ -412,13 +414,13 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             ops.extend([
                 Operation::Copy {
-                    src: Value::Constant(if op.kind == ast::BinOpKind::And { 1 } else { 0 }),
+                    src: Value::Constant(i32::from(op.kind == ast::BinOpKind::And)),
                     dst: result.clone(),
                 },
                 Operation::Branch(end_label.clone()),
                 Operation::Label(skip_label),
                 Operation::Copy {
-                    src: Value::Constant(if op.kind == ast::BinOpKind::And { 0 } else { 1 }),
+                    src: Value::Constant(i32::from(op.kind != ast::BinOpKind::And)),
                     dst: result.clone(),
                 },
                 Operation::Label(end_label),

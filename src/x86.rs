@@ -171,6 +171,7 @@ impl TryFrom<ir::BinaryOp> for Cond {
 pub struct Label(String);
 
 impl Label {
+    #[must_use]
     pub fn new() -> Self {
         Self(String::new())
     }

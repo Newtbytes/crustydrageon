@@ -211,7 +211,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                 let right = self.parse_expr(next_kind.precedence().unwrap())?;
 
                 left.kind =
-                    ExprKind::Cond(Box::new(left.clone()), Box::new(middle), Box::new(right))
+                    ExprKind::Cond(Box::new(left.clone()), Box::new(middle), Box::new(right));
             } else {
                 let op = self.parse_binary_op()?;
                 let right = self.parse_expr(next_kind.precedence().unwrap() + 1)?;
@@ -222,9 +222,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
 
         if min_prec == Precedence::default() {
-            cov_mark::hit!(parser_expr_parsed)
+            cov_mark::hit!(parser_expr_parsed);
         } else {
-            cov_mark::hit!(parser_sub_expr_parsed)
+            cov_mark::hit!(parser_sub_expr_parsed);
         }
 
         Ok(left)

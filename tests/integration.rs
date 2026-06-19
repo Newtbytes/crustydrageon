@@ -45,7 +45,7 @@ fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
 }
 
 /// Run a program and compare its output to the CHECK directives defined in its source code
-fn check_program(src: String, out: &Path) -> Result<(), Box<dyn Error>> {
+fn check_program(src: &str, out: &Path) -> Result<(), Box<dyn Error>> {
     if let Some(expected_status) = expected_status(&src)? {
         let actual_status = process::Command::new(out).status()?.code();
 
@@ -116,7 +116,7 @@ fn test_valid(
 
     if let Some(ref out) = out.0 {
         let src = fs::read_to_string(&path).unwrap();
-        check_program(src, out).unwrap();
+        check_program(&src, out).unwrap();
     }
 }
 

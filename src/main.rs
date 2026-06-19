@@ -3,7 +3,7 @@ use crustydrageon::{
     driver::{self, CompilerStage},
 };
 
-fn main() -> Result<(), String> {
+fn main() {
     let src_fn = cli::positional_arg(0).expect("source filename should be first argument");
 
     let lex = cli::flag("--lex");
@@ -34,6 +34,4 @@ fn main() -> Result<(), String> {
     {
         println!("{}", filename.display());
     }
-
-    Ok(())
 }

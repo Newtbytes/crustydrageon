@@ -103,7 +103,7 @@ impl VariableResolver {
                 self.resolve_expr(if_false)?;
             }
             ExprKind::Const(_) => (),
-        };
+        }
 
         Ok(())
     }
@@ -143,7 +143,7 @@ impl VariableResolver {
             }
             Stmt::Compound(block) => self.resolve_block(block)?,
             Stmt::Null => (),
-        };
+        }
 
         Ok(())
     }
