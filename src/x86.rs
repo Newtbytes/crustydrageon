@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
+use derive_more::{Display, From, IsVariant};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
@@ -55,36 +56,33 @@ impl Display for Function {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+#[display(rename_all = "lowercase")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Register {
+    #[display("eax")]
     AX,
+    #[display("edx")]
     DX,
+    #[display("r10d")]
     R10,
+    #[display("r11d")]
     R11,
     CL,
     ECX,
 }
 
-impl Display for Register {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::AX => "eax",
-            Self::DX => "edx",
-            Self::R10 => "r10d",
-            Self::R11 => "r11d",
-            Self::CL => "cl",
-            Self::ECX => "ecx",
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, From, Clone, PartialEq, Eq, Display)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Operand {
+    #[display("${_0}")]
     Imm(i32),
+    #[display("%{_0}")]
     Reg(Register),
+    #[display("?{_0}")]
     Pseudo(String),
+    #[display("{_0}(%rbp)")]
+    #[from(skip)]
     Stack(i32),
 }
 
@@ -100,12 +98,6 @@ impl Operand {
     }
 }
 
-impl From<Register> for Operand {
-    fn from(reg: Register) -> Self {
-        Self::Reg(reg)
-    }
-}
-
 impl From<ir::Value> for Operand {
     fn from(value: ir::Value) -> Self {
         match value {
@@ -115,18 +107,8 @@ impl From<ir::Value> for Operand {
     }
 }
 
-impl Display for Operand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Operand::Imm(val) => f.write_str(&format!("${val}")),
-            Operand::Reg(reg) => f.write_str(&format!("%{reg}")),
-            Operand::Pseudo(id) => f.write_str(&format!("?{id}")),
-            Operand::Stack(offset) => f.write_str(&format!("{offset}(%rbp)")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Display, PartialEq, Eq)]
+#[display(rename_all = "lowercase")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Cond {
     E,
@@ -135,19 +117,6 @@ pub enum Cond {
     GE,
     L,
     LE,
-}
-
-impl Display for Cond {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Cond::E => "e",
-            Cond::NE => "ne",
-            Cond::G => "g",
-            Cond::GE => "ge",
-            Cond::L => "l",
-            Cond::LE => "le",
-        })
-    }
 }
 
 impl TryFrom<ir::BinaryOp> for Cond {
@@ -166,7 +135,8 @@ impl TryFrom<ir::BinaryOp> for Cond {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, From, Default, Clone, PartialEq, Eq)]
+#[from(String)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Label(String);
 
@@ -174,12 +144,6 @@ impl Label {
     #[must_use]
     pub fn new() -> Self {
         Self(String::new())
-    }
-}
-
-impl From<String> for Label {
-    fn from(label: String) -> Self {
-        Self(label)
     }
 }
 
@@ -199,20 +163,38 @@ impl Display for Label {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, IsVariant, Display)]
+#[display(rename_all = "lowercase")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Instruction {
+    // TODO: add a alloca lowering pass instead of doing this during emission?
+    #[display("subq ${_0}, %rsp")]
     Alloca(usize),
-    Mov { src: Operand, dst: Operand },
+    #[display("movl {src}, {dst}")]
+    Mov {
+        src: Operand,
+        dst: Operand,
+    },
+    #[display("{_0} {_1}")]
     Unary(UnaryOp, Operand),
+    #[display("{_0} {_1}, {_2}")]
     Binary(BinaryOp, Operand, Operand),
+    #[display("idivl {_0}")]
     Idiv(Operand),
     Cdq,
+    // TODO: make adding the function epilogue a part of legalization perhaps?
+    // alternatively it could be a part of lowering alloca instructions
+    #[display("movq %rbp, %rsp\n\tpopq %rbp\n\tret")]
     Ret,
+    #[display("cmpl {_0}, {_1}")]
     Cmp(Operand, Operand),
+    #[display("jmp {_0}")]
     Jmp(Label),
+    #[display("j{_0} {_1}")]
     JmpIf(Cond, Label),
+    #[display("set{_0} {_1}")]
     Set(Cond, Operand),
+    #[display("{_0}:")]
     Label(Label),
 }
 
@@ -233,38 +215,9 @@ impl Instruction {
     }
 }
 
-impl Display for Instruction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Instruction::Mov { src, dst } => format!("movl {src}, {dst}"),
-                Instruction::Ret => {
-                    // TODO: make adding the function epilogue a part of legalization perhaps?
-                    // alternatively it could be a part of lowering alloca instructions
-                    writeln!(f, "movq %rbp, %rsp")?;
-                    writeln!(f, "\tpopq %rbp")?;
-                    write!(f, "\tret")?;
-                    return Ok(());
-                }
-                // TODO: add a alloca lowering pass instead of doing this during emission?
-                Instruction::Alloca(size) => format!("subq ${size}, %rsp"),
-                Instruction::Unary(unary_op, operand) => format!("{unary_op} {operand}"),
-                Instruction::Binary(binary_op, a, b) => format!("{binary_op} {a}, {b}"),
-                Instruction::Idiv(operand) => format!("idivl {operand}"),
-                Instruction::Cdq => "cdq".to_string(),
-                Instruction::Cmp(a, b) => format!("cmpl {a}, {b}"),
-                Instruction::Jmp(label) => format!("jmp {label}"),
-                Instruction::JmpIf(cond, label) => format!("j{cond} {label}"),
-                Instruction::Set(cond, operand) => format!("set{cond} {operand}"),
-                Instruction::Label(label) => format!("{label}:"),
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[display(rename_all = "lowercase")]
+#[display("{_variant}l")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
     Neg,
@@ -292,49 +245,20 @@ impl From<UnaryOp> for ir::UnaryOp {
     }
 }
 
-impl Display for UnaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                UnaryOp::Neg => "negl",
-                UnaryOp::Not => "notl",
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[display(rename_all = "lowercase")]
+#[display("{_variant}l")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
     Add,
     Sub,
+    #[display("imul")]
     Mul,
     And,
     Or,
     Xor,
     Sal,
     Sar,
-}
-
-impl Display for BinaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Add => "addl",
-                Self::Sub => "subl",
-                Self::Mul => "imull",
-                Self::And => "andl",
-                Self::Or => "orl",
-                Self::Xor => "xorl",
-                Self::Sal => "sall",
-                Self::Sar => "sarl",
-            }
-        )
-    }
 }
 
 pub fn lower_op(insts: &mut Vec<Instruction>, op: ir::Operation) {

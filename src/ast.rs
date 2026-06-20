@@ -2,11 +2,12 @@
 
 use std::{
     fmt::{Debug, Display},
-    ops::{self, Deref, DerefMut},
+    ops::{self},
 };
 
 use contracts::{debug_requires, requires};
 use cov_mark;
+use derive_more::{Deref, DerefMut, Display, IntoIterator, PartialEq};
 use itertools::Itertools;
 #[cfg(test)]
 use proptest::prelude::*;
@@ -15,7 +16,7 @@ use proptest_derive::Arbitrary;
 
 use crate::src::Span;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum TokenKind {
     // Literals
@@ -243,7 +244,8 @@ impl TokenKind {
 }
 
 /// A single lexical unit, comprised of a [kind](Token::kind) and a [lexeme](Token::lexeme).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
+#[display("{lexeme}")]
 pub struct Token {
     kind: TokenKind,
     lexeme: Span,
@@ -283,12 +285,6 @@ impl From<Token> for Span {
     }
 }
 
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.lexeme)
-    }
-}
-
 /// A C program
 ///
 /// Currently can only contain a single function.
@@ -305,7 +301,8 @@ impl Display for Program {
 }
 
 /// Keywords and user-defined identifiers (e.g. function names or variable names).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Display)]
+#[display("{span}")]
 pub struct Identifier {
     names: Vec<String>,
     span: Span,
@@ -358,7 +355,7 @@ impl Identifier {
     /// # use crustydrageon::ast::Identifier;
     /// assert_eq!(Identifier::is_ident(""), false);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn is_ident(s: &str) -> bool {
         cov_mark::hit!(ast_is_ident);
 
@@ -380,15 +377,9 @@ impl Identifier {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn span(&self) -> &Span {
         &self.span
-    }
-}
-
-impl Display for Identifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.span)
     }
 }
 
@@ -410,17 +401,12 @@ impl From<Identifier> for Span {
 }
 
 /// Node representing a function definition.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
+#[display("int {name}(void) {body}")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
     pub body: Block,
-}
-
-impl Display for Function {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "int {}(void) {}", self.name, self.body)
-    }
 }
 
 impl Function {
@@ -430,181 +416,117 @@ impl Function {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Display)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum UnOpKind {
     /// Negation: `-`
+    #[display("-")]
     Negate,
 
     /// Bitwise complement: `~`
+    #[display("~")]
     Complement,
 
     /// Logical not: `!`
+    #[display("!")]
     Not,
-}
-
-impl Display for UnOpKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Negate => "-",
-                Self::Complement => "~",
-                Self::Not => "!",
-            }
-        )
-    }
 }
 
 /// Unary operator node.
 ///
 /// Wraps a [`UnOpKind`] with a [`Span`].
-#[derive(Debug, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Display)]
+#[display("{kind}")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct UnOp {
     pub kind: UnOpKind,
+    #[partial_eq(skip)]
     pub span: Span,
 }
 
-impl PartialEq for UnOp {
-    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](UnOp::span).
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
-}
-
-impl Display for UnOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.kind, f)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Display)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BinOpKind {
     // Arithmetic
+    #[display("+")]
     Add,
+    #[display("-")]
     Subtract,
+    #[display("*")]
     Multiply,
+    #[display("/")]
     Divide,
+    #[display("%")]
     Modulo,
 
     // Logical
+    #[display("&&")]
     And,
+    #[display("||")]
     Or,
+    #[display("==")]
     Equal,
+    #[display("!=")]
     NotEqual,
+    #[display("<")]
     LessThan,
+    #[display("<=")]
     LessOrEqual,
+    #[display(">")]
     GreaterThan,
+    #[display(">=")]
     GreaterOrEqual,
 
     // Bitwise
+    #[display("&")]
     BitAnd,
+    #[display("|")]
     BitOr,
+    #[display("^")]
     Xor,
+    #[display("<<")]
     LShift,
+    #[display(">>")]
     RShift,
 
     // Assignment
+    #[display("=")]
     Assign,
-}
-
-impl Display for BinOpKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Add => "+",
-                Self::Subtract => "-",
-                Self::Multiply => "*",
-                Self::Divide => "/",
-                Self::Modulo => "%",
-                Self::And => "&&",
-                Self::Or => "||",
-                Self::Equal => "==",
-                Self::NotEqual => "!=",
-                Self::LessThan => "<",
-                Self::LessOrEqual => "<=",
-                Self::GreaterThan => ">",
-                Self::GreaterOrEqual => ">=",
-                Self::BitAnd => "&",
-                Self::BitOr => "|",
-                Self::Xor => "^",
-                Self::LShift => "<<",
-                Self::RShift => ">>",
-                Self::Assign => "=",
-            }
-        )
-    }
 }
 
 /// Binary operator node.
 ///
 /// Wraps a [`BinOpKind`] with a [`Span`].
-#[derive(Debug, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Display)]
+#[display("{kind}")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct BinOp {
     pub kind: BinOpKind,
+    #[partial_eq(skip)]
     pub span: Span,
 }
 
-impl PartialEq for BinOp {
-    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](BinOp::span).
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
-}
-
-impl Display for BinOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.kind, f)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Display)]
 pub enum ExprKind {
     Const(i32),
     Var(Identifier),
+    #[display("{_0}{_1}")]
     Unary(UnOp, Box<Expr>),
+    #[display("{_1} {_0} {_2}")]
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    #[display("{_0} ? {_1} : {_2}")]
     Cond(Box<Expr>, Box<Expr>, Box<Expr>),
-}
-
-impl Display for ExprKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Const(val) => write!(f, "{val}"),
-            Self::Var(id) => write!(f, "{}", id.source_name()),
-            Self::Unary(op, expr) => write!(f, "{op}{expr}"),
-            Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
-            Self::Cond(cond, if_true, if_false) => write!(f, "{cond} ? {if_true} : {if_false}"),
-        }
-    }
 }
 
 /// Expression node.
 ///
 /// Wraps a [`ExprKind`] with a [`Span`].
-#[derive(Debug, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Display)]
+#[display("{kind}")]
 pub struct Expr {
     pub kind: ExprKind,
+    #[partial_eq(skip)]
     pub span: Span,
-}
-
-impl PartialEq for Expr {
-    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](Expr::span).
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
-}
-
-impl Display for Expr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.kind, f)
-    }
 }
 
 /// Statement node.
@@ -637,19 +559,13 @@ impl Display for Stmt {
 }
 
 /// Declaration node.
-#[derive(Debug, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Decl {
     pub name: Identifier,
     pub init: Option<Expr>,
+    #[partial_eq(skip)]
     pub span: Span,
-}
-
-impl PartialEq for Decl {
-    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](Decl::span).
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.init == other.init
-    }
 }
 
 impl Display for Decl {
@@ -665,31 +581,26 @@ impl Display for Decl {
 }
 
 /// Node representing a single element of a block.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Display)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BlockItem {
     Stmt(Stmt),
     Decl(Decl),
 }
 
-impl Display for BlockItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Stmt(stmt) => Display::fmt(stmt, f),
-            Self::Decl(decl) => Display::fmt(decl, f),
-        }
-    }
-}
-
-#[derive(Debug, Eq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Default, IntoIterator, Deref, DerefMut)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Block {
+    #[into_iterator]
+    #[deref]
+    #[deref_mut]
     pub items: Vec<BlockItem>,
+    #[partial_eq(skip)]
     pub span: Span,
 }
 
 impl Block {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
@@ -707,44 +618,15 @@ impl Block {
     /// Check if the block is empty.
     ///
     /// Equivalent to [`Vec<BlockItem>::is_empty`].
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
-    }
-}
-
-impl Deref for Block {
-    type Target = Vec<BlockItem>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.items
-    }
-}
-
-impl DerefMut for Block {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.items
-    }
-}
-
-impl IntoIterator for Block {
-    type Item = BlockItem;
-    type IntoIter = <Vec<BlockItem> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter()
     }
 }
 
 impl From<Block> for Vec<BlockItem> {
     fn from(block: Block) -> Self {
         block.items
-    }
-}
-
-impl PartialEq for Block {
-    fn eq(&self, other: &Self) -> bool {
-        self.items == other.items
     }
 }
 

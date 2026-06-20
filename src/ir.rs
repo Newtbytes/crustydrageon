@@ -1,20 +1,15 @@
 use std::fmt::Display;
 
+use derive_more::{Display, From};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
 use crate::ast;
 
-#[derive(Debug)]
+#[derive(Debug, Display)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
-}
-
-impl Display for Program {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.body)
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -68,35 +63,33 @@ impl Display for Label {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Operation {
+    #[display("ret {_0}")]
     Return(Value),
-    Unary {
-        op: UnaryOp,
-        src: Value,
-        dst: Value,
-    },
+    #[display("{dst} = {op} {src}")]
+    Unary { op: UnaryOp, src: Value, dst: Value },
+    #[display("{dst} = {op} {a}, {b}")]
     Binary {
         op: BinaryOp,
         a: Value,
         b: Value,
         dst: Value,
     },
-    Copy {
-        src: Value,
-        dst: Value,
-    },
+    #[display("copy {dst} = {src}")]
+    Copy { src: Value, dst: Value },
+    #[display("branch {_0}")]
     Branch(Label),
+    #[display("branchif {cond} then {then_label} else {else_label}")]
     BranchIf {
         cond: Value,
         then_label: Label,
         else_label: Label,
     },
-    BranchWhen {
-        cond: Value,
-        when_label: Label,
-    },
+    #[display("branch {when_label} when {cond}")]
+    BranchWhen { cond: Value, when_label: Label },
+    #[display("{_0}:")]
     Label(Label),
 }
 
@@ -135,36 +128,12 @@ impl Operation {
     }
 }
 
-impl Display for Operation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        cov_mark::hit!(ir_pp_op);
-
-        write!(
-            f,
-            "{}",
-            match self {
-                Operation::Return(value) => format!("return {value}"),
-                Operation::Unary { op, src, dst } => format!("{dst} = {op} {src}"),
-                Operation::Binary { op, a, b, dst } => format!("{dst} = {op} {a}, {b}"),
-                Operation::Copy { src, dst } => format!("copy {dst} = {src}"),
-                Operation::Branch(label) => format!("branch {label}"),
-                Operation::BranchIf {
-                    cond,
-                    then_label,
-                    else_label,
-                } => format!("branchif {cond} then {then_label} else {else_label}"),
-                Operation::BranchWhen { cond, when_label } =>
-                    format!("branch {when_label} when {cond}"),
-                Operation::Label(label) => format!("{label}:"),
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
+#[display(rename_all = "lowercase")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum UnaryOp {
     Flip,
+    #[display("neg")]
     Negate,
     Not,
 }
@@ -185,23 +154,8 @@ impl From<ast::UnOp> for UnaryOp {
     }
 }
 
-impl Display for UnaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        cov_mark::hit!(ir_pp_unary_op_kind);
-
-        write!(
-            f,
-            "{}",
-            match self {
-                UnaryOp::Flip => "flip",
-                UnaryOp::Negate => "neg",
-                UnaryOp::Not => "not",
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
+#[display(rename_all = "lowercase")]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum BinaryOp {
     Add,
@@ -228,35 +182,6 @@ pub enum BinaryOp {
     ///
     /// Shift bits to the right, filling new bits to the left with zeros.
     Ashr,
-}
-
-impl Display for BinaryOp {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        cov_mark::hit!(ir_pp_binary_op_kind);
-
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Add => "add",
-                Self::Sub => "sub",
-                Self::Mul => "mul",
-                Self::Div => "div",
-                Self::Rem => "rem",
-                Self::Eq => "eq",
-                Self::Neq => "neq",
-                Self::Lt => "lt",
-                Self::Lte => "lte",
-                Self::Gt => "gt",
-                Self::Gte => "gte",
-                Self::And => "and",
-                Self::Or => "or",
-                Self::Xor => "xor",
-                Self::Ashl => "ashl",
-                Self::Ashr => "ashr",
-            }
-        )
-    }
 }
 
 impl TryFrom<ast::BinOpKind> for BinaryOp {
@@ -317,10 +242,11 @@ pub mod VarID {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display, From)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Value {
     Constant(i32),
+    #[display("${_0}")]
     Var(String),
 }
 
@@ -329,21 +255,6 @@ impl Value {
     pub fn new_var() -> Self {
         cov_mark::hit!(ir_var_created);
         Self::Var(VarID::new().to_string())
-    }
-}
-
-impl Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        cov_mark::hit!(ir_pp_value);
-
-        write!(
-            f,
-            "{}",
-            match self {
-                Value::Constant(val) => val.to_string(),
-                Value::Var(id) => format!("${id}"),
-            }
-        )
     }
 }
 
