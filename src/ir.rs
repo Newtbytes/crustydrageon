@@ -485,6 +485,22 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             dst
         }
+        ast::ExprKind::Post(op, expr) => {
+            let val = lower_expr(ops, *expr);
+            let dst: Value = Value::new_var();
+
+            ops.push(Operation::Binary {
+                op: match op.kind {
+                    ast::PostOpKind::Increment => BinaryOp::Add,
+                    ast::PostOpKind::Decrement => BinaryOp::Sub,
+                },
+                a: val,
+                b: Value::Constant(1),
+                dst: dst.clone(),
+            });
+
+            dst
+        }
     };
 
     cov_mark::hit!(ir_expr_lowered);

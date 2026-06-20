@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{BinOpKind, Block, Decl, Expr, ExprKind, Function, Program, Stmt},
+    ast::{BinOpKind, Block, Decl, Expr, ExprKind, Function, PostOpKind, Program, Stmt},
     diag::Annotation,
     ir::VarID,
     src,
@@ -79,6 +79,10 @@ impl VariableResolver {
         Self { ctx: EnvCtx::new() }
     }
 
+    fn is_lvalue(expr: &Expr) -> bool {
+        matches!(expr.kind, ExprKind::Var(_))
+    }
+
     fn resolve_expr(&mut self, expr: &mut Expr) -> ResolveResult<()> {
         let kind = &mut expr.kind;
         match kind {
@@ -101,6 +105,17 @@ impl VariableResolver {
                 self.resolve_expr(cond)?;
                 self.resolve_expr(if_true)?;
                 self.resolve_expr(if_false)?;
+            }
+            ExprKind::Post(op, expr) => {
+                match op.kind {
+                    PostOpKind::Increment | PostOpKind::Decrement => {
+                        if !Self::is_lvalue(expr) {
+                            return Err(ResolveError::InvalidLvalue(expr.span.clone()));
+                        }
+                    }
+                };
+
+                self.resolve_expr(expr)?;
             }
             ExprKind::Const(_) => (),
         }

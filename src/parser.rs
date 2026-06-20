@@ -2,8 +2,8 @@ use std::iter;
 
 use crate::{
     ast::{
-        BinOp, BinOpKind, Block, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
-        Program, Stmt, Token, TokenKind, UnOp, UnOpKind,
+        BinOp, BinOpKind, Block, BlockItem, Decl, Expr, ExprKind, Function, Identifier, PostOp,
+        PostOpKind, Precedence, Program, Stmt, Token, TokenKind, UnOp, UnOpKind,
     },
     diag::Annotation,
     src::{self, Source},
@@ -236,6 +236,39 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::Colon)?;
 
         Ok(middle)
+    }
+
+    fn parse_postfix_op(&mut self) -> ParseResult<PostOp> {
+        let tok = self.peek();
+        let kind = match tok.kind() {
+            TokenKind::Increment => PostOpKind::Increment,
+            TokenKind::Decrement => PostOpKind::Decrement,
+            _ => {
+                return Err(ParserError::ExpectedString {
+                    expected: "postfix operator",
+                    actual: tok.clone(),
+                });
+            }
+        };
+
+        Ok(PostOp {
+            kind,
+            span: tok.span().clone(),
+        })
+    }
+
+    fn parse_postfix(&mut self) -> ParseResult<Expr> {
+        let expr = self.parse_expr(Default::default())?;
+        let op = self.parse_postfix_op()?;
+        let span = self
+            .src
+            .subspan(expr.span.start_index(), op.span.end_index())
+            .unwrap();
+
+        Ok(Expr {
+            kind: ExprKind::Post(op, Box::new(expr)),
+            span,
+        })
     }
 
     fn parse_factor(&mut self) -> ParseResult<Expr> {
