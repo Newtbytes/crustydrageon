@@ -292,10 +292,16 @@ impl Display for Token {
 /// A C program
 ///
 /// Currently can only contain a single function.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Program {
     pub body: Function,
+}
+
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.body, f)
+    }
 }
 
 /// Keywords and user-defined identifiers (e.g. function names or variable names).
@@ -367,6 +373,8 @@ impl Identifier {
             "int" => TokenKind::Int,
             "void" => TokenKind::Void,
             "return" => TokenKind::Return,
+            "if" => TokenKind::If,
+            "else" => TokenKind::Else,
             _ => TokenKind::Ident,
         }
     }
@@ -400,11 +408,17 @@ impl From<Identifier> for Span {
 }
 
 /// Node representing a function definition.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Function {
     pub name: Identifier,
     pub body: Block,
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "int {}(void) {}", self.name, self.body)
+    }
 }
 
 impl Function {
@@ -614,7 +628,7 @@ impl Display for Stmt {
                 }
                 Ok(())
             }
-            Self::Compound(block) => write!(f, "{{ {} }}", block),
+            Self::Compound(block) => write!(f, "{}", block),
             Self::Null => write!(f, ";"),
         }
     }
@@ -732,7 +746,7 @@ impl PartialEq for Block {
 
 impl Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.items.iter().join(" "))
+        write!(f, "{{ {} }}", self.items.iter().join(" "))
     }
 }
 
@@ -745,6 +759,7 @@ impl Display for Block {
 pub mod dummy {
     use super::*;
 
+    #[must_use]
     pub fn ident(value: &str) -> Identifier {
         Identifier {
             names: vec![value.to_owned()],
@@ -752,6 +767,7 @@ pub mod dummy {
         }
     }
 
+    #[must_use]
     pub fn expr(kind: ExprKind) -> Expr {
         Expr {
             kind,
@@ -759,6 +775,7 @@ pub mod dummy {
         }
     }
 
+    #[must_use]
     pub fn unop(kind: UnOpKind) -> UnOp {
         UnOp {
             kind,
@@ -766,6 +783,7 @@ pub mod dummy {
         }
     }
 
+    #[must_use]
     pub fn binop(kind: BinOpKind) -> BinOp {
         BinOp {
             kind,
@@ -774,22 +792,27 @@ pub mod dummy {
     }
 
     impl Expr {
+        #[must_use]
         pub fn constant(value: i32) -> Self {
             expr(ExprKind::Const(value))
         }
 
+        #[must_use]
         pub fn var(name: &str) -> Self {
             expr(ExprKind::Var(ident(name)))
         }
 
+        #[must_use]
         pub fn unary(kind: UnOpKind, operand: Expr) -> Self {
             expr(ExprKind::Unary(unop(kind), operand.into()))
         }
 
+        #[must_use]
         pub fn binary(kind: BinOpKind, a: Expr, b: Expr) -> Self {
             expr(ExprKind::Binary(binop(kind), a.into(), b.into()))
         }
 
+        #[must_use]
         pub fn cond(cond: Expr, if_true: Expr, if_false: Expr) -> Self {
             expr(ExprKind::Cond(cond.into(), if_true.into(), if_false.into()))
         }
@@ -807,11 +830,14 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             "[a-zA-Z_][0-9a-zA-Z_]"
                 .prop_map(Source::new)
                 .prop_map(Span::from)
                 .prop_map(Identifier::from)
+                .prop_filter("identifier should have an Ident TokenKind", |id| {
+                    id.tok_kind() == TokenKind::Ident
+                })
                 .boxed()
         }
     }
@@ -821,7 +847,7 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             let leaf = prop_oneof![
                 any::<i32>().prop_map(ExprKind::Const),
                 any::<Identifier>().prop_map(ExprKind::Var),
@@ -872,7 +898,7 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             let leaf = prop_oneof![any::<Expr>().prop_map(Stmt::Expr), Just(Stmt::Null),];
 
             leaf.prop_recursive(
@@ -903,12 +929,11 @@ pub mod strategy {
         type Parameters = ();
         type Strategy = proptest::prelude::BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             any::<TokenKind>()
                 .prop_flat_map(|k| {
                     let regex_str = match k {
                         TokenKind::Constant => "[0-9]",
-                        // FIXME: ensure keywords are never generated here
                         TokenKind::Ident => "[_a-zA-Z][_a-zA-Z0-9]+",
                         TokenKind::Complement => "~",
                         TokenKind::Minus => "-",
@@ -956,6 +981,14 @@ pub mod strategy {
                             .prop_map(Span::from),
                     )
                 })
+                // ensure that we never end up with an identifier token that should be a keyword
+                .prop_map(|(kind, lexeme)| {
+                    if matches!(kind, TokenKind::Ident) {
+                        (Identifier::from(lexeme.clone()).tok_kind(), lexeme)
+                    } else {
+                        (kind, lexeme)
+                    }
+                })
                 .prop_map(|(kind, lexeme)| Token::new(kind, lexeme))
                 .boxed()
         }
@@ -968,19 +1001,29 @@ mod tests {
 
     use rstest::{fixture, rstest};
 
-    proptest! {
-        #[test]
-        fn test_identifier_rename(mut id: Identifier, new_name: String) {
-            let old_name = id.source_name().to_owned();
+    mod ident {
+        use super::*;
 
-            prop_assume!(old_name != new_name);
+        #[rstest]
+        #[case(" A", false)]
+        fn test_is_ident(#[case] given: &'static str, #[case] expected: bool) {
+            assert_eq!(Identifier::is_ident(given), expected);
+        }
 
-            prop_assert_eq!(id.value(), &old_name);
+        proptest! {
+            #[test]
+            fn test_rename(mut id: Identifier, new_name: String) {
+                let old_name = id.source_name().to_owned();
 
-            id.rename(new_name.clone());
+                prop_assume!(old_name != new_name);
 
-            prop_assert_eq!(id.value(), &new_name);
-            prop_assert_eq!(id.source_name(), &old_name);
+                prop_assert_eq!(id.value(), &old_name);
+
+                id.rename(new_name.clone());
+
+                prop_assert_eq!(id.value(), &new_name);
+                prop_assert_eq!(id.source_name(), &old_name);
+            }
         }
     }
 
@@ -1010,7 +1053,7 @@ mod tests {
         }
     }
 
-    /// See https://en.cppreference.com/c/language/operator_precedence
+    /// See <https://en.cppreference.com/c/language/operator_precedence>
     mod precedence {
         use super::*;
 
@@ -1041,7 +1084,7 @@ mod tests {
                         group
                             .iter()
                             .all(|item| item.precedence() == first.precedence())
-                    )
+                    );
                 }
             }
         }

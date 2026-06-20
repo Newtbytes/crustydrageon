@@ -6,3 +6,10 @@
 # everyone who runs the test benefits from these saved cases.
 cc 114ffa78a615dce345fcfde101d65d1bb1b5f67a7c12a8a07f126db10182d34f # shrinks to id = Identifier { names: ["_A"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "_A" } }
 cc e18dffc293f7649e240ef12082a9bea468b20cfd84210b980ecfc724d881a11c # shrinks to id = Identifier { names: ["A0"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "A0" } }
+cc 365b91b3f903e9dcbe7f91298e814698402a35b4bd924e7846c08d1006b82336 # shrinks to ir_func = Function { id: Identifier { names: ["aA"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "aA" } }, body: [BranchIf { cond: Constant(0), then_label: Named(Identifier { names: ["aA"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "aA" } }), else_label: Named(Identifier { names: ["Aa"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "Aa" } }) }] }
+cc cd93fc197b0538a85e5fdd581f244b817bbf0a213a6cca957a7504e4def0f1b5 # shrinks to ir_func = Function { id: Identifier { names: ["aa"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "aa" } }, body: [Unary { op: Not, src: Constant(0), dst: Constant(0) }] }
+cc f5e8dbe97f5b695247786c2132b8f8a5db868fa47c938062586673440ea161b7 # shrinks to block = []
+cc 560ab56f92a1d3170ca2cadfa12184d28c75f986bd55b4af58c15fe9f9e5173d # shrinks to ir_func = Function { id: Identifier { names: ["aa"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "aa" } }, body: [] }
+cc 41827191715260d945cfc7b937c509674c90d5a6f685a3864716d781355fcdb8 # shrinks to ir_func = Function { id: Identifier { names: ["Aa"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "Aa" } }, body: [Binary { op: Mul, a: Var(""), b: Constant(0), dst: Var("") }] }
+cc 38e74e412c2bbafcd2c6b8ac190310311e66a234d08b24d00ffb194a5e02ca05 # shrinks to inst = Cmp(Stack(0), Stack(0))
+cc a25b7cc69ca60238ee6f0852bb7f3c7675f59ee93fda737bcb851123b7085e9b # shrinks to inst = Cmp(Imm(0), Imm(0))

@@ -249,16 +249,16 @@ pub fn tokenize(src: &Source) -> Box<dyn Iterator<Item = Token> + '_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::Identifier;
-
     use super::*;
+
+    use crate::ast::{Identifier, TokenKind as tk};
 
     use proptest::prelude::*;
     use rstest::rstest;
 
     #[test]
     fn test_tokenize_returns_empty() {
-        let src = Source::new("".to_owned());
+        let src = Source::new(String::new());
         let tokens = tokenize(&src);
 
         assert_eq!(tokens.count(), 0);
@@ -268,124 +268,121 @@ mod tests {
     //# single tokens
     //## operators
     //### arithmetic
-    #[case::minus("-", [TokenKind::Minus])]
-    #[case::plus("+", [TokenKind::Plus])]
-    #[case::star("*", [TokenKind::Star])]
-    #[case::divide("/", [TokenKind::Divide])]
-    #[case::modulo("%", [TokenKind::Modulo])]
+    #[case::minus("-", [tk::Minus])]
+    #[case::plus("+", [tk::Plus])]
+    #[case::star("*", [tk::Star])]
+    #[case::divide("/", [tk::Divide])]
+    #[case::modulo("%", [tk::Modulo])]
     //### conditional
-    #[case::question("?", [TokenKind::Question])]
-    #[case::colon(":", [TokenKind::Colon])]
+    #[case::question("?", [tk::Question])]
+    #[case::colon(":", [tk::Colon])]
     //### mutating
-    #[case::assign("=", [TokenKind::Assign])]
-    #[case::decrement("--", [TokenKind::Decrement])]
-    #[case::increment("++", [TokenKind::Increment])]
+    #[case::assign("=", [tk::Assign])]
+    #[case::decrement("--", [tk::Decrement])]
+    #[case::increment("++", [tk::Increment])]
     //### logical
-    #[case::not("!", [TokenKind::Not])]
-    #[case::and("&&", [TokenKind::And])]
-    #[case::or("||", [TokenKind::Or])]
-    #[case::equal("==", [TokenKind::Equal])]
-    #[case::not_equal("!=", [TokenKind::NotEqual])]
-    #[case::lt("<", [TokenKind::LT])]
-    #[case::gt(">", [TokenKind::GT])]
-    #[case::lte("<=", [TokenKind::LTE])]
-    #[case::gte(">=", [TokenKind::GTE])]
+    #[case::not("!", [tk::Not])]
+    #[case::and("&&", [tk::And])]
+    #[case::or("||", [tk::Or])]
+    #[case::equal("==", [tk::Equal])]
+    #[case::not_equal("!=", [tk::NotEqual])]
+    #[case::lt("<", [tk::LT])]
+    #[case::gt(">", [tk::GT])]
+    #[case::lte("<=", [tk::LTE])]
+    #[case::gte(">=", [tk::GTE])]
     //### bitwise
-    #[case::ampersand("&", [TokenKind::Ampersand])]
-    #[case::pipe("|", [TokenKind::Pipe])]
-    #[case::up_arrow("^", [TokenKind::UpArrow])]
+    #[case::ampersand("&", [tk::Ampersand])]
+    #[case::pipe("|", [tk::Pipe])]
+    #[case::up_arrow("^", [tk::UpArrow])]
     //## identifiers & keywords
-    #[case::ident_a("a", [TokenKind::Ident])]
-    #[case::void("void", [TokenKind::Void])]
-    #[case::int("int", [TokenKind::Int])]
-    #[case::return_kw("return", [TokenKind::Return])]
-    #[case::if_kw("if", [TokenKind::If])]
-    #[case::else_kw("else", [TokenKind::Else])]
+    #[case::ident_a("a", [tk::Ident])]
+    #[case::void("void", [tk::Void])]
+    #[case::int("int", [tk::Int])]
+    #[case::return_kw("return", [tk::Return])]
+    #[case::if_kw("if", [tk::If])]
+    #[case::else_kw("else", [tk::Else])]
     //## literals
     //### int
-    #[case::const_1("1", [TokenKind::Constant])]
-    #[case::const_2("2", [TokenKind::Constant])]
-    #[case::const_3("3", [TokenKind::Constant])]
-    #[case::const_10("10", [TokenKind::Constant])]
-    #[case::const_42("42", [TokenKind::Constant])]
-    #[case::const_69("69", [TokenKind::Constant])]
-    #[case::const_360("360", [TokenKind::Constant])]
-    #[case::const_720("720", [TokenKind::Constant])]
+    #[case::const_1("1", [tk::Constant])]
+    #[case::const_2("2", [tk::Constant])]
+    #[case::const_3("3", [tk::Constant])]
+    #[case::const_10("10", [tk::Constant])]
+    #[case::const_42("42", [tk::Constant])]
+    #[case::const_69("69", [tk::Constant])]
+    #[case::const_360("360", [tk::Constant])]
+    #[case::const_720("720", [tk::Constant])]
     //#### error cases
-    #[case::error_0aaaaa("0aaaaa", [TokenKind::Error("Invalid constant")])]
+    #[case::error_0aaaaa("0aaaaa", [tk::Error("Invalid constant")])]
     //# combinations
     //## plus, minus, increment, decrement
-    #[case::minus_a("-a", [TokenKind::Minus, TokenKind::Ident])]
-    #[case::minus_space_a("- a", [TokenKind::Minus, TokenKind::Ident])]
-    #[case::plus_a("+a", [TokenKind::Plus, TokenKind::Ident])]
-    #[case::decrement_a("--a", [TokenKind::Decrement, TokenKind::Ident])]
-    #[case::increment_b("++b", [TokenKind::Increment, TokenKind::Ident])]
-    #[case::a_decrement("a--", [TokenKind::Ident, TokenKind::Decrement])]
-    #[case::b_increment("b++", [TokenKind::Ident, TokenKind::Increment])]
+    #[case::minus_a("-a", [tk::Minus, tk::Ident])]
+    #[case::minus_space_a("- a", [tk::Minus, tk::Ident])]
+    #[case::plus_a("+a", [tk::Plus, tk::Ident])]
+    #[case::decrement_a("--a", [tk::Decrement, tk::Ident])]
+    #[case::increment_b("++b", [tk::Increment, tk::Ident])]
+    #[case::a_decrement("a--", [tk::Ident, tk::Decrement])]
+    #[case::b_increment("b++", [tk::Ident, tk::Increment])]
     #[case::five_plus("+++++", [
-        TokenKind::Increment,
-        TokenKind::Increment,
-        TokenKind::Plus,
+        tk::Increment,
+        tk::Increment,
+        tk::Plus,
     ])]
     #[case::five_plus_dup("+++++", [
-        TokenKind::Increment,
-        TokenKind::Increment,
-        TokenKind::Plus,
+        tk::Increment,
+        tk::Increment,
+        tk::Plus,
     ])]
     #[case::plus_space_plus_space_increment_plus("+ + +++", [
-        TokenKind::Plus,
-        TokenKind::Plus,
-        TokenKind::Increment,
-        TokenKind::Plus,
+        tk::Plus,
+        tk::Plus,
+        tk::Increment,
+        tk::Plus,
     ])]
     #[case::plus_space_plus_space_plus_space_plus("+ + + +", [
-        TokenKind::Plus,
-        TokenKind::Plus,
-        TokenKind::Plus,
-        TokenKind::Plus,
+        tk::Plus,
+        tk::Plus,
+        tk::Plus,
+        tk::Plus,
     ])]
     #[case::five_minus("-----", [
-        TokenKind::Decrement,
-        TokenKind::Decrement,
-        TokenKind::Minus,
+        tk::Decrement,
+        tk::Decrement,
+        tk::Minus,
     ])]
     #[case::minus_space_minus_space_decrement_minus("- - ---", [
-        TokenKind::Minus,
-        TokenKind::Minus,
-        TokenKind::Decrement,
-        TokenKind::Minus,
+        tk::Minus,
+        tk::Minus,
+        tk::Decrement,
+        tk::Minus,
     ])]
     #[case::minus_space_minus_space_minus_space_minus("- - - -", [
-        TokenKind::Minus,
-        TokenKind::Minus,
-        TokenKind::Minus,
-        TokenKind::Minus,
+        tk::Minus,
+        tk::Minus,
+        tk::Minus,
+        tk::Minus,
     ])]
     #[case::mixed_operators("++++%-*---", [
-        TokenKind::Increment,
-        TokenKind::Increment,
-        TokenKind::Modulo,
-        TokenKind::Minus,
-        TokenKind::Star,
-        TokenKind::Decrement,
-        TokenKind::Minus,
+        tk::Increment,
+        tk::Increment,
+        tk::Modulo,
+        tk::Minus,
+        tk::Star,
+        tk::Decrement,
+        tk::Minus,
     ])]
     //## multiply, divide, and modulo and their combinations
-    #[case::star_a("*a", [TokenKind::Star, TokenKind::Ident])]
-    #[case::divide_b("/b", [TokenKind::Divide, TokenKind::Ident])]
-    #[case::modulo_c("%c", [TokenKind::Modulo, TokenKind::Ident])]
+    #[case::star_a("*a", [tk::Star, tk::Ident])]
+    #[case::divide_b("/b", [tk::Divide, tk::Ident])]
+    #[case::modulo_c("%c", [tk::Modulo, tk::Ident])]
     //## repeated operators
-    #[case::four_stars("****", [TokenKind::Star, TokenKind::Star, TokenKind::Star, TokenKind::Star])]
-    #[case::four_divides("////", [TokenKind::Divide, TokenKind::Divide, TokenKind::Divide, TokenKind::Divide])]
-    #[case::four_modulos("%%%%", [TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo, TokenKind::Modulo])]
+    #[case::four_stars("****", [tk::Star, tk::Star, tk::Star, tk::Star])]
+    #[case::four_divides("////", [tk::Divide, tk::Divide, tk::Divide, tk::Divide])]
+    #[case::four_modulos("%%%%", [tk::Modulo, tk::Modulo, tk::Modulo, tk::Modulo])]
     //## identifiers and keywords
-    #[case::voidx("voidx", [TokenKind::Ident])]
-    #[case::int_("int_", [TokenKind::Ident])]
-    #[case::a0aaaa("a0aaaa", [TokenKind::Ident])]
-    fn test_tokenize_operators<const S: usize>(
-        #[case] src: &str,
-        #[case] expected: [TokenKind; S],
-    ) {
+    #[case::voidx("voidx", [tk::Ident])]
+    #[case::int_("int_", [tk::Ident])]
+    #[case::a0aaaa("a0aaaa", [tk::Ident])]
+    fn test_tokenize_operators<const S: usize>(#[case] src: &str, #[case] expected: [tk; S]) {
         let src = Source::new(src.to_owned());
         let tokens = tokenize(&src).collect::<Vec<Token>>();
 
@@ -395,7 +392,7 @@ mod tests {
             "expected {} tokens, got {}: {:?}",
             tokens.len(),
             S,
-            tokens.iter().map(|t| t.kind()).collect::<Vec<TokenKind>>()
+            tokens.iter().map(Token::kind).collect::<Vec<tk>>()
         );
 
         // check that the token kinds match the expected kinds
@@ -406,7 +403,7 @@ mod tests {
 
     fn is_keyword(s: &str) -> bool {
         match classify_ident(s) {
-            Some(kind) => !matches!(kind, TokenKind::Ident),
+            Some(kind) => !matches!(kind, tk::Ident),
             None => false,
         }
     }
@@ -415,7 +412,7 @@ mod tests {
         #[test]
         fn test_is_word(s in r"[a-zA-Z_0-9]" /* FIXME: should be \w but unicode isn't supported yet */) {
             let c = s.chars().next().unwrap();
-            assert!(is_word(&c))
+            assert!(is_word(&c));
         }
 
         #[test]
@@ -427,7 +424,7 @@ mod tests {
             let tokens = tokenize(&src).collect::<Vec<Token>>();
 
             prop_assert_eq!(tokens.len(), 1);
-            prop_assert_eq!(tokens[0].kind(), TokenKind::Ident);
+            prop_assert_eq!(tokens[0].kind(), tk::Ident);
             prop_assert_eq!(tokens[0].span().to_string(), s.to_string());
         }
 
@@ -435,24 +432,27 @@ mod tests {
         #[test]
         fn test_is_ident_equivalence(s: String) {
             // skip keywords
-            prop_assume!(!is_keyword(&s.to_string()));
+            prop_assume!(!is_keyword(&s.clone()));
             prop_assume!(!s.is_empty());
 
-            fn lexer_is_ident(s: String) -> bool {
+            // the lexer skips whitespace, but Identifier::is_ident does not, so we trim the input
+            let s = s.trim();
+
+            fn lexer_is_ident(s: &str) -> bool {
                 let src = Source::new(s.to_string());
                 let tokens = tokenize(&src).collect::<Vec<Token>>();
 
-                tokens.len() == 1 && tokens[0].kind() == TokenKind::Ident
+                tokens.len() == 1 && tokens[0].kind() == tk::Ident
             }
 
-            prop_assert_eq!(Identifier::is_ident(&s), lexer_is_ident(s));
+            prop_assert_eq!(Identifier::is_ident(s), lexer_is_ident(s));
         }
 
         #[test]
         fn test_tokenize_round_trip(
             tokens in prop::collection::vec(
                 any::<Token>().prop_filter("is not EOF or error token", |tok| {
-                    !matches!(tok.kind(), TokenKind::EOF | TokenKind::Error(_))
+                    !matches!(tok.kind(), tk::EOF | tk::Error(_))
                 }),
                 1..=10,
             )
