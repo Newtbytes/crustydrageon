@@ -10,14 +10,15 @@
 //! These types are used throughout the compiler to associate syntax elements with their
 //! original source locations.
 
-use std::{fmt, ops::Deref};
+use std::fmt;
 
 use contracts::ensures;
+use derive_more::Deref;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
 /// A top-level [`Span`] referring to the entire source file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Source(Span);
 
@@ -37,14 +38,6 @@ impl From<Source> for Span {
             loc: Location::default(),
             span: src.to_string(),
         }
-    }
-}
-
-impl Deref for Source {
-    type Target = Span;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -78,10 +71,11 @@ impl Location {
 }
 
 /// A reference to a contiguous range of characters in a source string.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deref)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub struct Span {
     loc: Location,
+    #[deref]
     span: String,
 }
 
@@ -97,7 +91,7 @@ impl Span {
     ///
     /// assert!(subspan.is_empty());
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn empty_at(&self, index: usize) -> Option<Self> {
         self.subspan(index, index)
     }
@@ -267,14 +261,6 @@ impl Span {
             loc: self.location_at(start).ok()?,
             span: self.get(start..end)?.to_owned(),
         })
-    }
-}
-
-impl Deref for Span {
-    type Target = String;
-
-    fn deref(&self) -> &Self::Target {
-        &self.span
     }
 }
 

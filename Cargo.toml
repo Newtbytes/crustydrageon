@@ -7,6 +7,15 @@ edition = "2024"
 contracts = "0.6.7"
 cov-mark = { version = "2.2.0", features = ["enable"] }
 itertools = "0.15.0"
+derive_more = { version = "2.1.1", features = [
+    "from",
+    "display",
+    "deref",
+    "deref_mut",
+    "is_variant",
+    "into_iterator",
+    "eq",
+] }
 
 [dev-dependencies]
 rstest = "0.26.1"
