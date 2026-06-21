@@ -136,15 +136,6 @@ impl<'src> Lexer<'src> {
         }
     }
 
-    /// After finding one character, tokenize based on the next character.
-    /// If it does, return one token kind, otherwise return a second token kind.
-    fn based_on_next(&mut self, expected: char, single: TokenKind, double: TokenKind) -> TokenKind {
-        match self.eat_if(|&c| c == expected) {
-            Some(_) => double,
-            None => single,
-        }
-    }
-
     fn error(&self, msg: &'static str) -> TokenKind {
         TokenKind::Error(msg)
     }
@@ -170,27 +161,101 @@ impl Iterator for Lexer<'_> {
                 ';' => tk::Semicolon,
 
                 // operators
-                '~' => tk::Complement,
-                '*' => tk::Star,
-                '/' => tk::Divide,
-                '%' => tk::Modulo,
-                '^' => tk::UpArrow,
-                '+' => self.based_on_next('+', tk::Plus, tk::Increment),
-                '-' => self.based_on_next('-', tk::Minus, tk::Decrement),
-                '!' => self.based_on_next('=', tk::Not, tk::NotEqual),
-                '&' => self.based_on_next('&', tk::Ampersand, tk::And),
-                '|' => self.based_on_next('|', tk::Pipe, tk::Or),
-                '=' => self.based_on_next('=', tk::Assign, tk::Equal),
+                '~' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::ComplementEq
+                    } else {
+                        tk::Complement
+                    }
+                }
+                '*' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::MulEq
+                    } else {
+                        tk::Star
+                    }
+                }
+                '/' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::DivEq
+                    } else {
+                        tk::Divide
+                    }
+                }
+                '%' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::ModuloEq
+                    } else {
+                        tk::Modulo
+                    }
+                }
+                '^' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::XorEq
+                    } else {
+                        tk::UpArrow
+                    }
+                }
+                '+' => {
+                    if self.eat_if(|c| matches!(c, '+')).is_some() {
+                        tk::Increment
+                    } else {
+                        if self.eat_if(|c| matches!(c, '=')).is_some() {
+                            tk::AddEq
+                        } else {
+                            tk::Plus
+                        }
+                    }
+                }
+                '-' => {
+                    if self.eat_if(|c| matches!(c, '-')).is_some() {
+                        tk::Decrement
+                    } else {
+                        if self.eat_if(|c| matches!(c, '=')).is_some() {
+                            tk::SubEq
+                        } else {
+                            tk::Minus
+                        }
+                    }
+                }
+                '!' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::NotEqual
+                    } else {
+                        tk::Not
+                    }
+                }
+                '&' => match self.eat_if(|c| matches!(c, '=' | '&')) {
+                    Some('=') => tk::AndEq,
+                    Some('&') => tk::And,
+                    _ => tk::Ampersand,
+                },
+                '|' => match self.eat_if(|c| matches!(c, '=' | '|')) {
+                    Some('=') => tk::OrEq,
+                    Some('|') => tk::Or,
+                    _ => tk::Pipe,
+                },
+                '=' => {
+                    if self.eat_if(|c| matches!(c, '=')).is_some() {
+                        tk::Equal
+                    } else {
+                        tk::Assign
+                    }
+                }
                 '<' => match self.eat_if(|c| matches!(c, '=' | '<')) {
                     Some('=') => tk::LTE,
-                    Some('<') => tk::LShift,
-                    Some(_) => unreachable!(),
-                    None => tk::LT,
+                    Some('<') => match self.eat_if(|c| matches!(c, '=')) {
+                        Some('=') => tk::LShiftEq,
+                        _ => tk::LShift,
+                    },
+                    _ => tk::LT,
                 },
                 '>' => match self.eat_if(|c| matches!(c, '=' | '>')) {
                     Some('=') => tk::GTE,
-                    Some('>') => tk::RShift,
-                    Some(_) => unreachable!(),
+                    Some('>') => match self.eat_if(|c| matches!(c, '=')) {
+                        Some('=') => tk::RShiftEq,
+                        _ => tk::RShift,
+                    },
                     _ => tk::GT,
                 },
                 ':' => tk::Colon,
@@ -278,6 +343,17 @@ mod tests {
     #[case::colon(":", [tk::Colon])]
     //### mutating
     #[case::assign("=", [tk::Assign])]
+    #[case::complement_eq("~=", [tk::ComplementEq])]
+    #[case::sub_eq("-=", [tk::SubEq])]
+    #[case::add_eq("+=", [tk::AddEq])]
+    #[case::div_eq("/=", [tk::DivEq])]
+    #[case::mul_eq("*=", [tk::MulEq])]
+    #[case::modulo_eq("%=", [tk::ModuloEq])]
+    #[case::and_eq("&=", [tk::AndEq])]
+    #[case::or_eq("|=", [tk::OrEq])]
+    #[case::xor_eq("^=", [tk::XorEq])]
+    #[case::lshift_eq("<<=", [tk::LShiftEq])]
+    #[case::rshift_eq(">>=", [tk::RShiftEq])]
     #[case::decrement("--", [tk::Decrement])]
     #[case::increment("++", [tk::Increment])]
     //### logical
@@ -294,6 +370,8 @@ mod tests {
     #[case::ampersand("&", [tk::Ampersand])]
     #[case::pipe("|", [tk::Pipe])]
     #[case::up_arrow("^", [tk::UpArrow])]
+    #[case::lshift("<<", [tk::LShift])]
+    #[case::rshift(">>", [tk::RShift])]
     //## identifiers & keywords
     #[case::ident_a("a", [tk::Ident])]
     #[case::void("void", [tk::Void])]
