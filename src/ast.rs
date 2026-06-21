@@ -192,6 +192,10 @@ impl TokenKind {
         )
     }
 
+    pub fn is_postfix_op(&self) -> bool {
+        matches!(self, Self::Increment | Self::Decrement)
+    }
+
     #[must_use]
     pub fn is_ternary_op(&self) -> bool {
         matches!(self, Self::Question)
@@ -199,7 +203,7 @@ impl TokenKind {
 
     #[must_use]
     pub fn is_op(&self) -> bool {
-        self.is_unary_op() || self.is_binary_op() || self.is_ternary_op()
+        self.is_unary_op() || self.is_binary_op() || self.is_ternary_op() || self.is_postfix_op()
     }
 
     // TODO: this really should be a method of BinaryOp
@@ -358,7 +362,7 @@ impl Identifier {
     /// # use crustydrageon::ast::Identifier;
     /// assert_eq!(Identifier::is_ident(""), false);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn is_ident(s: &str) -> bool {
         cov_mark::hit!(ast_is_ident);
 
@@ -380,7 +384,7 @@ impl Identifier {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn span(&self) -> &Span {
         &self.span
     }
@@ -565,11 +569,52 @@ impl Display for BinOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub enum PostOpKind {
+    Increment,
+    Decrement,
+}
+
+impl Display for PostOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Increment => "++",
+                Self::Decrement => "--",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct PostOp {
+    pub kind: PostOpKind,
+    pub span: Span,
+}
+
+impl PartialEq for PostOp {
+    /// Tests if `self` and `other` are equal, excluding this node's source [`span`](PostOp::span).
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Display for PostOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.kind, f)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExprKind {
     Const(i32),
     Var(Identifier),
     Unary(UnOp, Box<Expr>),
     Binary(BinOp, Box<Expr>, Box<Expr>),
+    Post(PostOp, Box<Expr>),
     Cond(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
@@ -580,6 +625,7 @@ impl Display for ExprKind {
             Self::Var(id) => write!(f, "{}", id.source_name()),
             Self::Unary(op, expr) => write!(f, "{op}{expr}"),
             Self::Binary(op, a, b) => write!(f, "{a} {op} {b}"),
+            Self::Post(op, expr) => write!(f, "{expr}{op}"),
             Self::Cond(cond, if_true, if_false) => write!(f, "{cond} ? {if_true} : {if_false}"),
         }
     }
@@ -689,7 +735,7 @@ pub struct Block {
 }
 
 impl Block {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
@@ -707,7 +753,7 @@ impl Block {
     /// Check if the block is empty.
     ///
     /// Equivalent to [`Vec<BlockItem>::is_empty`].
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
