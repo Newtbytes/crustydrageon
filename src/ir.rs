@@ -280,7 +280,19 @@ impl TryFrom<ast::BinOpKind> for BinaryOp {
             ast::BinOpKind::Xor => Ok(Self::Xor),
             ast::BinOpKind::LShift => Ok(Self::Ashl),
             ast::BinOpKind::RShift => Ok(Self::Ashr),
-            ast::BinOpKind::Assign | ast::BinOpKind::And | ast::BinOpKind::Or => Err(()), // handled separately in lower_expr
+            ast::BinOpKind::Assign
+            | ast::BinOpKind::And
+            | ast::BinOpKind::Or
+            | ast::BinOpKind::AssignAdd
+            | ast::BinOpKind::AssignSub
+            | ast::BinOpKind::AssignMul
+            | ast::BinOpKind::AssignDiv
+            | ast::BinOpKind::AssignModulo
+            | ast::BinOpKind::AssignAnd
+            | ast::BinOpKind::AssignOr
+            | ast::BinOpKind::AssignXor
+            | ast::BinOpKind::AssignLShift
+            | ast::BinOpKind::AssignRShift => Err(()), // handled separately in lower_expr
         }
     }
 }
@@ -428,24 +440,33 @@ pub fn lower_expr(ops: &mut Vec<Operation>, expr: ast::Expr) -> Value {
 
             result
         }
-        ast::ExprKind::Binary(op, dst, src) if op.kind == ast::BinOpKind::Assign => {
+        ast::ExprKind::Binary(op, dst, src) if op.kind.is_assignment() => {
             let dst = lower_expr(ops, *dst);
             let src = lower_expr(ops, *src);
+            let tmp = Value::new_var();
 
-            ops.push(Operation::Copy {
-                src,
-                dst: dst.clone(),
-            });
+            ops.extend([
+                Operation::Binary {
+                    op: BinaryOp::try_from(op.kind.to_assigning_op()).unwrap(),
+                    a: src,
+                    b: dst.clone(),
+                    dst: tmp.clone(),
+                },
+                Operation::Copy {
+                    src: tmp,
+                    dst: dst.clone(),
+                },
+            ]);
 
             dst
         }
-        ast::ExprKind::Binary(binary_op, a, b) => {
+        ast::ExprKind::Binary(op, a, b) => {
             let a = lower_expr(ops, *a);
             let b = lower_expr(ops, *b);
             let dst = Value::new_var();
 
             ops.push(Operation::Binary {
-                op: BinaryOp::try_from(binary_op).unwrap(),
+                op: BinaryOp::try_from(op).unwrap(),
                 a,
                 b,
                 dst: dst.clone(),

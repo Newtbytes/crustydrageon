@@ -284,6 +284,25 @@ impl TokenKind {
             _ => return None,
         }))
     }
+
+    // TODO: write docs
+    pub fn is_assignment(&self) -> bool {
+        matches!(
+            self,
+            Self::Assign
+                | Self::ComplementEq
+                | Self::SubEq
+                | Self::AddEq
+                | Self::DivEq
+                | Self::MulEq
+                | Self::ModuloEq
+                | Self::AndEq
+                | Self::OrEq
+                | Self::XorEq
+                | Self::LShiftEq
+                | Self::RShiftEq,
+        )
+    }
 }
 
 /// A single lexical unit, comprised of a [kind](Token::kind) and a [lexeme](Token::lexeme).
@@ -553,6 +572,53 @@ pub enum BinOpKind {
 
     // Assignment
     Assign,
+    AssignAdd,
+    AssignSub,
+    AssignMul,
+    AssignDiv,
+    AssignModulo,
+    AssignAnd,
+    AssignOr,
+    AssignXor,
+    AssignLShift,
+    AssignRShift,
+}
+
+impl BinOpKind {
+    // TODO: write docs
+    pub fn is_assignment(&self) -> bool {
+        matches!(
+            self,
+            Self::Assign
+                | Self::AssignAdd
+                | Self::AssignSub
+                | Self::AssignMul
+                | Self::AssignDiv
+                | Self::AssignModulo
+                | Self::AssignAnd
+                | Self::AssignOr
+                | Self::AssignXor
+                | Self::AssignLShift
+                | Self::AssignRShift
+        )
+    }
+
+    // TODO: write docs
+    pub fn to_assigning_op(self) -> Self {
+        match self {
+            Self::AssignAdd => Self::Add,
+            Self::AssignSub => Self::Subtract,
+            Self::AssignMul => Self::Multiply,
+            Self::AssignDiv => Self::Divide,
+            Self::AssignModulo => Self::Modulo,
+            Self::AssignAnd => Self::BitAnd,
+            Self::AssignOr => Self::BitOr,
+            Self::AssignXor => Self::Xor,
+            Self::AssignLShift => Self::LShift,
+            Self::AssignRShift => Self::RShift,
+            other => other,
+        }
+    }
 }
 
 impl Display for BinOpKind {
@@ -580,6 +646,16 @@ impl Display for BinOpKind {
                 Self::LShift => "<<",
                 Self::RShift => ">>",
                 Self::Assign => "=",
+                Self::AssignAdd => "+=",
+                Self::AssignSub => "-=",
+                Self::AssignMul => "*=",
+                Self::AssignDiv => "/=",
+                Self::AssignModulo => "%=",
+                Self::AssignAnd => "&=",
+                Self::AssignOr => "|=",
+                Self::AssignXor => "^=",
+                Self::AssignLShift => "<<=",
+                Self::AssignRShift => ">>=",
             }
         )
     }
@@ -1109,6 +1185,19 @@ mod tests {
                     kind
                 );
             }
+
+            #[test]
+            fn compound_assigns_have_assigning_op(kind: BinOpKind) {
+                prop_assert_eq!(kind.is_assignment() && kind != BinOpKind::Assign, kind.to_assigning_op() != kind);
+            }
+
+            #[test]
+            fn tok_kind_is_assignment_implies_binop(kind: TokenKind) {
+                prop_assume!(kind.is_assignment());
+                prop_assert!(kind.is_binary_op());
+            }
+
+            // TODO: test that all assignment tokens can be parsed into assignment binops
         }
     }
 

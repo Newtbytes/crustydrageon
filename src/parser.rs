@@ -168,6 +168,16 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
                 TokenKind::LShift => BinOpKind::LShift,
                 TokenKind::RShift => BinOpKind::RShift,
                 TokenKind::Assign => BinOpKind::Assign,
+                TokenKind::SubEq => BinOpKind::AssignSub,
+                TokenKind::AddEq => BinOpKind::AssignAdd,
+                TokenKind::DivEq => BinOpKind::AssignDiv,
+                TokenKind::MulEq => BinOpKind::AssignMul,
+                TokenKind::ModuloEq => BinOpKind::AssignModulo,
+                TokenKind::AndEq => BinOpKind::AssignAnd,
+                TokenKind::OrEq => BinOpKind::AssignOr,
+                TokenKind::XorEq => BinOpKind::AssignXor,
+                TokenKind::LShiftEq => BinOpKind::AssignLShift,
+                TokenKind::RShiftEq => BinOpKind::AssignRShift,
                 kind if kind.is_binary_op() => {
                     todo!("parsing binary operator of kind {:?}", kind)
                 }
@@ -198,7 +208,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         while (next_kind.is_binary_op() || next_kind.is_ternary_op())
             && next_kind.precedence() >= Some(min_prec)
         {
-            if next_kind == TokenKind::Assign {
+            if next_kind.is_assignment() {
                 // parse assignment operators as right-associative
                 let op = self.parse_binary_op()?;
                 assert_eq!(op.kind, BinOpKind::Assign);
@@ -477,6 +487,8 @@ mod tests {
         use super::*;
 
         // TODO: unit test comparison operators
+
+        // TODO: unit test assignment operators
 
         #[template]
         #[rstest]
