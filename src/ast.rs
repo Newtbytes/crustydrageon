@@ -102,6 +102,17 @@ pub enum TokenKind {
     /// `return`
     Return,
 
+    /// `do`,
+    Do,
+    /// `while`,
+    While,
+    /// `for`,
+    For,
+    /// `break`,
+    Break,
+    /// `continue`,
+    Continue,
+
     #[cfg_attr(test, proptest(skip))]
     EOF,
     #[cfg_attr(test, proptest(value = "TokenKind::Error(\"test error\")"))]
@@ -358,7 +369,7 @@ impl Identifier {
     /// # use crustydrageon::ast::Identifier;
     /// assert_eq!(Identifier::is_ident(""), false);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn is_ident(s: &str) -> bool {
         cov_mark::hit!(ast_is_ident);
 
@@ -376,11 +387,16 @@ impl Identifier {
             "return" => TokenKind::Return,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
+            "do" => TokenKind::Do,
+            "while" => TokenKind::While,
+            "for" => TokenKind::For,
+            "break" => TokenKind::Break,
+            "Continue" => TokenKind::Continue,
             _ => TokenKind::Ident,
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn span(&self) -> &Span {
         &self.span
     }
@@ -689,7 +705,7 @@ pub struct Block {
 }
 
 impl Block {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
@@ -707,7 +723,7 @@ impl Block {
     /// Check if the block is empty.
     ///
     /// Equivalent to [`Vec<BlockItem>::is_empty`].
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -964,6 +980,11 @@ pub mod strategy {
                         TokenKind::Int => "int",
                         TokenKind::Void => "void",
                         TokenKind::Return => "return",
+                        TokenKind::Do => "do",
+                        TokenKind::While => "while",
+                        TokenKind::For => "for",
+                        TokenKind::Break => "break",
+                        TokenKind::Continue => "continue",
                         TokenKind::Ampersand => "&",
                         TokenKind::Pipe => "\\|",
                         TokenKind::UpArrow => "\\^",
