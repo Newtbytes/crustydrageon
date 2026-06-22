@@ -73,6 +73,28 @@ pub enum TokenKind {
     /// `:`
     Colon,
 
+    /// `~=`
+    ComplementEq,
+    /// `-=`
+    SubEq,
+    /// `+=`
+    AddEq,
+    /// `/=`
+    DivEq,
+    /// `*=`
+    MulEq,
+    /// `%=`
+    ModuloEq,
+    /// `&=`
+    AndEq,
+    /// `|=`
+    OrEq,
+    /// `^=`
+    XorEq,
+    /// `<<=`
+    LShiftEq,
+    /// `>>=`
+    RShiftEq,
     /// `--`
     Decrement,
     /// `++`
@@ -189,6 +211,17 @@ impl TokenKind {
                 | tk::LShift
                 | tk::RShift
                 | tk::Assign
+                | tk::ComplementEq
+                | tk::SubEq
+                | tk::AddEq
+                | tk::DivEq
+                | tk::MulEq
+                | tk::ModuloEq
+                | tk::AndEq
+                | tk::OrEq
+                | tk::XorEq
+                | tk::LShiftEq
+                | tk::RShiftEq
         )
     }
 
@@ -235,7 +268,18 @@ impl TokenKind {
             tk::And => 10,
             tk::Or => 5,
             tk::Question => 3,
-            tk::Assign => 1,
+            tk::Assign
+            | tk::ComplementEq
+            | tk::SubEq
+            | tk::AddEq
+            | tk::DivEq
+            | tk::MulEq
+            | tk::ModuloEq
+            | tk::AndEq
+            | tk::OrEq
+            | tk::XorEq
+            | tk::LShiftEq
+            | tk::RShiftEq => 1,
             kind if self.is_binary_op() => todo!("precedence value of {:?} binary operator", kind),
             _ => return None,
         }))
@@ -358,7 +402,7 @@ impl Identifier {
     /// # use crustydrageon::ast::Identifier;
     /// assert_eq!(Identifier::is_ident(""), false);
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn is_ident(s: &str) -> bool {
         cov_mark::hit!(ast_is_ident);
 
@@ -380,7 +424,7 @@ impl Identifier {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn span(&self) -> &Span {
         &self.span
     }
@@ -689,7 +733,7 @@ pub struct Block {
 }
 
 impl Block {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
@@ -707,7 +751,7 @@ impl Block {
     /// Check if the block is empty.
     ///
     /// Equivalent to [`Vec<BlockItem>::is_empty`].
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
@@ -974,6 +1018,17 @@ pub mod strategy {
                         TokenKind::Colon => ":",
                         TokenKind::If => "if",
                         TokenKind::Else => "else",
+                        TokenKind::ComplementEq => "~=",
+                        TokenKind::SubEq => "-=",
+                        TokenKind::AddEq => "\\+=",
+                        TokenKind::DivEq => "\\/=",
+                        TokenKind::MulEq => "\\*=",
+                        TokenKind::ModuloEq => "%=",
+                        TokenKind::AndEq => "&=",
+                        TokenKind::OrEq => "\\|=",
+                        TokenKind::XorEq => "\\^=",
+                        TokenKind::LShiftEq => "<<=",
+                        TokenKind::RShiftEq => ">>=",
                         TokenKind::EOF => "",
                         TokenKind::Error(_) => "",
                     };
