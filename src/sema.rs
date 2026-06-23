@@ -143,6 +143,11 @@ impl VariableResolver {
             }
             Stmt::Compound(block) => self.resolve_block(block)?,
             Stmt::Null => (),
+            Stmt::Break(label) => todo!(),
+            Stmt::Continue(label) => todo!(),
+            Stmt::While(cond, stmt, label) => todo!(),
+            Stmt::DoWhile(stmt, cond, label) => todo!(),
+            Stmt::For(init, cond, post, stmt, label) => todo!(),
         }
 
         Ok(())

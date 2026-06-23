@@ -7,7 +7,7 @@ use std::{
 
 use contracts::{debug_requires, requires};
 use cov_mark;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 #[cfg(test)]
 use proptest::prelude::*;
 #[cfg(test)]
@@ -623,6 +623,9 @@ impl Display for Expr {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct LoopLabel(String);
+
 /// Statement node.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Stmt {
@@ -630,6 +633,19 @@ pub enum Stmt {
     Return(Expr),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Compound(Block),
+    Break(Option<LoopLabel>),
+    Continue(Option<LoopLabel>),
+    While(Expr, Box<Stmt>, Option<LoopLabel>),
+    DoWhile(Box<Stmt>, Expr, Option<LoopLabel>),
+    For(
+        Either<Decl, Option<Expr>>,
+        Option<Expr>,
+        Option<Expr>,
+        Box<Stmt>,
+        /* daun says "^8-94" should go here.
+        he's wrong i think */
+        Option<LoopLabel>,
+    ),
     /// Null statement
     Null,
 }
@@ -648,6 +664,11 @@ impl Display for Stmt {
             }
             Self::Compound(block) => write!(f, "{block}"),
             Self::Null => write!(f, ";"),
+            Self::Break(_) => write!(f, "break"),
+            Self::Continue(_) => write!(f, "continue"),
+            Self::While(expr, stmt, label) => todo!(),
+            Self::DoWhile(stmt, expr, label) => todo!(),
+            Self::For(init, cond, post, stmt, label) => todo!(),
         }
     }
 }

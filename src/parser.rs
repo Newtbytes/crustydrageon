@@ -1,5 +1,7 @@
 use std::iter;
 
+use either::Either;
+
 use crate::{
     ast::{
         BinOp, BinOpKind, Block, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
@@ -322,6 +324,58 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         } else if self.check(TokenKind::LBrace) {
             let block = self.parse_block()?;
             Ok(Stmt::Compound(block))
+        } else if self.check(TokenKind::Break) {
+            self.expect(TokenKind::Break)?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Break(None))
+        } else if self.check(TokenKind::Continue) {
+            self.expect(TokenKind::Continue)?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Continue(None))
+        } else if self.check(TokenKind::While) {
+            self.expect(TokenKind::While)?;
+            self.expect(TokenKind::LParen)?;
+            let cond = self.parse_expr(Default::default())?;
+            self.expect(TokenKind::RParen)?;
+
+            let stmt = self.parse_stmt()?;
+
+            Ok(Stmt::While(cond, Box::new(stmt), None))
+        } else if self.check(TokenKind::Do) {
+            self.expect(TokenKind::Do)?;
+            let stmt = self.parse_stmt()?;
+            self.expect(TokenKind::While)?;
+
+            self.expect(TokenKind::LParen)?;
+            let cond = self.parse_expr(Default::default())?;
+            self.expect(TokenKind::RParen)?;
+
+            self.expect(TokenKind::Semicolon)?;
+
+            Ok(Stmt::DoWhile(Box::new(stmt), cond, None))
+        } else if self.check(TokenKind::For) {
+            self.expect(TokenKind::For)?;
+            self.expect(TokenKind::LParen)?;
+
+            // parse the initializer
+            let init = if self.check(TokenKind::Int) {
+                Either::Left(self.parse_decl()?)
+            } else {
+                Either::Right(self.parse_expr(Default::default()).ok())
+            };
+            self.expect(TokenKind::Semicolon)?;
+
+            // parse the condition
+            let cond = self.parse_expr(Default::default()).ok();
+            self.expect(TokenKind::Semicolon)?;
+
+            // parse the post expr
+            let post = self.parse_expr(Default::default()).ok();
+            self.expect(TokenKind::RParen)?;
+
+            let stmt = self.parse_stmt()?;
+
+            Ok(Stmt::For(init, cond, post, Box::new(stmt), None))
         } else if self.check(TokenKind::Semicolon) {
             self.expect(TokenKind::Semicolon)?;
             Ok(Stmt::Null)

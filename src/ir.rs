@@ -527,6 +527,11 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
             ops.push(Operation::Label(end));
         }
         ast::Stmt::Compound(block) => lower_block(ops, block),
+        ast::Stmt::Break(label) => todo!(),
+        ast::Stmt::Continue(label) => todo!(),
+        ast::Stmt::While(cond, stmt, label) => todo!(),
+        ast::Stmt::DoWhile(stmt, cond, label) => todo!(),
+        ast::Stmt::For(init, cond, post, stmt, label) => todo!(),
     }
 
     cov_mark::hit!(ir_stmt_lowered);
