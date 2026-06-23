@@ -158,6 +158,6 @@ mod tests {
     #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
     fn test_resolve_expr_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
         resolver.visit_expr(&mut expr);
-        assert!(resolver.errs.len() > 0);
+        assert!(!resolver.errs.is_empty());
     }
 }
