@@ -16,7 +16,7 @@ macro_rules! visitor_trait {
     };
 
     (@accept $self:ident $child:ident) => {
-        MutVisitable::accept($child, $self)
+        $child.accept($self)
     };
 
     (@accept leaf $self:ident $child:ident) => {
