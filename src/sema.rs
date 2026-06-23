@@ -10,7 +10,7 @@ use crate::{
     src,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ResolveError {
     InvalidLvalue(src::Span),
     DuplicateDecl(src::Span),
@@ -138,21 +138,26 @@ impl MutVisitor for VariableResolver {
 pub fn resolve(prg: &mut Program) -> ResolveResult<()> {
     let mut resolver = VariableResolver::new();
     prg.accept(&mut resolver);
-    Ok(())
+
+    resolver.errs.first().cloned().map_or(Ok(()), Err)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_resolve_invalid_lvalue() {
-        let mut resolver = VariableResolver::new();
-        resolver.visit_expr(&mut Expr::binary(
-            BinOpKind::Assign,
-            Expr::constant(5),
-            Expr::var(""),
-        ));
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    fn resolver() -> VariableResolver {
+        VariableResolver::new()
+    }
+
+    #[rstest]
+    #[case::invalid_lvalue(Expr::binary(BinOpKind::Assign, Expr::constant(5), Expr::var(""),))]
+    #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
+    fn test_resolve_expr_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
+        resolver.visit_expr(&mut expr);
         assert!(resolver.errs.len() > 0);
     }
 }
