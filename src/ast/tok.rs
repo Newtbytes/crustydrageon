@@ -93,8 +93,6 @@ pub enum TokenKind {
     /// `return`
     Return,
 
-    #[cfg_attr(test, proptest(skip))]
-    EOF,
     #[cfg_attr(test, proptest(value = "TokenKind::Error(\"test error\")"))]
     Error(&'static str),
 }

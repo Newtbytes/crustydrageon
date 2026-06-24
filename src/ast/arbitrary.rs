@@ -148,7 +148,6 @@ impl Arbitrary for Token {
                     TokenKind::Colon => ":",
                     TokenKind::If => "if",
                     TokenKind::Else => "else",
-                    TokenKind::EOF => "",
                     TokenKind::Error(_) => "",
                 };
                 (

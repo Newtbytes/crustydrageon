@@ -87,7 +87,7 @@ struct Parser<I: Iterator<Item = Token>> {
 }
 
 impl<I: iter::Iterator<Item = Token>> Parser<I> {
-    fn take(&mut self) -> ParseResult<Token> {
+    fn eat(&mut self) -> ParseResult<Token> {
         let token = self.tokens.next().ok_or(ParserError::UnexpectedEOF)?;
 
         if let TokenKind::Error(msg) = token.kind() {
@@ -97,33 +97,27 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         }
     }
 
-    fn peek(&mut self) -> &Token {
-        use std::sync;
+    fn one_ahead(&mut self) -> Option<&Token> {
+        self.tokens.peek()
+    }
 
-        // FIXME: hacky way to return a ref without creating a temporary
-        static EOF: sync::LazyLock<Token> =
-            sync::LazyLock::new(|| Token::new(TokenKind::EOF, src::Span::default()));
-
-        match self.tokens.peek() {
-            Some(t) => t,
-            None => &EOF,
-        }
+    fn one_ahead_or_err(&mut self) -> ParseResult<&Token> {
+        self.one_ahead().ok_or(ParserError::UnexpectedEOF)
     }
 
     fn expect(&mut self, expected: TokenKind) -> ParseResult<Token> {
-        match self.take()? {
+        match self.eat()? {
             token if token.kind() == expected => Ok(token),
-            token if token.kind() == TokenKind::EOF => Err(ParserError::UnexpectedEOF),
             actual => Err(ParserError::ExpectedToken { expected, actual }),
         }
     }
 
     fn check(&mut self, kind: TokenKind) -> bool {
-        self.peek().kind() == kind
+        self.one_ahead().map(Token::kind) == Some(kind)
     }
 
     fn parse_unary_op(&mut self) -> ParseResult<UnOp> {
-        let tok = self.take()?;
+        let tok = self.eat()?;
 
         Ok(UnOp {
             kind: match tok.kind() {
@@ -145,7 +139,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_binary_op(&mut self) -> ParseResult<BinOp> {
-        let tok = self.take()?;
+        let tok = self.eat()?;
 
         Ok(BinOp {
             kind: match tok.kind() {
@@ -183,7 +177,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_block_item(&mut self) -> ParseResult<BlockItem> {
-        Ok(if self.peek().kind() == TokenKind::Int {
+        Ok(if self.check(TokenKind::Int) {
             BlockItem::Decl(self.parse_decl()?)
         } else {
             BlockItem::Stmt(self.parse_stmt()?)
@@ -193,9 +187,8 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     fn parse_expr(&mut self, min_prec: Precedence) -> ParseResult<Expr> {
         let mut left = self.parse_factor()?;
 
-        let mut next_kind = self.peek().kind();
-
-        while (next_kind.is_binary_op() || next_kind.is_ternary_op())
+        while let Some(next_kind) = self.one_ahead().map(Token::kind)
+            && (next_kind.is_binary_op() || next_kind.is_ternary_op())
             && next_kind.precedence() >= Some(min_prec)
         {
             if next_kind == TokenKind::Assign {
@@ -218,7 +211,6 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
                 left.kind = ExprKind::Binary(op, Box::new(left.clone()), Box::new(right));
             }
-            next_kind = self.peek().kind();
         }
 
         if min_prec == Precedence::default() {
@@ -239,7 +231,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn parse_factor(&mut self) -> ParseResult<Expr> {
-        let expr = match self.peek().kind() {
+        let expr = match self.one_ahead_or_err()?.kind() {
             TokenKind::Constant => {
                 let constant = self.expect(TokenKind::Constant)?;
                 let expr =
@@ -287,7 +279,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             _ => {
                 return Err(ParserError::ExpectedString {
                     expected: "factor",
-                    actual: self.take()?,
+                    actual: self.eat()?,
                 });
             }
         };
@@ -337,7 +329,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
         let name = self.parse_identifier()?;
 
-        let init = if self.peek().kind() == TokenKind::Semicolon {
+        let init = if self.one_ahead_or_err()?.kind() == TokenKind::Semicolon {
             None
         } else {
             self.expect(TokenKind::Assign)?;
@@ -361,7 +353,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         let block_start = self.expect(TokenKind::LBrace)?;
 
         let mut block = Block::new();
-        while self.peek().kind() != TokenKind::RBrace {
+        while self.one_ahead_or_err()?.kind() != TokenKind::RBrace {
             block.push(self.parse_block_item()?);
         }
 
