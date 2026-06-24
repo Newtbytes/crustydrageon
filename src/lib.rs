@@ -3,6 +3,7 @@ pub mod cli;
 mod diag;
 pub mod driver;
 mod error;
+pub mod graph;
 pub mod ir;
 pub mod lexer;
 pub mod parser;

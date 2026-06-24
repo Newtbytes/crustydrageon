@@ -46,7 +46,7 @@ fn expected_status(src: &str) -> Result<Option<i32>, Box<dyn Error>> {
 
 /// Run a program and compare its output to the CHECK directives defined in its source code
 fn check_program(src: &str, out: &Path) -> Result<(), Box<dyn Error>> {
-    if let Some(expected_status) = expected_status(&src)? {
+    if let Some(expected_status) = expected_status(src)? {
         let actual_status = process::Command::new(out).status()?.code();
 
         assert_eq!(actual_status, Some(expected_status));
