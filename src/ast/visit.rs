@@ -49,6 +49,15 @@ pub trait MutWalkable {
     fn walk<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V);
 }
 
+impl<T: MutVisitable, U: MutVisitable> MutVisitable for Either<T, U> {
+    fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
+        match self {
+            Self::Left(l) => l.accept(visitor),
+            Self::Right(r) => r.accept(visitor),
+        }
+    }
+}
+
 impl MutVisitable for Expr {
     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         visitor.visit_expr(self);
