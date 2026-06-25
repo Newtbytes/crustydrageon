@@ -128,6 +128,22 @@ impl MutVisitor for VariableResolver {
         d.walk(self);
     }
 
+    fn visit_for_stmt(
+        &mut self,
+        init: &mut either::Either<Decl, Option<Expr>>,
+        cond: &mut Option<Expr>,
+        post: &mut Option<Expr>,
+        stmt: &mut Box<Stmt>,
+        _label: &mut Option<crate::ast::LoopLabel>,
+    ) {
+        self.ctx.begin_scope();
+        init.accept(self);
+        cond.accept(self);
+        post.accept(self);
+        stmt.accept(self);
+        self.ctx.end_scope();
+    }
+
     fn visit_block(&mut self, b: &mut Block) {
         self.ctx.begin_scope();
         b.walk(self);
