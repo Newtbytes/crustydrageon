@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 
 use crate::{
-    ast::{BinOpKind, Block, Decl, Expr, ExprKind, Function, Program, Stmt},
+    ast::{
+        BinOpKind, Block, Decl, Expr, ExprKind, Program,
+        visit::{MutVisitable, MutVisitor},
+    },
     diag::Annotation,
     ir::VarID,
     src,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ResolveError {
     InvalidLvalue(src::Span),
     DuplicateDecl(src::Span),
@@ -72,128 +75,89 @@ impl EnvCtx {
 
 struct VariableResolver {
     ctx: EnvCtx,
+    errs: Vec<ResolveError>,
 }
 
 impl VariableResolver {
     pub fn new() -> Self {
-        Self { ctx: EnvCtx::new() }
+        Self {
+            ctx: EnvCtx::new(),
+            errs: Vec::new(),
+        }
     }
 
-    fn resolve_expr(&mut self, expr: &mut Expr) -> ResolveResult<()> {
-        let kind = &mut expr.kind;
-        match kind {
-            ExprKind::Var(id) => {
-                if let Some(renamed) = self.ctx.get(id.value()) {
-                    id.rename(renamed.clone());
-                } else {
-                    return Err(ResolveError::UnknownVar(id.span().clone()));
-                }
-            }
-            ExprKind::Unary(_, expr) => self.resolve_expr(expr)?,
-            ExprKind::Binary(op, a, b) => {
-                if op.kind == BinOpKind::Assign && !matches!(a.kind, ExprKind::Var(_)) {
-                    return Err(ResolveError::InvalidLvalue(a.span.clone()));
-                }
-                self.resolve_expr(a)?;
-                self.resolve_expr(b)?;
-            }
-            ExprKind::Cond(cond, if_true, if_false) => {
-                self.resolve_expr(cond)?;
-                self.resolve_expr(if_true)?;
-                self.resolve_expr(if_false)?;
-            }
-            ExprKind::Const(_) => (),
+    fn emit_err(&mut self, e: ResolveError) {
+        self.errs.push(e);
+    }
+}
+
+impl MutVisitor for VariableResolver {
+    fn visit_var(&mut self, id: &mut crate::ast::Identifier) {
+        if let Some(renamed) = self.ctx.get(id.value()) {
+            id.rename(renamed.clone());
+        } else {
+            self.emit_err(ResolveError::UnknownVar(id.span().clone()));
+        }
+    }
+
+    fn visit_binary(&mut self, op: &mut crate::ast::BinOp, a: &mut Expr, b: &mut Expr) {
+        if op.kind == BinOpKind::Assign && !matches!(a.kind, ExprKind::Var(_)) {
+            self.emit_err(ResolveError::InvalidLvalue(a.span.clone()));
         }
 
-        Ok(())
+        a.accept(self);
+        b.accept(self);
     }
 
-    fn resolve_decl(&mut self, decl: &mut Decl) -> ResolveResult<()> {
+    fn visit_decl(&mut self, d: &mut Decl) {
         if self
             .ctx
             .scopes
             .last()
             .expect("resolving declarations should always happen after a scope has started")
-            .contains_key(decl.name.value())
+            .contains_key(d.name.value())
         {
-            return Err(ResolveError::DuplicateDecl(decl.span.clone()));
+            self.emit_err(ResolveError::DuplicateDecl(d.span.clone()));
         }
 
-        let prev_name = decl.name.value().to_owned();
+        let prev_name = d.name.value().to_owned();
         let curr_name = format!("{prev_name}.{}", VarID::new());
-        decl.name.rename(curr_name.clone());
+        d.name.rename(curr_name.clone());
         self.ctx.insert(prev_name, curr_name);
 
-        if let Some(expr) = &mut decl.init {
-            self.resolve_expr(expr)?;
-        }
-
-        Ok(())
+        d.accept(self);
     }
 
-    fn resolve_stmt(&mut self, stmt: &mut Stmt) -> ResolveResult<()> {
-        match stmt {
-            Stmt::Return(expr) | Stmt::Expr(expr) => self.resolve_expr(expr)?,
-            Stmt::If(cond, if_true, if_false) => {
-                self.resolve_expr(cond)?;
-                self.resolve_stmt(if_true)?;
-                if let Some(if_false) = if_false {
-                    self.resolve_stmt(if_false)?;
-                }
-            }
-            Stmt::Compound(block) => self.resolve_block(block)?,
-            Stmt::Null => (),
-            Stmt::Break(label) => todo!(),
-            Stmt::Continue(label) => todo!(),
-            Stmt::While(cond, stmt, label) => todo!(),
-            Stmt::DoWhile(stmt, cond, label) => todo!(),
-            Stmt::For(init, cond, post, stmt, label) => todo!(),
-        }
-
-        Ok(())
-    }
-
-    fn resolve_block(&mut self, block: &mut Block) -> ResolveResult<()> {
+    fn visit_block(&mut self, b: &mut Block) {
         self.ctx.begin_scope();
-
-        for item in block.iter_mut() {
-            match item {
-                crate::ast::BlockItem::Stmt(stmt) => self.resolve_stmt(stmt)?,
-                crate::ast::BlockItem::Decl(decl) => self.resolve_decl(decl)?,
-            }
-        }
-
+        b.accept(self);
         self.ctx.end_scope();
-
-        Ok(())
-    }
-
-    fn resolve_function(&mut self, func: &mut Function) -> ResolveResult<()> {
-        self.resolve_block(&mut func.body)
-    }
-
-    fn resolve_program(&mut self, prg: &mut Program) -> ResolveResult<()> {
-        self.resolve_function(&mut prg.body)
     }
 }
 
 pub fn resolve(prg: &mut Program) -> ResolveResult<()> {
     let mut resolver = VariableResolver::new();
-    resolver.resolve_program(prg)
+    prg.accept(&mut resolver);
+
+    resolver.errs.first().cloned().map_or(Ok(()), Err)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_resolve_invalid_lvalue() {
+    use rstest::{fixture, rstest};
+
+    #[fixture]
+    fn resolver() -> VariableResolver {
         VariableResolver::new()
-            .resolve_expr(&mut Expr::binary(
-                BinOpKind::Assign,
-                Expr::constant(5),
-                Expr::var(""),
-            ))
-            .unwrap_err();
+    }
+
+    #[rstest]
+    #[case::invalid_lvalue(Expr::binary(BinOpKind::Assign, Expr::constant(5), Expr::var(""),))]
+    #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
+    fn test_resolve_expr_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
+        resolver.visit_expr(&mut expr);
+        assert!(!resolver.errs.is_empty());
     }
 }

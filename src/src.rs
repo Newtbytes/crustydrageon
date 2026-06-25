@@ -97,7 +97,7 @@ impl Span {
     ///
     /// assert!(subspan.is_empty());
     /// ```
-    #[must_use] 
+    #[must_use]
     pub fn empty_at(&self, index: usize) -> Option<Self> {
         self.subspan(index, index)
     }

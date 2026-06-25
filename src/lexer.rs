@@ -463,7 +463,7 @@ mod tests {
         fn test_tokenize_round_trip(
             tokens in prop::collection::vec(
                 any::<Token>().prop_filter("is not EOF or error token", |tok| {
-                    !matches!(tok.kind(), tk::EOF | tk::Error(_))
+                    !matches!(tok.kind(), tk::Error(_))
                 }),
                 1..=10,
             )
