@@ -225,6 +225,20 @@ impl Display for Expr {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct LoopLabel(String);
 
+impl Deref for LoopLabel {
+    type Target = String;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for LoopLabel {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// Statement node.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Stmt {

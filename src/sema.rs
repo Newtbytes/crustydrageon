@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     ast::{
         BinOpKind, Block, Decl, Expr, ExprKind, Program,
-        visit::{MutVisitable, MutVisitor},
+        visit::{MutVisitable, MutVisitor, MutWalkable},
     },
     diag::Annotation,
     ir::VarID,
@@ -125,12 +125,12 @@ impl MutVisitor for VariableResolver {
         d.name.rename(curr_name.clone());
         self.ctx.insert(prev_name, curr_name);
 
-        d.accept(self);
+        d.walk(self);
     }
 
     fn visit_block(&mut self, b: &mut Block) {
         self.ctx.begin_scope();
-        b.accept(self);
+        b.walk(self);
         self.ctx.end_scope();
     }
 }
@@ -157,7 +157,7 @@ mod tests {
     #[case::invalid_lvalue(Expr::binary(BinOpKind::Assign, Expr::constant(5), Expr::var(""),))]
     #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
     fn test_resolve_expr_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
-        resolver.visit_expr(&mut expr);
+        expr.accept(&mut resolver);
         assert!(!resolver.errs.is_empty());
     }
 }
