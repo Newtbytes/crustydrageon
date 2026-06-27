@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        BinOpKind, Block, Decl, Expr, ExprKind, Program,
+        BinOpKind, Block, Decl, Expr, ExprKind, Program, Stmt,
         visit::{MutVisitable, MutVisitor, MutWalkable},
     },
     diag::Annotation,
@@ -133,7 +133,7 @@ impl MutVisitor for VariableResolver {
         init: &mut either::Either<Decl, Option<Expr>>,
         cond: &mut Option<Expr>,
         post: &mut Option<Expr>,
-        stmt: &mut Box<Stmt>,
+        stmt: &mut Stmt,
         _label: &mut Option<crate::ast::LoopLabel>,
     ) {
         self.ctx.begin_scope();
