@@ -185,7 +185,7 @@ impl MutWalkable for Stmt {
             Self::Expr(e) => e.accept(visitor),
             Self::Return(e) => visitor.visit_return_stmt(e),
             Self::If(c, t, f) => visitor.visit_if_stmt(c, t, f),
-            Self::Compound(block) => block.walk(visitor),
+            Self::Compound(block) => block.accept(visitor),
             Self::Break(l) => visitor.visit_break_stmt(l),
             Self::Continue(l) => visitor.visit_continue_stmt(l),
             Self::While(c, s, l) => visitor.visit_while_stmt(c, s, l),
