@@ -223,7 +223,7 @@ impl Display for Expr {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct LoopLabel(String);
+pub struct LoopLabel(pub String);
 
 impl Deref for LoopLabel {
     type Target = String;
@@ -261,6 +261,12 @@ pub enum Stmt {
     ),
     /// Null statement
     Null,
+}
+
+impl Stmt {
+    pub fn is_loop(&self) -> bool {
+        matches!(self, Self::For(..) | Self::While(..) | Self::DoWhile(..))
+    }
 }
 
 impl Display for Stmt {

@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use crate::{
     ast::{
-        BinOpKind, Block, Decl, Expr, ExprKind, Program, Stmt,
+        BinOpKind, Block, Decl, Expr, ExprKind, LoopLabel, Program, Stmt,
         visit::{MutVisitable, MutVisitor, MutWalkable},
     },
     diag::Annotation,
+    error::{CompilerError, CompilerResult},
     ir::VarID,
-    src,
+    src::{self, Source},
 };
 
 #[derive(Debug, Clone)]
@@ -151,11 +152,146 @@ impl MutVisitor for VariableResolver {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum LoopLabelingError {
+    BreakOutsideLoop(src::Span),
+    ContinueOutsideLoop(src::Span),
+}
+
+impl Annotation for LoopLabelingError {
+    fn span(&self) -> &src::Span {
+        match self {
+            Self::BreakOutsideLoop(span) | Self::ContinueOutsideLoop(span) => span,
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            Self::BreakOutsideLoop(_) => "break statement must be inside of a loop",
+            Self::ContinueOutsideLoop(_) => "continue statement must be inside of a loop",
+        }
+        .to_owned()
+    }
+}
+
+#[derive(Default)]
+struct LoopLabeler {
+    curr_loop_id: usize,
+    errs: Vec<LoopLabelingError>,
+}
+
+impl LoopLabeler {
+    pub fn new() -> Self {
+        Self {
+            curr_loop_id: Default::default(),
+            errs: Vec::new(),
+        }
+    }
+}
+
+impl LoopLabeler {
+    fn emit_err(&mut self, err: LoopLabelingError) {
+        self.errs.push(err);
+    }
+
+    fn inside_loop(&mut self) -> bool {
+        self.curr_loop_id > 0
+    }
+
+    fn start_loop(&mut self) -> LoopLabel {
+        self.curr_loop_id += 1;
+        self.current_label()
+    }
+
+    fn current_label(&self) -> LoopLabel {
+        LoopLabel(self.curr_loop_id.to_string())
+    }
+
+    fn end_loop(&mut self) {
+        assert_ne!(
+            self.curr_loop_id, 0,
+            "curr_loop_id is 0; loop should have been started before being ended"
+        );
+
+        self.curr_loop_id -= 1;
+    }
+}
+
+impl MutVisitor for LoopLabeler {
+    fn visit_stmt(&mut self, stmt: &mut Stmt) {
+        match stmt {
+            Stmt::Break(label) | Stmt::Continue(label) => {
+                if !self.inside_loop() {
+                    let span = src::Span::default(); // TODO: add a span field to Stmt
+                    self.emit_err(if matches!(stmt, Stmt::Break(..)) {
+                        LoopLabelingError::BreakOutsideLoop(span)
+                    } else {
+                        LoopLabelingError::ContinueOutsideLoop(span)
+                    })
+                } else {
+                    *label = Some(self.start_loop());
+                }
+            }
+            Stmt::While(cond, body, label) => {
+                *label = Some(self.start_loop());
+                self.visit_while_stmt(cond, body, label);
+                self.end_loop();
+            }
+            Stmt::DoWhile(body, cond, label) => {
+                *label = Some(self.start_loop());
+                self.visit_do_while_stmt(body, cond, label);
+                self.end_loop();
+            }
+            Stmt::For(init, cond, post, body, label) => {
+                *label = Some(self.start_loop());
+                self.visit_for_stmt(init, cond, post, body, label);
+                self.end_loop();
+            }
+            s if s.is_loop() => todo!("loop labeling for statement: {s}"),
+            _ => stmt.walk(self),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SemanticsError {
+    VariableResolution(ResolveError),
+    LoopLabeling(LoopLabelingError),
+}
+
+impl Annotation for SemanticsError {
+    fn span(&self) -> &src::Span {
+        match self {
+            Self::VariableResolution(err) => err.span(),
+            Self::LoopLabeling(err) => err.span(),
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            Self::VariableResolution(err) => err.message(),
+            Self::LoopLabeling(err) => err.message(),
+        }
+    }
+}
+
 pub fn resolve(prg: &mut Program) -> ResolveResult<()> {
     let mut resolver = VariableResolver::new();
     prg.accept(&mut resolver);
 
     resolver.errs.first().cloned().map_or(Ok(()), Err)
+}
+
+pub fn label_loops(prg: &mut Program) -> Result<(), LoopLabelingError> {
+    let mut labeler = LoopLabeler::new();
+    prg.accept(&mut labeler);
+
+    labeler.errs.first().cloned().map_or(Ok(()), Err)
+}
+
+pub fn analyze_semantics(src: &Source, prg: &mut Program) -> CompilerResult<()> {
+    resolve(prg).map_err(|e| CompilerError::SourceDiagnostic(src.clone(), Box::new(e)))?;
+    label_loops(prg).map_err(|e| CompilerError::SourceDiagnostic(src.clone(), Box::new(e)))
 }
 
 #[cfg(test)]
@@ -169,11 +305,23 @@ mod tests {
         VariableResolver::new()
     }
 
+    #[fixture]
+    fn labeler() -> LoopLabeler {
+        LoopLabeler::new()
+    }
+
     #[rstest]
     #[case::invalid_lvalue(Expr::binary(BinOpKind::Assign, Expr::constant(5), Expr::var(""),))]
     #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
     fn test_resolve_expr_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
         expr.accept(&mut resolver);
         assert!(!resolver.errs.is_empty());
+    }
+
+    #[rstest]
+    #[case::break_outside_loop(Stmt::If(Expr::constant(1), Box::new(Stmt::Break(None)), None))]
+    fn test_loop_labeling_stmt_err(mut labeler: LoopLabeler, #[case] mut stmt: Stmt) {
+        stmt.accept(&mut labeler);
+        assert!(!labeler.errs.is_empty());
     }
 }

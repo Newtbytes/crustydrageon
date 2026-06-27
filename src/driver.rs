@@ -273,7 +273,7 @@ pub fn compile(
         return Ok(None);
     }
 
-    sema::resolve(&mut ast).map_err(|e| CompilerError::SourceDiagnostic(src, Box::new(e)))?;
+    sema::analyze_semantics(&src, &mut ast)?;
 
     if verbose || stop_at == Some(CompilerStage::Validate) {
         println!("{ast:#?}");
