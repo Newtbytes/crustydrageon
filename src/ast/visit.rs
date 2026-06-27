@@ -88,14 +88,6 @@ impl MutWalkable for ExprKind {
     }
 }
 
-// impl MutVisitable for Option<Box<Stmt>> {
-//     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
-//         if let Some(stmt) = self {
-//             visitor.visit_stmt(stmt);
-//         }
-//     }
-// }
-
 impl<T: MutWalkable> MutWalkable for Option<T> {
     fn walk<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         if let Some(val) = self {
@@ -124,28 +116,11 @@ impl<T: MutVisitable> MutVisitable for Box<T> {
     }
 }
 
-// impl MutVisitable for Option<LoopLabel> {
-//     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
-//         if let Some(label) = self {
-//             visitor.visit_loop_label(label);
-//         }
-//     }
-// }
-
 impl MutVisitable for LoopLabel {
     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         visitor.visit_loop_label(self)
     }
 }
-
-// impl MutVisitable for Either<Decl, Option<Expr>> {
-//     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
-//         match self {
-//             Self::Left(decl) => visitor.visit_decl(decl),
-//             Self::Right(expr) => expr.accept(visitor),
-//         }
-//     }
-// }
 
 impl<T: MutVisitable, U: MutVisitable> MutWalkable for Either<T, U> {
     fn walk<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
@@ -155,23 +130,6 @@ impl<T: MutVisitable, U: MutVisitable> MutWalkable for Either<T, U> {
         }
     }
 }
-
-// impl<T: MutVisitable, U: MutVisitable> MutVisitable for Either<T, U> {
-//     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
-//         match self {
-//             Self::Left(l) => l.accept(visitor),
-//             Self::Right(r) => r.accept(visitor),
-//         }
-//     }
-// }
-
-// impl MutVisitable for Option<Expr> {
-//     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
-//         if let Some(expr) = self {
-//             visitor.visit_expr(expr);
-//         }
-//     }
-// }
 
 impl MutVisitable for Stmt {
     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
@@ -205,9 +163,6 @@ impl MutVisitable for Decl {
 impl MutWalkable for Decl {
     fn walk<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         self.init.accept(visitor);
-        // if let Some(init) = &mut self.init {
-        //     visitor.visit_expr(init);
-        // }
     }
 }
 
@@ -249,21 +204,18 @@ impl MutVisitable for Function {
 impl MutWalkable for Function {
     fn walk<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         self.body.accept(visitor);
-        // visitor.visit_block(&mut self.body);
     }
 }
 
 impl MutVisitable for Program {
     fn accept<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         visitor.visit_program(self);
-        // visitor.visit_function(&mut self.body);
     }
 }
 
 impl MutWalkable for Program {
     fn walk<V: MutVisitor + ?Sized>(&mut self, visitor: &mut V) {
         self.body.accept(visitor);
-        // visitor.visit_function(&mut self.body);
     }
 }
 
