@@ -223,6 +223,7 @@ impl Display for Expr {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
 pub struct LoopLabel(pub usize);
 
 impl Deref for LoopLabel {

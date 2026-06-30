@@ -1,8 +1,11 @@
+use either::Either;
 use proptest::{prelude::*, string::string_regex};
 
 use crate::src::{Source, Span};
 
-use super::{BinOp, Expr, ExprKind, Identifier, Stmt, Token, TokenKind, UnOp};
+use super::{
+    BinOp, Block, Decl, Expr, ExprKind, Identifier, LoopLabel, Stmt, Token, TokenKind, UnOp,
+};
 
 impl Arbitrary for Identifier {
     type Parameters = ();
@@ -77,7 +80,12 @@ impl Arbitrary for Stmt {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-        let leaf = prop_oneof![any::<Expr>().prop_map(Stmt::Expr), Just(Stmt::Null),];
+        let leaf = prop_oneof![
+            any::<Expr>().prop_map(Stmt::Expr),
+            Just(Stmt::Null),
+            any::<Option<LoopLabel>>().prop_map(Stmt::Break),
+            any::<Option<LoopLabel>>().prop_map(Stmt::Continue),
+        ];
 
         leaf.prop_recursive(
             3,  // max depth
@@ -86,7 +94,7 @@ impl Arbitrary for Stmt {
             |inner| {
                 prop_oneof![
                     any::<Expr>().prop_map(Stmt::Return),
-                    (any::<Expr>(), inner.clone(), any::<bool>(), inner).prop_map(
+                    (any::<Expr>(), inner.clone(), any::<bool>(), inner.clone()).prop_map(
                         |(cond, if_true, has_else, if_false)| {
                             let else_branch = if has_else {
                                 Some(Box::new(if_false))
@@ -94,8 +102,25 @@ impl Arbitrary for Stmt {
                                 None
                             };
                             Stmt::If(cond, Box::new(if_true), else_branch)
-                        }
+                        },
                     ),
+                    (any::<Expr>(), inner.clone())
+                        .prop_map(|(cond, body)| { Stmt::While(cond, Box::new(body), None) }),
+                    (inner.clone(), any::<Expr>())
+                        .prop_map(|(body, cond)| { Stmt::DoWhile(Box::new(body), cond, None) }),
+                    (
+                        prop_oneof![
+                            any::<Decl>().prop_map(Either::Left),
+                            any::<Option<Expr>>().prop_map(Either::Right)
+                        ],
+                        any::<Option<Expr>>(),
+                        any::<Option<Expr>>(),
+                        inner.clone(),
+                    )
+                        .prop_map(|(init, cond, post, body)| {
+                            Stmt::For(init, cond, post, Box::new(body), None)
+                        }),
+                    any::<Block>().prop_map(Stmt::Compound),
                 ]
             },
         )
