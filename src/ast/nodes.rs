@@ -1,7 +1,7 @@
 use super::tok::Identifier;
 use crate::src::Span;
 use std::{
-    fmt::Display,
+    fmt::{self, Display},
     ops::{Deref, DerefMut},
 };
 
@@ -271,7 +271,7 @@ impl Stmt {
 }
 
 impl Display for Stmt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Expr(expr) => write!(f, "{expr};"),
             Self::Return(expr) => write!(f, "return {expr};"),
@@ -285,9 +285,32 @@ impl Display for Stmt {
             Self::Compound(block) => write!(f, "{block}"),
             Self::Break(_) => write!(f, "break"),
             Self::Continue(_) => write!(f, "continue"),
-            Self::While(expr, stmt, label) => todo!(),
-            Self::DoWhile(stmt, expr, label) => todo!(),
-            Self::For(init, cond, post, stmt, label) => todo!(),
+            Self::While(expr, stmt, _) => write!(f, "while ({}) {}", expr, stmt),
+            Self::DoWhile(stmt, expr, _) => write!(f, "do {} while ({});", stmt, expr),
+            Self::For(init, cond, post, stmt, _) => {
+                write!(f, "for (")?;
+
+                match init {
+                    Either::Left(decl) => write!(f, "{}", decl)?,
+                    Either::Right(expr) => {
+                        if let Some(e) = expr {
+                            write!(f, "{}", e)?;
+                        }
+                        write!(f, ";")?;
+                    }
+                };
+
+                if let Some(e) = cond {
+                    write!(f, "{}", e)?;
+                }
+                write!(f, ";")?;
+
+                if let Some(e) = post {
+                    write!(f, "{}", e)?;
+                }
+
+                write!(f, ") {}", stmt)
+            }
             Self::Null => write!(f, ";"),
         }
     }
