@@ -321,53 +321,61 @@ mod tests {
         LoopLabeler::new()
     }
 
-    #[rstest]
-    #[case::invalid_lvalue(Expr::binary(BinOpKind::Assign, Expr::constant(5), Expr::var(""),))]
-    #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
-    fn test_resolve_expr_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
-        expr.accept(&mut resolver);
-        assert!(!resolver.errs.is_empty());
+    mod variable_resolution {
+        use super::*;
+
+        #[rstest]
+        #[case::invalid_lvalue(Expr::binary(BinOpKind::Assign, Expr::constant(5), Expr::var(""),))]
+        #[case::unknown_var(Expr::binary(BinOpKind::Add, Expr::var("a"), Expr::var("b"),))]
+        fn test_err(mut resolver: VariableResolver, #[case] mut expr: Expr) {
+            expr.accept(&mut resolver);
+            assert!(!resolver.errs.is_empty());
+        }
     }
 
-    #[rstest]
-    #[case::break_outside_loop(Stmt::If(Expr::constant(1), Box::new(Stmt::Break(None)), None))]
-    fn test_loop_labeling_stmt_err(mut labeler: LoopLabeler, #[case] mut stmt: Stmt) {
-        stmt.accept(&mut labeler);
-        assert!(!labeler.errs.is_empty());
-    }
+    mod loop_labeling {
+        use super::*;
 
-    #[rstest]
-    #[case(
-        Stmt::While(
-            Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
-            Box::new(Stmt::Null),
-            None,
-        ),
-        1
-    )]
-    #[case(
-        Stmt::While(
-            Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
-            Box::new(Stmt::While(
+        #[rstest]
+        #[case::break_outside_loop(Stmt::If(Expr::constant(1), Box::new(Stmt::Break(None)), None))]
+        fn test_stmt_err(mut labeler: LoopLabeler, #[case] mut stmt: Stmt) {
+            stmt.accept(&mut labeler);
+            assert!(!labeler.errs.is_empty());
+        }
+
+        #[rstest]
+        #[case(
+            Stmt::While(
                 Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
                 Box::new(Stmt::Null),
                 None,
-            )),
-            None,
-        ),
-        2
-    )]
-    fn test_next_root_loop_id(
-        mut labeler: LoopLabeler,
-        #[case] mut stmt: Stmt,
-        #[case] expected: usize,
-    ) {
-        assert_eq!(labeler.depth, 0);
-        assert_eq!(labeler.curr_root_loop_id, 0);
+            ),
+            1
+        )]
+        #[case(
+            Stmt::While(
+                Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
+                Box::new(Stmt::While(
+                    Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
+                    Box::new(Stmt::Null),
+                    None,
+                )),
+                None,
+            ),
+            2
+        )]
+        fn test_next_root_loop_id(
+            mut labeler: LoopLabeler,
+            #[case] mut stmt: Stmt,
+            #[case] expected: usize,
+        ) {
+            assert_eq!(labeler.depth, 0);
+            assert_eq!(labeler.curr_root_loop_id, 0);
 
-        stmt.accept(&mut labeler);
+            stmt.accept(&mut labeler);
 
-        assert_eq!(labeler.depth, 0);
-        assert_eq!(labeler.next_root_loop_id, expected);
+            assert_eq!(labeler.depth, 0);
+            assert_eq!(labeler.next_root_loop_id, expected);
+        }
     }
 }
