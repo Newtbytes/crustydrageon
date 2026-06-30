@@ -174,17 +174,20 @@ impl Annotation for LoopLabelingError {
     }
 }
 
-// FIXME: when there are multiple, non-nested loops, loop ids are repeated
 #[derive(Default)]
 struct LoopLabeler {
-    curr_loop_id: usize,
+    depth: usize,
+    curr_root_loop_id: usize,
+    next_root_loop_id: usize,
     errs: Vec<LoopLabelingError>,
 }
 
 impl LoopLabeler {
     pub fn new() -> Self {
         Self {
-            curr_loop_id: Default::default(),
+            depth: Default::default(),
+            curr_root_loop_id: Default::default(),
+            next_root_loop_id: Default::default(),
             errs: Vec::new(),
         }
     }
@@ -196,25 +199,31 @@ impl LoopLabeler {
     }
 
     fn inside_loop(&mut self) -> bool {
-        self.curr_loop_id > 0
+        self.depth > 0
     }
 
     fn start_loop(&mut self) -> LoopLabel {
-        self.curr_loop_id += 1;
+        if !self.inside_loop() {
+            self.curr_root_loop_id = self.next_root_loop_id;
+        }
+
+        self.depth += 1;
+        self.next_root_loop_id += 1;
+
         self.current_label()
     }
 
     fn current_label(&self) -> LoopLabel {
-        LoopLabel(self.curr_loop_id)
+        LoopLabel(self.curr_root_loop_id + self.depth)
     }
 
     fn end_loop(&mut self) {
         assert_ne!(
-            self.curr_loop_id, 0,
+            self.depth, 0,
             "curr_loop_id is 0; loop should have been started before being ended"
         );
 
-        self.curr_loop_id -= 1;
+        self.depth -= 1;
     }
 }
 
@@ -325,5 +334,40 @@ mod tests {
     fn test_loop_labeling_stmt_err(mut labeler: LoopLabeler, #[case] mut stmt: Stmt) {
         stmt.accept(&mut labeler);
         assert!(!labeler.errs.is_empty());
+    }
+
+    #[rstest]
+    #[case(
+        Stmt::While(
+            Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
+            Box::new(Stmt::Null),
+            None,
+        ),
+        1
+    )]
+    #[case(
+        Stmt::While(
+            Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
+            Box::new(Stmt::While(
+                Expr::binary(BinOpKind::LessThan, Expr::var("a"), Expr::var("b")),
+                Box::new(Stmt::Null),
+                None,
+            )),
+            None,
+        ),
+        2
+    )]
+    fn test_next_root_loop_id(
+        mut labeler: LoopLabeler,
+        #[case] mut stmt: Stmt,
+        #[case] expected: usize,
+    ) {
+        assert_eq!(labeler.depth, 0);
+        assert_eq!(labeler.curr_root_loop_id, 0);
+
+        stmt.accept(&mut labeler);
+
+        assert_eq!(labeler.depth, 0);
+        assert_eq!(labeler.next_root_loop_id, expected);
     }
 }
