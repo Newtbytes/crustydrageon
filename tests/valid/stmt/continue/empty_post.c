@@ -8,3 +8,5 @@ int main(void) {
     }
     return sum;
 }
+
+//$ CHECK STATUS : 30

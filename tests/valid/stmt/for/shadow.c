@@ -6,3 +6,5 @@ int main(void) {
     }
     return acc == 45 && shadow == 1;
 }
+
+//$ CHECK STATUS : 1

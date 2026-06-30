@@ -8,3 +8,5 @@ int main(void) {
                 ans = ans + i;
     return ans;
 }
+
+//$ CHECK STATUS : 250

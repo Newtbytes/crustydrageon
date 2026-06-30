@@ -10,3 +10,5 @@ int main(void) {
 
     return i;
 }
+
+//$ CHECK STATUS : 252

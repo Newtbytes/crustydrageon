@@ -12,3 +12,5 @@ int main(void) {
     return acc == 100 && x == 0;
 
 }
+
+//$ CHECK STATUS : 1

@@ -5,3 +5,5 @@ int main(void) {
         a = a + 1;
     return a;
 }
+
+//$ CHECK STATUS : 101

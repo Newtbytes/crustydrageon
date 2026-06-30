@@ -4,3 +4,5 @@ int main(void) {
         break;
     return a;
 }
+
+//$ CHECK STATUS : 1

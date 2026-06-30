@@ -9,3 +9,5 @@ int main(void) {
 
     return a == 0 && b == -11;
 }
+
+//$ CHECK STATUS : 1

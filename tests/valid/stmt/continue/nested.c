@@ -13,3 +13,5 @@ int main(void) {
     }
     return acc;
 }
+
+//$ CHECK STATUS : 24
