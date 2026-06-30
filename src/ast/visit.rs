@@ -21,7 +21,7 @@ visitor_trait! {
         expr_stmt(e: Expr),
         return_stmt(e: Expr),
         if_stmt(#[branch] c: Expr, #[branch] t: Stmt, #[branch] f: Option<Box<Stmt>>),
-        loop_label(#[leaf] s: String),
+        loop_label(#[leaf] s: usize),
         break_stmt(#[leaf] l: Option<LoopLabel>),
         continue_stmt(#[leaf] l: Option<LoopLabel>),
         while_stmt(#[branch] c: Expr, #[branch] s: Stmt, #[leaf] l: Option<LoopLabel>),

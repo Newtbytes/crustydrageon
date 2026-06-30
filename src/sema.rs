@@ -174,6 +174,7 @@ impl Annotation for LoopLabelingError {
     }
 }
 
+// FIXME: when there are multiple, non-nested loops, loop ids are repeated
 #[derive(Default)]
 struct LoopLabeler {
     curr_loop_id: usize,
@@ -204,7 +205,7 @@ impl LoopLabeler {
     }
 
     fn current_label(&self) -> LoopLabel {
-        LoopLabel(self.curr_loop_id.to_string())
+        LoopLabel(self.curr_loop_id)
     }
 
     fn end_loop(&mut self) {
@@ -229,7 +230,8 @@ impl MutVisitor for LoopLabeler {
                         LoopLabelingError::ContinueOutsideLoop(span)
                     })
                 } else {
-                    *label = Some(self.start_loop());
+                    // TODO: test bug where self.start_loop() is incorrectly used here
+                    *label = Some(self.current_label());
                 }
             }
             Stmt::While(cond, body, label) => {

@@ -223,10 +223,10 @@ impl Display for Expr {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct LoopLabel(pub String);
+pub struct LoopLabel(pub usize);
 
 impl Deref for LoopLabel {
-    type Target = String;
+    type Target = usize;
 
     fn deref(&self) -> &Self::Target {
         &self.0
