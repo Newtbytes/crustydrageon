@@ -700,14 +700,23 @@ mod tests {
     }
 
     mod lowering {
-        use std::cmp::max;
-
         use super::*;
 
-        #[test]
-        fn test_from_ir_unary_op() {
-            assert_eq!(UnaryOp::try_from(ir::UnaryOp::Flip), Ok(UnaryOp::Not));
-            assert_eq!(UnaryOp::try_from(ir::UnaryOp::Negate), Ok(UnaryOp::Neg));
+        use std::{assert_matches, cmp::max};
+
+        use rstest::rstest;
+
+        #[rstest]
+        #[case(ir::UnaryOp::Flip, UnaryOp::Not)]
+        #[case(ir::UnaryOp::Negate, UnaryOp::Neg)]
+        fn test_unary_op_try_from(#[case] given: ir::UnaryOp, #[case] expected: UnaryOp) {
+            assert_eq!(UnaryOp::try_from(given), Ok(expected));
+        }
+
+        #[rstest]
+        #[case(ir::UnaryOp::Not)]
+        fn test_unary_op_try_from_err(#[case] given: ir::UnaryOp) {
+            assert_matches!(UnaryOp::try_from(given), Err(_));
         }
 
         proptest! {
@@ -721,9 +730,8 @@ mod tests {
 
             #[test]
             #[ignore = "expensive"]
-            fn test_lower_func(ir_func: ir::Function) {
+            fn test_func_id(ir_func: ir::Function) {
                 cov_mark::check_count!(x86_func_lowered, 1);
-                cov_mark::check!(x86_block_lowered);
 
                 let x86_func = lower_func(ir_func.clone());
 
@@ -740,6 +748,15 @@ mod tests {
                     x86_func.name.value().len() >= ir_func.id.value().len(),
                     "the renamed function name should be at least as long as the original function name"
                 );
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_func_emptiness(ir_func: ir::Function) {
+                cov_mark::check_count!(x86_func_lowered, 1);
+                cov_mark::check!(x86_block_lowered);
+
+                let x86_func = lower_func(ir_func.clone());
 
                 prop_assert_eq!(x86_func.body.is_empty(), ir_func.body.is_empty());
 
@@ -750,6 +767,16 @@ mod tests {
                         x86_func
                     );
                 }
+
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_func_opcount(ir_func: ir::Function) {
+                cov_mark::check_count!(x86_func_lowered, 1);
+                cov_mark::check!(x86_block_lowered);
+
+                let x86_func = lower_func(ir_func.clone());
 
                 // the instruction count is within plus or minus 15% of the IR opcount
                 let coeff = 6.;
