@@ -707,8 +707,8 @@ mod tests {
         #[case::nested_negate_and_complement(
             // given: ~(-42)
             // expect:
-            //  negate      #42 -> %0
-            //  complement  %0  -> %1
+            //  %0 = negate #42
+            //  %1 = complement %0
             ast::Expr::unary(ast::UnOpKind::Complement,
                 ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(42))
             ),
@@ -725,7 +725,66 @@ mod tests {
                 }
             ], Value::Var(1.to_string())
         )]
-        // TODO: test binary op lowering
+        #[case::add(
+            // given: 4 + 2
+            // expect:
+            //  %0 = add #4, #2
+            ast::Expr::binary(ast::BinOpKind::Add, ast::Expr::constant(4), ast::Expr::constant(2)),
+            vec![
+                Operation::Binary {
+                    op: BinaryOp::Add,
+                    a: Value::Constant(4),
+                    b: Value::Constant(2),
+                    dst: Value::Var(0.to_string()),
+                }
+            ], Value::Var(0.to_string())
+        )]
+        #[case::nested_add_mul(
+            // given: 4 + 8 * 2
+            // expect:
+            //  %0 = mul #8, #2
+            //  %1 = add #4, %0
+            ast::Expr::binary(ast::BinOpKind::Add, 
+                ast::Expr::constant(4), ast::Expr::binary(ast::BinOpKind::Multiply, 
+                    ast::Expr::constant(8), ast::Expr::constant(2))),
+            vec![
+                Operation::Binary {
+                    op: BinaryOp::Mul,
+                    a: Value::Constant(8),
+                    b: Value::Constant(2),
+                    dst: Value::Var(0.to_string()),
+                },
+                Operation::Binary {
+                    op: BinaryOp::Add,
+                    a: Value::Constant(4),
+                    b: Value::Var(0.to_string()),
+                    dst: Value::Var(1.to_string()),
+                }
+            ], Value::Var(1.to_string())
+        )]
+        // TODO: test lowering nested binary & unary ops
+        #[case::assign_constant_to_var(
+            // given: x = 42
+            // expect:
+            //  %x = #42
+            ast::Expr::binary(ast::BinOpKind::Assign, ast::Expr::var("x"), ast::Expr::constant(42)),
+            vec! [
+                Operation::Copy { src: Value::Constant(42), dst: Value::Var("x".to_owned()) }
+            ],
+            Value::Var("x".to_owned())
+        )]
+        #[case::assign_var_to_var(
+            // given: x = y
+            // expect:
+            //  %x = %y
+            ast::Expr::binary(ast::BinOpKind::Assign, ast::Expr::var("x"), ast::Expr::var("y")),
+            vec! [
+                Operation::Copy { src: Value::Var("y".to_owned()), dst: Value::Var("x".to_owned()) }
+            ],
+            Value::Var("x".to_owned())
+        )]
+        // TODO: test lowering variables
+        // TODO: test lowering comparison operators
         #[serial]
         fn test_lower_expr(
             #[case] expr: ast::Expr,
@@ -743,6 +802,9 @@ mod tests {
             assert_eq!(ops, expect_ops);
             assert_eq!(value, expect_val);
         }
+
+        // TODO: test that lowering never produces illegal IR
+        // e.g. copy op with a constant as the dst
 
         proptest! {
             #[test]
@@ -768,6 +830,8 @@ mod tests {
             }
 
             // TODO: write test cases for lowering stmts
+
+            // TODO: write test cases for lowering declarations
 
             #[test]
             #[ignore = "expensive"]
