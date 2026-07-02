@@ -37,7 +37,7 @@ pub fn expr(kind: ExprKind) -> Expr {
 #[must_use]
 pub fn unop(kind: UnOpKind) -> UnOp {
     UnOp {
-        kind: kind.clone(),
+        kind,
         span: Span::dummy(&kind.to_string()),
     }
 }
@@ -45,7 +45,7 @@ pub fn unop(kind: UnOpKind) -> UnOp {
 #[must_use]
 pub fn binop(kind: BinOpKind) -> BinOp {
     BinOp {
-        kind: kind.clone(),
+        kind,
         span: Span::dummy(&kind.to_string()),
     }
 }

@@ -744,8 +744,8 @@ mod tests {
             // expect:
             //  %0 = mul #8, #2
             //  %1 = add #4, %0
-            ast::Expr::binary(ast::BinOpKind::Add, 
-                ast::Expr::constant(4), ast::Expr::binary(ast::BinOpKind::Multiply, 
+            ast::Expr::binary(ast::BinOpKind::Add,
+                ast::Expr::constant(4), ast::Expr::binary(ast::BinOpKind::Multiply,
                     ast::Expr::constant(8), ast::Expr::constant(2))),
             vec![
                 Operation::Binary {
