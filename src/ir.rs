@@ -662,6 +662,16 @@ mod tests {
     mod lower {
         use super::*;
 
+        use std::assert_matches;
+
+        #[rstest]
+        #[case(ast::BinOpKind::Assign)]
+        #[case(ast::BinOpKind::And)]
+        #[case(ast::BinOpKind::Or)]
+        fn test_binop_from_ast_err(#[case] binop: ast::BinOpKind) {
+            assert_matches!(TryInto::<BinaryOp>::try_into(binop), Err(_))
+        }
+
         #[rstest]
         #[case::constants(ast::Expr::constant(5), vec![], Value::Constant(5))]
         #[case::negate(
