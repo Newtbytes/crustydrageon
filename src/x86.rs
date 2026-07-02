@@ -634,9 +634,9 @@ mod tests {
                     let func = Function::new(id.clone(), Vec::new());
 
                     if cfg!(target_os = "macos") {
-                        assert_eq!(func.name.value(), format!("_{id}"));
+                        prop_assert_eq!(func.name.value(), format!("_{id}"));
                     } else {
-                        assert_eq!(func.name.value(), id.value());
+                        prop_assert_eq!(func.name.value(), id.value());
                     }
                 }
 
@@ -646,12 +646,14 @@ mod tests {
                     let fmt = format!("{func}");
 
                     // emitted code should contain the correct global directive and label for the function
-                    assert!(fmt.contains(&format!(".globl {}", func.name.value())));
-                    assert!(fmt.contains(&format!("{}:", func.name.value())));
+                    let globl = format!(".globl {}", func.name.value());
+                    prop_assert!(fmt.contains(&globl));
+                    let fn_label = format!("{}:", func.name.value());
+                    prop_assert!(fmt.contains(&fn_label));
 
                     // emitted code should contain the function prologue
-                    assert!(fmt.contains("pushq %rbp"));
-                    assert!(fmt.contains("movq %rsp, %rbp"));
+                    prop_assert!(fmt.contains("pushq %rbp"));
+                    prop_assert!(fmt.contains("movq %rsp, %rbp"));
                 }
             }
         }
@@ -664,15 +666,15 @@ mod tests {
                 fn test_macos(label: Label) {
                     let label_pp = label.to_string();
                     if cfg!(target_os = "macos") {
-                        assert!(!label_pp.starts_with('.'));
+                        prop_assert!(!label_pp.starts_with('.'));
                     } else {
-                        assert!(label_pp.starts_with('.'));
+                        prop_assert!(label_pp.starts_with('.'));
                     }
                 }
 
                 #[test]
                 fn test_contains_info(label: Label) {
-                    assert!(label.to_string().contains(&label.0));
+                    prop_assert!(label.to_string().contains(&label.0));
                 }
             }
         }
@@ -684,7 +686,7 @@ mod tests {
                 #[test]
                 fn test_instruction_not_empty(inst: Instruction) {
                     let fmt = format!("{inst}");
-                    assert!(!fmt.is_empty());
+                    prop_assert!(!fmt.is_empty());
                 }
 
                 #[test]
@@ -692,7 +694,7 @@ mod tests {
                     let fmt = format!("{inst}");
 
                     for operand in inst.get_operands_mut() {
-                        assert!(fmt.contains(&operand.to_string()));
+                        prop_assert!(fmt.contains(&operand.to_string()));
                     }
                 }
             }
@@ -725,7 +727,7 @@ mod tests {
                 let ir_label = ir::Label::Anon(id);
                 let x86_label = Label::from(id.to_string());
 
-                assert_eq!(Label::from(ir_label), x86_label);
+                prop_assert_eq!(Label::from(ir_label), x86_label);
             }
 
             #[test]
@@ -825,30 +827,30 @@ mod tests {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst);
 
-                assert_eq!(insts.len(), 2);
-                assert_eq!(
-                    insts[0],
+                prop_assert_eq!(insts.len(), 2);
+                prop_assert_eq!(
+                    insts[0].clone(),
                     Instruction::Mov {
                         src: Operand::Stack(offset_a),
                         dst: Register::R10.into(),
                     }
                 );
-                assert_eq!(
-                    insts[1],
+                prop_assert_eq!(
+                    insts[1].clone(),
                     Instruction::Mov {
                         src: Register::R10.into(),
                         dst: Operand::Stack(offset_b),
                     }
                 );
 
-                assert!(insts.iter().all(check_legalized));
+                prop_assert!(insts.iter().all(check_legalized));
             }
 
             #[test]
             fn test_other_instructions(inst in any::<Instruction>()) {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
-                assert!(insts.iter().all(check_legalized));
+                prop_assert!(insts.iter().all(check_legalized));
             }
 
             #[test]
@@ -856,11 +858,11 @@ mod tests {
             fn test_legalized_block_len(block: Vec<Instruction>) {
                 let legalized_block = legalize_block(block.clone());
 
-                assert!(
+                prop_assert!(
                     block.len() <= legalized_block.len(),
                     "before:\n{legalized_block:?}\n\nafter:\n{block:?}"
                 );
-                assert!(
+                prop_assert!(
                     legalized_block.len() <= (block.len() + 1) * 3, // + 1 for block.len()==0 case
                     "before:\n{legalized_block:?}\n\nafter:\n{block:?}"
                 );

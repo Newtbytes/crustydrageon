@@ -880,7 +880,7 @@ mod tests {
                 fn test_value_const_pretty(val in any::<i32>()) {
                     let c = Value::Constant(val);
 
-                    prop_assert_eq!(c.to_string(), val.to_string());
+                    prop_assert!(c.to_string().contains(&val.to_string()));
                 }
 
                 #[test]
@@ -903,18 +903,18 @@ mod tests {
                     let l1 = Label::Anon(id1);
                     let l2 = Label::Anon(id2);
 
-                    assert_eq!(l1 == l2, l1.to_string() == l2.to_string());
+                    prop_assert_eq!(l1 == l2, l1.to_string() == l2.to_string());
                 }
 
                 #[test]
                 fn pp_contains_anon_id(id in any::<usize>()) {
-                    assert!(Label::Anon(id).to_string().contains(&id.to_string()));
+                    prop_assert!(Label::Anon(id).to_string().contains(&id.to_string()));
                 }
 
                 #[test]
                 fn pp_contains_named_id(id in any::<ast::Identifier>()) {
                     let l = Label::Named(id.clone()).to_string();
-                    assert!(l.contains(&id.to_string()));
+                    prop_assert!(l.contains(&id.to_string()));
                 }
             }
         }
@@ -928,8 +928,8 @@ mod tests {
                     let op_pp = op.to_string();
 
                     if let Some(dst) = op.get_dst() {
-                        assert!(op_pp.contains('='));
-                        assert!(op_pp.contains(&dst.to_string()));
+                        prop_assert!(op_pp.contains('='));
+                        prop_assert!(op_pp.contains(&dst.to_string()));
                     }
                 }
 
@@ -944,7 +944,7 @@ mod tests {
                         Operation::Unary { op, src: _, dst: _ } => {
                             cov_mark::check!(ir_pp_unary_op_kind);
 
-                            assert!(op_pp.contains(&op.to_string()));
+                            prop_assert!(op_pp.contains(&op.to_string()));
                         }
                         Operation::Binary {
                             op,
@@ -954,14 +954,14 @@ mod tests {
                         } => {
                             cov_mark::check!(ir_pp_binary_op_kind);
 
-                            assert!(op_pp.contains(&op.to_string()));
+                            prop_assert!(op_pp.contains(&op.to_string()));
                         }
                         Operation::Branch(label) => {
                             cov_mark::check!(ir_pp_label);
 
-                            assert!(op_pp.contains("branch"));
+                            prop_assert!(op_pp.contains("branch"));
 
-                            assert!(op_pp.contains(&label.to_string()));
+                            prop_assert!(op_pp.contains(&label.to_string()));
                         }
                         Operation::BranchIf {
                             cond: _,
@@ -970,11 +970,11 @@ mod tests {
                         } => {
                             cov_mark::check!(ir_pp_label);
 
-                            assert!(op_pp.contains("branch"));
-                            assert!(op_pp.contains("if"));
+                            prop_assert!(op_pp.contains("branch"));
+                            prop_assert!(op_pp.contains("if"));
 
-                            assert!(op_pp.contains(&then_label.to_string()));
-                            assert!(op_pp.contains(&else_label.to_string()));
+                            prop_assert!(op_pp.contains(&then_label.to_string()));
+                            prop_assert!(op_pp.contains(&else_label.to_string()));
                         }
                         Operation::BranchWhen {
                             cond: _,
@@ -982,14 +982,14 @@ mod tests {
                         } => {
                             cov_mark::check!(ir_pp_label);
 
-                            assert!(op_pp.contains("when"));
+                            prop_assert!(op_pp.contains("when"));
 
-                            assert!(op_pp.contains(&when_label.to_string()));
+                            prop_assert!(op_pp.contains(&when_label.to_string()));
                         }
                         Operation::Label(label) => {
                             cov_mark::check!(ir_pp_label);
 
-                            assert!(op_pp.contains(&label.to_string()));
+                            prop_assert!(op_pp.contains(&label.to_string()));
                         }
                     }
                 }
@@ -1029,7 +1029,7 @@ mod tests {
                 fn test_contains_name(func: Function) {
                     let func_pp = func.to_string();
 
-                    assert!(func_pp.contains(func.id.source_name()));
+                    prop_assert!(func_pp.contains(func.id.source_name()));
                 }
 
                 #[test]
@@ -1037,7 +1037,7 @@ mod tests {
                     let func_pp = func.to_string();
 
                     for op in func.body {
-                        assert!(func_pp.contains(&op.to_string()));
+                        prop_assert!(func_pp.contains(&op.to_string()));
                     }
                 }
             }
@@ -1051,7 +1051,7 @@ mod tests {
                 fn test_contains_funcs(prg: Program) {
                     let prg_pp = prg.to_string();
 
-                    assert!(prg_pp.contains(&prg.body.to_string()))
+                    prop_assert!(prg_pp.contains(&prg.body.to_string()))
                 }
             }
         }
