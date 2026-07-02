@@ -635,6 +635,31 @@ mod tests {
         // TODO: implement roundtrip parsing test for parse_stmt
     }
 
+    mod decl {
+        use crate::{ast::dummy::ident, src::Span};
+
+        use super::*;
+
+        #[rstest]
+        #[case::empty_init(
+            &[tok(tk::Int), Token::ident("a"), tok(tk::Semicolon)],
+            Decl { name: ident("a"), init: None, span: Span::dummy("int a;") }
+        )]
+        #[case::with_init(
+            &[tok(tk::Int), Token::ident("b"), tok(tk::Assign), Token::ident("c"), tok(tk::Semicolon)],
+            Decl { name: ident("b"), init: Some(Expr::var("c")), span: Span::dummy("int b = c;") }
+        )]
+        fn test_parse_matches_expected(
+            #[case] _tokens: &[Token],
+            #[with(_tokens)] mut parser: Parser<impl Iterator<Item = Token>>,
+            #[case] expected_decl: Decl,
+        ) {
+            let actual_decl = parser.parse_decl().unwrap();
+
+            assert_eq!(expected_decl, actual_decl);
+        }
+    }
+
     // TODO: implement roundtrip parsing test for parse_decl
 
     // TODO: implemenet roundtrip parsing test for parse_block
