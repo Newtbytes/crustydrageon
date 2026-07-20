@@ -544,7 +544,7 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
                     } else {
                         "continue"
                     },
-                    label.to_string()
+                    **label
                 ))));
             } else {
                 unreachable!("loop labeling pass should always label all loops, or return an error")
@@ -595,7 +595,7 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
                 .expect("loop labeling pass should always label all loops, or return an error")
                 .to_string();
 
-            match init {
+            match *init {
                 Either::Left(decl) => {
                     lower_decl(ops, decl);
                 }

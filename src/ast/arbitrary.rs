@@ -118,7 +118,7 @@ impl Arbitrary for Stmt {
                         inner.clone(),
                     )
                         .prop_map(|(init, cond, post, body)| {
-                            Stmt::For(init, cond, post, Box::new(body), None)
+                            Stmt::For(Box::new(init), cond, post, Box::new(body), None)
                         }),
                     any::<Block>().prop_map(Stmt::Compound),
                 ]

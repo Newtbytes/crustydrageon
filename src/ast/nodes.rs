@@ -252,7 +252,7 @@ pub enum Stmt {
     While(Expr, Box<Stmt>, Option<LoopLabel>),
     DoWhile(Box<Stmt>, Expr, Option<LoopLabel>),
     For(
-        Either<Decl, Option<Expr>>,
+        Box<Either<Decl, Option<Expr>>>,
         Option<Expr>,
         Option<Expr>,
         Box<Stmt>,
@@ -290,7 +290,7 @@ impl Display for Stmt {
             Self::For(init, cond, post, stmt, _) => {
                 write!(f, "for (")?;
 
-                match init {
+                match &**init {
                     Either::Left(decl) => write!(f, "{}", decl)?,
                     Either::Right(expr) => {
                         if let Some(e) = expr {

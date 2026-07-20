@@ -368,9 +368,9 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             let init = if self.check(TokenKind::Int) {
                 Either::Left(self.parse_decl()?)
             } else {
-                let out = Either::Right(self.parse_expr(Default::default()).ok());
+                let out = self.parse_expr(Default::default()).ok();
                 self.expect(TokenKind::Semicolon)?;
-                out
+                Either::Right(out)
             };
 
             // parse the condition
@@ -383,7 +383,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
 
             let stmt = self.parse_stmt()?;
 
-            Ok(Stmt::For(init, cond, post, Box::new(stmt), None))
+            Ok(Stmt::For(Box::new(init), cond, post, Box::new(stmt), None))
         } else if self.check(TokenKind::Semicolon) {
             self.expect(TokenKind::Semicolon)?;
             Ok(Stmt::Null)
@@ -692,7 +692,7 @@ mod tests {
             &[tok(tk::For), tok(tk::LParen), tok_const(1), tok(tk::Semicolon), tok_const(2), tok(tk::Semicolon), tok(tk::RParen),
                 tok(tk::Return), tok_const(3), tok(tk::Semicolon)],
             Stmt::For(
-                Either::Right(Some(Expr::constant(1))),
+                Box::new(Either::Right(Some(Expr::constant(1)))),
                 Some(Expr::constant(2)),
                 None,
                 Stmt::Return(Expr::constant(3)).into(),
