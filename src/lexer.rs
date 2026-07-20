@@ -165,8 +165,9 @@ impl Iterator for Lexer<'_> {
         self.eat_while(|&c| c.is_whitespace());
         self.end_token();
 
-        let kind = match self.eat() {
-            Some(c) => match c {
+        let kind = {
+            let c = self.eat()?;
+            match c {
                 // structural tokens
                 '(' => tk::LParen,
                 ')' => tk::RParen,
@@ -226,8 +227,7 @@ impl Iterator for Lexer<'_> {
                 }
 
                 _ => self.error("Unexpected character"),
-            },
-            None => return None,
+            }
         };
 
         // synchronize by eating until synchronization point
