@@ -73,6 +73,7 @@ version = "0.1.0"
 dependencies = [
  "contracts",
  "cov-mark",
+ "either",
  "itertools",
  "paste",
  "proptest",

@@ -92,6 +92,16 @@ pub enum TokenKind {
     Void,
     /// `return`
     Return,
+    /// `do`,
+    Do,
+    /// `while`,
+    While,
+    /// `for`,
+    For,
+    /// `break`,
+    Break,
+    /// `continue`,
+    Continue,
 
     #[cfg_attr(test, proptest(value = "TokenKind::Error(\"test error\")"))]
     Error(&'static str),
@@ -350,6 +360,11 @@ impl Identifier {
             "return" => TokenKind::Return,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
+            "do" => TokenKind::Do,
+            "while" => TokenKind::While,
+            "for" => TokenKind::For,
+            "break" => TokenKind::Break,
+            "Continue" => TokenKind::Continue,
             _ => TokenKind::Ident,
         }
     }

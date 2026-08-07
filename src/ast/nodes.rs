@@ -1,11 +1,11 @@
 use super::tok::Identifier;
 use crate::src::Span;
 use std::{
-    fmt::Display,
+    fmt::{self, Display},
     ops::{Deref, DerefMut},
 };
 
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
@@ -222,6 +222,24 @@ impl Display for Expr {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(test, derive(Arbitrary))]
+pub struct LoopLabel(pub usize);
+
+impl Deref for LoopLabel {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for LoopLabel {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 /// Statement node.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Stmt {
@@ -229,12 +247,31 @@ pub enum Stmt {
     Return(Expr),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Compound(Block),
+    Break(Option<LoopLabel>),
+    Continue(Option<LoopLabel>),
+    While(Expr, Box<Stmt>, Option<LoopLabel>),
+    DoWhile(Box<Stmt>, Expr, Option<LoopLabel>),
+    For(
+        Box<Either<Decl, Option<Expr>>>,
+        Option<Expr>,
+        Option<Expr>,
+        Box<Stmt>,
+        /* daun says "^8-94" should go here.
+        he's wrong i think */
+        Option<LoopLabel>,
+    ),
     /// Null statement
     Null,
 }
 
+impl Stmt {
+    pub fn is_loop(&self) -> bool {
+        matches!(self, Self::For(..) | Self::While(..) | Self::DoWhile(..))
+    }
+}
+
 impl Display for Stmt {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Expr(expr) => write!(f, "{expr};"),
             Self::Return(expr) => write!(f, "return {expr};"),
@@ -246,6 +283,34 @@ impl Display for Stmt {
                 Ok(())
             }
             Self::Compound(block) => write!(f, "{block}"),
+            Self::Break(_) => write!(f, "break"),
+            Self::Continue(_) => write!(f, "continue"),
+            Self::While(expr, stmt, _) => write!(f, "while ({}) {}", expr, stmt),
+            Self::DoWhile(stmt, expr, _) => write!(f, "do {} while ({});", stmt, expr),
+            Self::For(init, cond, post, stmt, _) => {
+                write!(f, "for (")?;
+
+                match &**init {
+                    Either::Left(decl) => write!(f, "{}", decl)?,
+                    Either::Right(expr) => {
+                        if let Some(e) = expr {
+                            write!(f, "{}", e)?;
+                        }
+                        write!(f, ";")?;
+                    }
+                };
+
+                if let Some(e) = cond {
+                    write!(f, "{}", e)?;
+                }
+                write!(f, ";")?;
+
+                if let Some(e) = post {
+                    write!(f, "{}", e)?;
+                }
+
+                write!(f, ") {}", stmt)
+            }
             Self::Null => write!(f, ";"),
         }
     }

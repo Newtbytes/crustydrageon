@@ -1,9 +1,10 @@
 use std::fmt::Display;
 
+use either::Either;
 #[cfg(test)]
 use proptest_derive::Arbitrary;
 
-use crate::ast;
+use crate::ast::{self, LoopLabel};
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(Arbitrary))]
@@ -47,13 +48,19 @@ impl Display for Function {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Arbitrary))]
 pub enum Label {
-    Named(ast::Identifier),
+    Named(String),
     Anon(usize),
 }
 
 impl Label {
     fn new() -> Self {
         Self::Anon(VarID::new())
+    }
+}
+
+impl From<LoopLabel> for Label {
+    fn from(label: LoopLabel) -> Self {
+        Self::Anon(label.0)
     }
 }
 
@@ -527,6 +534,101 @@ pub fn lower_stmt(ops: &mut Vec<Operation>, stmt: ast::Stmt) {
             ops.push(Operation::Label(end));
         }
         ast::Stmt::Compound(block) => lower_block(ops, block),
+        // TODO: Test that the name format for break/continue labels is consistent for all loops
+        ast::Stmt::Break(ref label) | ast::Stmt::Continue(ref label) => {
+            if let Some(label) = label {
+                ops.push(Operation::Branch(Label::Named(format!(
+                    "{}_label{}",
+                    if matches!(stmt, ast::Stmt::Break(..)) {
+                        "break"
+                    } else {
+                        "continue"
+                    },
+                    **label
+                ))));
+            } else {
+                unreachable!("loop labeling pass should always label all loops, or return an error")
+            }
+        }
+        ast::Stmt::While(cond, body, label) => {
+            let label = label
+                .expect("loop labeling pass should always label all loops, or return an error")
+                .to_string();
+
+            let start = Label::Named(format!("continue_label{}", label));
+            let end = Label::Named(format!("break_label{}", label));
+
+            ops.push(Operation::Label(start.clone()));
+
+            let cond = lower_expr(ops, cond);
+            jeq(ops, cond, Value::Constant(0), end.clone());
+
+            lower_stmt(ops, *body);
+
+            ops.push(Operation::Branch(start));
+
+            ops.push(Operation::Label(end));
+        }
+        ast::Stmt::DoWhile(body, cond, label) => {
+            let label = label
+                .expect("loop labeling pass should always label all loops, or return an error")
+                .to_string();
+            let start = Label::new();
+            ops.push(Operation::Label(start.clone()));
+
+            lower_stmt(ops, *body);
+            ops.push(Operation::Label(Label::Named(format!(
+                "continue_label{}",
+                label
+            ))));
+
+            let cond = lower_expr(ops, cond);
+            jneq(ops, cond, Value::Constant(0), start);
+
+            ops.push(Operation::Label(Label::Named(format!(
+                "break_label{}",
+                label
+            ))));
+        }
+        ast::Stmt::For(init, cond, post, body, label) => {
+            let label = label
+                .expect("loop labeling pass should always label all loops, or return an error")
+                .to_string();
+
+            match *init {
+                Either::Left(decl) => {
+                    lower_decl(ops, decl);
+                }
+                Either::Right(Some(expr)) => {
+                    lower_expr(ops, expr);
+                }
+                Either::Right(None) => (),
+            };
+
+            let start = Label::new();
+            let break_label = Label::Named(format!("break_label{}", label));
+            let continue_label = Label::Named(format!("continue_label{}", label));
+
+            ops.push(Operation::Label(start.clone()));
+
+            let cond = if let Some(expr) = cond {
+                lower_expr(ops, expr)
+            } else {
+                Value::Constant(1)
+            };
+
+            jeq(ops, cond, Value::Constant(0), break_label.clone());
+
+            lower_stmt(ops, *body);
+            ops.push(Operation::Label(continue_label));
+
+            if let Some(expr) = post {
+                lower_expr(ops, expr);
+            }
+
+            ops.push(Operation::Branch(start));
+            ops.push(Operation::Label(break_label));
+        }
     }
 
     cov_mark::hit!(ir_stmt_lowered);
@@ -740,7 +842,10 @@ mod tests {
             #[test]
             #[ignore = "expensive"]
             fn test_lowered_func_contains_more_ops(func: ast::Function) {
-                let ir_func = lower_func(func.clone());
+                let mut prg = ast::Program { body: func.clone() };
+                prop_assume!(crate::sema::label_loops(&mut prg).is_ok());
+
+                let ir_func = lower_func(prg.body);
 
                 prop_assert!(
                     ir_func.body.len() >= func.body.iter()
@@ -816,9 +921,9 @@ mod tests {
                 }
 
                 #[test]
-                fn pp_contains_named_id(id in any::<ast::Identifier>()) {
+                fn pp_contains_named_id(id: String) {
                     let l = Label::Named(id.clone()).to_string();
-                    assert!(l.contains(&id.to_string()));
+                    assert!(l.contains(&id));
                 }
             }
         }
@@ -841,12 +946,10 @@ mod tests {
             #[case(Operation::BranchIf {
                 cond: Value::Var(2.to_string()),
                 then_label: Label::Anon(5),
-                else_label: Label::Named(
-                    ast::Identifier::default()
-                )
+                else_label: Label::Named(String::default())
             })]
             #[case(Operation::Label(Label::Anon(2)))]
-            #[case(Operation::Label(Label::Named(ast::Identifier::default())))]
+            #[case(Operation::Label(Label::Named(String::default())))]
             #[case(Operation::BranchWhen { cond: Value::Constant(5), when_label: Label::Anon(2) })]
             fn test_op_contains_info(#[case] op: Operation) {
                 cov_mark::check!(ir_pp_op);

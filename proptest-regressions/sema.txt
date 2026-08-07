@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 70901ed29264916f113fa4422d51bae1d7b7b90577ee4eb4d77528a03ec42147 # shrinks to mut prg = Program { body: Function { name: Identifier { names: ["Aa"], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "Aa" } }, body: Block { items: [], span: Span { loc: Location { line: 0, column: 0, index: 0 }, span: "" } } } }

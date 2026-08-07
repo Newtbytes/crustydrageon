@@ -1,5 +1,7 @@
 use std::iter;
 
+use either::Either;
+
 use crate::{
     ast::{
         BinOp, BinOpKind, Block, BlockItem, Decl, Expr, ExprKind, Function, Identifier, Precedence,
@@ -60,6 +62,26 @@ impl Annotation for ParserError {
 
 type ParseResult<T> = Result<T, ParserError>;
 
+impl From<Token> for ParseResult<Token> {
+    fn from(tok: Token) -> Self {
+        if let TokenKind::Error(msg) = tok.kind() {
+            Err(ParserError::ErrorToken(tok, msg))
+        } else {
+            Ok(tok)
+        }
+    }
+}
+
+impl<'a> From<&'a Token> for ParseResult<&'a Token> {
+    fn from(tok: &'a Token) -> Self {
+        if let TokenKind::Error(msg) = tok.kind() {
+            Err(ParserError::ErrorToken(tok.clone(), msg))
+        } else {
+            Ok(tok)
+        }
+    }
+}
+
 impl ParserError {
     #[must_use]
     pub fn span(&self) -> Option<&src::Span> {
@@ -88,13 +110,7 @@ struct Parser<I: Iterator<Item = Token>> {
 
 impl<I: iter::Iterator<Item = Token>> Parser<I> {
     fn eat(&mut self) -> ParseResult<Token> {
-        let token = self.tokens.next().ok_or(ParserError::UnexpectedEOF)?;
-
-        if let TokenKind::Error(msg) = token.kind() {
-            Err(ParserError::ErrorToken(token, msg))
-        } else {
-            Ok(token)
-        }
+        self.tokens.next().ok_or(ParserError::UnexpectedEOF)?.into()
     }
 
     fn one_ahead(&mut self) -> Option<&Token> {
@@ -102,7 +118,8 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
     }
 
     fn one_ahead_or_err(&mut self) -> ParseResult<&Token> {
-        self.one_ahead().ok_or(ParserError::UnexpectedEOF)
+        self.one_ahead()
+            .map_or(Err(ParserError::UnexpectedEOF), ParseResult::from)
     }
 
     fn expect(&mut self, expected: TokenKind) -> ParseResult<Token> {
@@ -279,7 +296,7 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
             _ => {
                 return Err(ParserError::ExpectedString {
                     expected: "factor",
-                    actual: self.eat()?,
+                    actual: self.one_ahead_or_err()?.clone(),
                 });
             }
         };
@@ -314,6 +331,59 @@ impl<I: iter::Iterator<Item = Token>> Parser<I> {
         } else if self.check(TokenKind::LBrace) {
             let block = self.parse_block()?;
             Ok(Stmt::Compound(block))
+        } else if self.check(TokenKind::Break) {
+            self.expect(TokenKind::Break)?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Break(None))
+        } else if self.check(TokenKind::Continue) {
+            self.expect(TokenKind::Continue)?;
+            self.expect(TokenKind::Semicolon)?;
+            Ok(Stmt::Continue(None))
+        } else if self.check(TokenKind::While) {
+            self.expect(TokenKind::While)?;
+            self.expect(TokenKind::LParen)?;
+            let cond = self.parse_expr(Default::default())?;
+            self.expect(TokenKind::RParen)?;
+
+            let stmt = self.parse_stmt()?;
+
+            Ok(Stmt::While(cond, Box::new(stmt), None))
+        } else if self.check(TokenKind::Do) {
+            self.expect(TokenKind::Do)?;
+            let stmt = self.parse_stmt()?;
+            self.expect(TokenKind::While)?;
+
+            self.expect(TokenKind::LParen)?;
+            let cond = self.parse_expr(Default::default())?;
+            self.expect(TokenKind::RParen)?;
+
+            self.expect(TokenKind::Semicolon)?;
+
+            Ok(Stmt::DoWhile(Box::new(stmt), cond, None))
+        } else if self.check(TokenKind::For) {
+            self.expect(TokenKind::For)?;
+            self.expect(TokenKind::LParen)?;
+
+            // parse the initializer
+            let init = if self.check(TokenKind::Int) {
+                Either::Left(self.parse_decl()?)
+            } else {
+                let out = self.parse_expr(Default::default()).ok();
+                self.expect(TokenKind::Semicolon)?;
+                Either::Right(out)
+            };
+
+            // parse the condition
+            let cond = self.parse_expr(Default::default()).ok();
+            self.expect(TokenKind::Semicolon)?;
+
+            // parse the post expr
+            let post = self.parse_expr(Default::default()).ok();
+            self.expect(TokenKind::RParen)?;
+
+            let stmt = self.parse_stmt()?;
+
+            Ok(Stmt::For(Box::new(init), cond, post, Box::new(stmt), None))
         } else if self.check(TokenKind::Semicolon) {
             self.expect(TokenKind::Semicolon)?;
             Ok(Stmt::Null)
@@ -617,6 +687,17 @@ mod tests {
             &[tok(tk::If), tok(tk::LParen), tok_const(1), tok(tk::RParen),
                 tok(tk::Return), tok_const(42), tok(tk::Semicolon)],
             Stmt::If(Expr::constant(1), Stmt::Return(Expr::constant(42)).into(), None)
+        )]
+        #[case(
+            &[tok(tk::For), tok(tk::LParen), tok_const(1), tok(tk::Semicolon), tok_const(2), tok(tk::Semicolon), tok(tk::RParen),
+                tok(tk::Return), tok_const(3), tok(tk::Semicolon)],
+            Stmt::For(
+                Box::new(Either::Right(Some(Expr::constant(1)))),
+                Some(Expr::constant(2)),
+                None,
+                Stmt::Return(Expr::constant(3)).into(),
+                None,
+            )
         )]
         #[case(
             &[tok_const(1), tok(tk::Plus), tok_const(2), tok(tk::Semicolon)],

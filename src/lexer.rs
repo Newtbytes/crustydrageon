@@ -27,6 +27,11 @@ fn classify_ident(s: &str) -> Option<TokenKind> {
         "return" => TokenKind::Return,
         "if" => TokenKind::If,
         "else" => TokenKind::Else,
+        "do" => TokenKind::Do,
+        "while" => TokenKind::While,
+        "for" => TokenKind::For,
+        "break" => TokenKind::Break,
+        "continue" => TokenKind::Continue,
         s if Identifier::is_ident(s) => TokenKind::Ident,
         _ => return None,
     })
@@ -160,8 +165,9 @@ impl Iterator for Lexer<'_> {
         self.eat_while(|&c| c.is_whitespace());
         self.end_token();
 
-        let kind = match self.eat() {
-            Some(c) => match c {
+        let kind = {
+            let c = self.eat()?;
+            match c {
                 // structural tokens
                 '(' => tk::LParen,
                 ')' => tk::RParen,
@@ -221,8 +227,7 @@ impl Iterator for Lexer<'_> {
                 }
 
                 _ => self.error("Unexpected character"),
-            },
-            None => return None,
+            }
         };
 
         // synchronize by eating until synchronization point
@@ -300,6 +305,12 @@ mod tests {
     #[case::int("int", [tk::Int])]
     #[case::return_kw("return", [tk::Return])]
     #[case::if_kw("if", [tk::If])]
+    #[case::else_kw("else", [tk::Else])]
+    #[case::do_kw("do", [tk::Do])]
+    #[case::while_kw("while", [tk::While])]
+    #[case::for_kw("for", [tk::For])]
+    #[case::break_kw("break", [tk::Break])]
+    #[case::continue_kw("continue", [tk::Continue])]
     #[case::else_kw("else", [tk::Else])]
     //## literals
     //### int
@@ -463,6 +474,13 @@ mod tests {
                 tokenize(&src).join(" "),
                 tokens.iter().join(" "),
             );
+        }
+
+        #[test]
+        fn test_classify_keyword_equivalent_to_ident_tok_kind(s in "[a-zA-Z_][0-9a-zA-Z_]") {
+            let id = Identifier::from(Span::from(Source::new(s.clone())));
+
+            prop_assert_eq!(Some(id.tok_kind()), classify_ident(&s));
         }
     }
 }
