@@ -4,7 +4,8 @@ use proptest::{prelude::*, string::string_regex};
 use crate::src::{Source, Span};
 
 use super::{
-    BinOp, Block, Decl, Expr, ExprKind, Identifier, LoopLabel, Stmt, Token, TokenKind, UnOp,
+    BinOp, Block, BlockItem, Decl, Expr, ExprKind, Identifier, LoopLabel, Stmt, Token, TokenKind,
+    UnOp,
 };
 
 impl Arbitrary for Identifier {
@@ -120,7 +121,17 @@ impl Arbitrary for Stmt {
                         .prop_map(|(init, cond, post, body)| {
                             Stmt::For(Box::new(init), cond, post, Box::new(body), None)
                         }),
-                    any::<Block>().prop_map(Stmt::Compound),
+                    (
+                        prop::collection::vec(
+                            prop_oneof![
+                                inner.clone().prop_map(BlockItem::Stmt),
+                                any::<Decl>().prop_map(BlockItem::Decl),
+                            ],
+                            0..4,
+                        ),
+                        any::<Span>(),
+                    )
+                        .prop_map(|(items, span)| Stmt::Compound(Block { items, span })),
                 ]
             },
         )
