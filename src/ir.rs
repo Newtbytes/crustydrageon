@@ -842,7 +842,10 @@ mod tests {
             #[test]
             #[ignore = "expensive"]
             fn test_lowered_func_contains_more_ops(func: ast::Function) {
-                let ir_func = lower_func(func.clone());
+                let mut prg = ast::Program { body: func.clone() };
+                prop_assume!(crate::sema::label_loops(&mut prg).is_ok());
+
+                let ir_func = lower_func(prg.body);
 
                 prop_assert!(
                     ir_func.body.len() >= func.body.iter()
