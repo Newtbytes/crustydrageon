@@ -634,9 +634,9 @@ mod tests {
                     let func = Function::new(id.clone(), Vec::new());
 
                     if cfg!(target_os = "macos") {
-                        assert_eq!(func.name.value(), format!("_{id}"));
+                        prop_assert_eq!(func.name.value(), format!("_{id}"));
                     } else {
-                        assert_eq!(func.name.value(), id.value());
+                        prop_assert_eq!(func.name.value(), id.value());
                     }
                 }
 
@@ -646,12 +646,14 @@ mod tests {
                     let fmt = format!("{func}");
 
                     // emitted code should contain the correct global directive and label for the function
-                    assert!(fmt.contains(&format!(".globl {}", func.name.value())));
-                    assert!(fmt.contains(&format!("{}:", func.name.value())));
+                    let globl = format!(".globl {}", func.name.value());
+                    prop_assert!(fmt.contains(&globl));
+                    let fn_label = format!("{}:", func.name.value());
+                    prop_assert!(fmt.contains(&fn_label));
 
                     // emitted code should contain the function prologue
-                    assert!(fmt.contains("pushq %rbp"));
-                    assert!(fmt.contains("movq %rsp, %rbp"));
+                    prop_assert!(fmt.contains("pushq %rbp"));
+                    prop_assert!(fmt.contains("movq %rsp, %rbp"));
                 }
             }
         }
@@ -664,15 +666,15 @@ mod tests {
                 fn test_macos(label: Label) {
                     let label_pp = label.to_string();
                     if cfg!(target_os = "macos") {
-                        assert!(!label_pp.starts_with('.'));
+                        prop_assert!(!label_pp.starts_with('.'));
                     } else {
-                        assert!(label_pp.starts_with('.'));
+                        prop_assert!(label_pp.starts_with('.'));
                     }
                 }
 
                 #[test]
                 fn test_contains_info(label: Label) {
-                    assert!(label.to_string().contains(&label.0));
+                    prop_assert!(label.to_string().contains(&label.0));
                 }
             }
         }
@@ -684,7 +686,7 @@ mod tests {
                 #[test]
                 fn test_instruction_not_empty(inst: Instruction) {
                     let fmt = format!("{inst}");
-                    assert!(!fmt.is_empty());
+                    prop_assert!(!fmt.is_empty());
                 }
 
                 #[test]
@@ -692,7 +694,7 @@ mod tests {
                     let fmt = format!("{inst}");
 
                     for operand in inst.get_operands_mut() {
-                        assert!(fmt.contains(&operand.to_string()));
+                        prop_assert!(fmt.contains(&operand.to_string()));
                     }
                 }
             }
@@ -700,14 +702,23 @@ mod tests {
     }
 
     mod lowering {
-        use std::cmp::max;
-
         use super::*;
 
-        #[test]
-        fn test_from_ir_unary_op() {
-            assert_eq!(UnaryOp::try_from(ir::UnaryOp::Flip), Ok(UnaryOp::Not));
-            assert_eq!(UnaryOp::try_from(ir::UnaryOp::Negate), Ok(UnaryOp::Neg));
+        use std::{assert_matches, cmp::max};
+
+        use rstest::rstest;
+
+        #[rstest]
+        #[case(ir::UnaryOp::Flip, UnaryOp::Not)]
+        #[case(ir::UnaryOp::Negate, UnaryOp::Neg)]
+        fn test_unary_op_try_from(#[case] given: ir::UnaryOp, #[case] expected: UnaryOp) {
+            assert_eq!(UnaryOp::try_from(given), Ok(expected));
+        }
+
+        #[rstest]
+        #[case(ir::UnaryOp::Not)]
+        fn test_unary_op_try_from_err(#[case] given: ir::UnaryOp) {
+            assert_matches!(UnaryOp::try_from(given), Err(_));
         }
 
         proptest! {
@@ -716,14 +727,13 @@ mod tests {
                 let ir_label = ir::Label::Anon(id);
                 let x86_label = Label::from(id.to_string());
 
-                assert_eq!(Label::from(ir_label), x86_label);
+                prop_assert_eq!(Label::from(ir_label), x86_label);
             }
 
             #[test]
             #[ignore = "expensive"]
-            fn test_lower_func(ir_func: ir::Function) {
+            fn test_func_id(ir_func: ir::Function) {
                 cov_mark::check_count!(x86_func_lowered, 1);
-                cov_mark::check!(x86_block_lowered);
 
                 let x86_func = lower_func(ir_func.clone());
 
@@ -740,6 +750,15 @@ mod tests {
                     x86_func.name.value().len() >= ir_func.id.value().len(),
                     "the renamed function name should be at least as long as the original function name"
                 );
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_func_emptiness(ir_func: ir::Function) {
+                cov_mark::check_count!(x86_func_lowered, 1);
+                cov_mark::check!(x86_block_lowered);
+
+                let x86_func = lower_func(ir_func.clone());
 
                 prop_assert_eq!(x86_func.body.is_empty(), ir_func.body.is_empty());
 
@@ -750,6 +769,16 @@ mod tests {
                         x86_func
                     );
                 }
+
+            }
+
+            #[test]
+            #[ignore = "expensive"]
+            fn test_func_opcount(ir_func: ir::Function) {
+                cov_mark::check_count!(x86_func_lowered, 1);
+                cov_mark::check!(x86_block_lowered);
+
+                let x86_func = lower_func(ir_func.clone());
 
                 // the instruction count is within plus or minus 15% of the IR opcount
                 let coeff = 6.;
@@ -798,30 +827,30 @@ mod tests {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst);
 
-                assert_eq!(insts.len(), 2);
-                assert_eq!(
-                    insts[0],
+                prop_assert_eq!(insts.len(), 2);
+                prop_assert_eq!(
+                    insts[0].clone(),
                     Instruction::Mov {
                         src: Operand::Stack(offset_a),
                         dst: Register::R10.into(),
                     }
                 );
-                assert_eq!(
-                    insts[1],
+                prop_assert_eq!(
+                    insts[1].clone(),
                     Instruction::Mov {
                         src: Register::R10.into(),
                         dst: Operand::Stack(offset_b),
                     }
                 );
 
-                assert!(insts.iter().all(check_legalized));
+                prop_assert!(insts.iter().all(check_legalized));
             }
 
             #[test]
             fn test_other_instructions(inst in any::<Instruction>()) {
                 let mut insts = Vec::new();
                 legalize_inst(&mut insts, inst.clone());
-                assert!(insts.iter().all(check_legalized));
+                prop_assert!(insts.iter().all(check_legalized));
             }
 
             #[test]
@@ -829,11 +858,11 @@ mod tests {
             fn test_legalized_block_len(block: Vec<Instruction>) {
                 let legalized_block = legalize_block(block.clone());
 
-                assert!(
+                prop_assert!(
                     block.len() <= legalized_block.len(),
                     "before:\n{legalized_block:?}\n\nafter:\n{block:?}"
                 );
-                assert!(
+                prop_assert!(
                     legalized_block.len() <= (block.len() + 1) * 3, // + 1 for block.len()==0 case
                     "before:\n{legalized_block:?}\n\nafter:\n{block:?}"
                 );

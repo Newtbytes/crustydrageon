@@ -2,23 +2,35 @@
 //!
 //! Used for easing the definition of test cases.
 
-use crate::src::Span;
+use crate::src::{Source, Span};
 
-use super::{BinOp, BinOpKind, Expr, ExprKind, Identifier, UnOp, UnOpKind};
+use super::{BinOp, BinOpKind, Expr, ExprKind, Identifier, Token, TokenKind, UnOp, UnOpKind};
+
+impl Span {
+    pub fn dummy(value: &str) -> Self {
+        Source::new(value.to_owned()).into()
+    }
+}
 
 #[must_use]
 pub fn ident(value: &str) -> Identifier {
     Identifier {
         names: vec![value.to_owned()],
-        span: Span::default(),
+        span: Span::dummy(value),
+    }
+}
+
+impl Token {
+    pub fn ident(value: &str) -> Self {
+        Self::new(TokenKind::Ident, Span::dummy(value))
     }
 }
 
 #[must_use]
 pub fn expr(kind: ExprKind) -> Expr {
     Expr {
-        kind,
-        span: Span::default(),
+        kind: kind.clone(),
+        span: Span::dummy(&kind.to_string()),
     }
 }
 
@@ -26,7 +38,7 @@ pub fn expr(kind: ExprKind) -> Expr {
 pub fn unop(kind: UnOpKind) -> UnOp {
     UnOp {
         kind,
-        span: Span::default(),
+        span: Span::dummy(&kind.to_string()),
     }
 }
 
@@ -34,7 +46,7 @@ pub fn unop(kind: UnOpKind) -> UnOp {
 pub fn binop(kind: BinOpKind) -> BinOp {
     BinOp {
         kind,
-        span: Span::default(),
+        span: Span::dummy(&kind.to_string()),
     }
 }
 

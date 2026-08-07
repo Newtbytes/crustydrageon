@@ -311,6 +311,12 @@ mod tests {
     #[case::const_69("69", [tk::Constant])]
     #[case::const_360("360", [tk::Constant])]
     #[case::const_720("720", [tk::Constant])]
+    //## structural tokens
+    #[case::const_lparen("(", [tk::LParen])]
+    #[case::const_rparen(")", [tk::RParen])]
+    #[case::const_lbrace("{", [tk::LBrace])]
+    #[case::const_rbrace("}", [tk::RBrace])]
+    #[case::const_semicolon(";", [tk::Semicolon])]
     //#### error cases
     #[case::error_0aaaaa("0aaaaa", [tk::Error("Invalid constant")])]
     //# combinations

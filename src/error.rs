@@ -32,3 +32,23 @@ impl fmt::Display for CompilerError {
 }
 
 pub type CompilerResult<T> = Result<T, CompilerError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(CompilerError::SysCompilerNotFound("test message"), "test message")]
+    #[case(
+        CompilerError::SysCompilerRaised(process::ExitStatus::default()),
+        process::ExitStatus::default()
+    )]
+    fn test_compiler_error_display<T: ToString>(
+        #[case] err: CompilerError,
+        #[case] should_contain: T,
+    ) {
+        assert!(err.to_string().contains(&should_contain.to_string()));
+    }
+}

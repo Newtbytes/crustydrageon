@@ -104,19 +104,38 @@ impl Operation {
     #[must_use]
     pub fn get_operands(&self) -> Vec<&Value> {
         match self {
-            Operation::Return(value) => vec![value],
-            Operation::Unary { op: _, src, dst } | Operation::Copy { src, dst } => vec![src, dst],
-            Operation::Binary { op: _, a, b, dst } => vec![a, b, dst],
-            Operation::Branch(_) | Operation::Label(_) => Vec::new(),
-            Operation::BranchIf {
+            Self::Return(value) => vec![value],
+            Self::Unary { op: _, src, dst } | Self::Copy { src, dst } => vec![src, dst],
+            Self::Binary { op: _, a, b, dst } => vec![a, b, dst],
+            Self::Branch(_) | Self::Label(_) => Vec::new(),
+            Self::BranchIf {
                 cond,
                 then_label: _,
                 else_label: _,
             }
-            | Operation::BranchWhen {
+            | Self::BranchWhen {
                 cond,
                 when_label: _,
             } => vec![cond],
+        }
+    }
+
+    #[must_use]
+    pub fn get_dst(&self) -> Option<&Value> {
+        match self {
+            Self::Unary { op: _, src: _, dst }
+            | Self::Copy { src: _, dst }
+            | Self::Binary {
+                op: _,
+                a: _,
+                b: _,
+                dst,
+            } => Some(dst),
+            Self::Return(..)
+            | Self::Branch(..)
+            | Self::BranchIf { .. }
+            | Self::BranchWhen { .. }
+            | Self::Label(..) => None,
         }
     }
 
@@ -662,6 +681,16 @@ mod tests {
     mod lower {
         use super::*;
 
+        use std::assert_matches;
+
+        #[rstest]
+        #[case(ast::BinOpKind::Assign)]
+        #[case(ast::BinOpKind::And)]
+        #[case(ast::BinOpKind::Or)]
+        fn test_binop_from_ast_err(#[case] binop: ast::BinOpKind) {
+            assert_matches!(TryInto::<BinaryOp>::try_into(binop), Err(_))
+        }
+
         #[rstest]
         #[case::constants(ast::Expr::constant(5), vec![], Value::Constant(5))]
         #[case::negate(
@@ -678,8 +707,8 @@ mod tests {
         #[case::nested_negate_and_complement(
             // given: ~(-42)
             // expect:
-            //  negate      #42 -> %0
-            //  complement  %0  -> %1
+            //  %0 = negate #42
+            //  %1 = complement %0
             ast::Expr::unary(ast::UnOpKind::Complement,
                 ast::Expr::unary(ast::UnOpKind::Negate, ast::Expr::constant(42))
             ),
@@ -696,6 +725,66 @@ mod tests {
                 }
             ], Value::Var(1.to_string())
         )]
+        #[case::add(
+            // given: 4 + 2
+            // expect:
+            //  %0 = add #4, #2
+            ast::Expr::binary(ast::BinOpKind::Add, ast::Expr::constant(4), ast::Expr::constant(2)),
+            vec![
+                Operation::Binary {
+                    op: BinaryOp::Add,
+                    a: Value::Constant(4),
+                    b: Value::Constant(2),
+                    dst: Value::Var(0.to_string()),
+                }
+            ], Value::Var(0.to_string())
+        )]
+        #[case::nested_add_mul(
+            // given: 4 + 8 * 2
+            // expect:
+            //  %0 = mul #8, #2
+            //  %1 = add #4, %0
+            ast::Expr::binary(ast::BinOpKind::Add,
+                ast::Expr::constant(4), ast::Expr::binary(ast::BinOpKind::Multiply,
+                    ast::Expr::constant(8), ast::Expr::constant(2))),
+            vec![
+                Operation::Binary {
+                    op: BinaryOp::Mul,
+                    a: Value::Constant(8),
+                    b: Value::Constant(2),
+                    dst: Value::Var(0.to_string()),
+                },
+                Operation::Binary {
+                    op: BinaryOp::Add,
+                    a: Value::Constant(4),
+                    b: Value::Var(0.to_string()),
+                    dst: Value::Var(1.to_string()),
+                }
+            ], Value::Var(1.to_string())
+        )]
+        // TODO: test lowering nested binary & unary ops
+        #[case::assign_constant_to_var(
+            // given: x = 42
+            // expect:
+            //  %x = #42
+            ast::Expr::binary(ast::BinOpKind::Assign, ast::Expr::var("x"), ast::Expr::constant(42)),
+            vec! [
+                Operation::Copy { src: Value::Constant(42), dst: Value::Var("x".to_owned()) }
+            ],
+            Value::Var("x".to_owned())
+        )]
+        #[case::assign_var_to_var(
+            // given: x = y
+            // expect:
+            //  %x = %y
+            ast::Expr::binary(ast::BinOpKind::Assign, ast::Expr::var("x"), ast::Expr::var("y")),
+            vec! [
+                Operation::Copy { src: Value::Var("y".to_owned()), dst: Value::Var("x".to_owned()) }
+            ],
+            Value::Var("x".to_owned())
+        )]
+        // TODO: test lowering variables
+        // TODO: test lowering comparison operators
         #[serial]
         fn test_lower_expr(
             #[case] expr: ast::Expr,
@@ -713,6 +802,9 @@ mod tests {
             assert_eq!(ops, expect_ops);
             assert_eq!(value, expect_val);
         }
+
+        // TODO: test that lowering never produces illegal IR
+        // e.g. copy op with a constant as the dst
 
         proptest! {
             #[test]
@@ -736,6 +828,10 @@ mod tests {
                 prop_assert_eq!(actual_ops.len(), expected_ops.len() + 1);
                 prop_assert_eq!(&actual_ops[..actual_ops.len() - 1], &expected_ops[..]);
             }
+
+            // TODO: write test cases for lowering stmts
+
+            // TODO: write test cases for lowering declarations
 
             #[test]
             #[ignore = "expensive"]
@@ -784,7 +880,7 @@ mod tests {
                 fn test_value_const_pretty(val in any::<i32>()) {
                     let c = Value::Constant(val);
 
-                    prop_assert_eq!(c.to_string(), val.to_string());
+                    prop_assert!(c.to_string().contains(&val.to_string()));
                 }
 
                 #[test]
@@ -807,18 +903,18 @@ mod tests {
                     let l1 = Label::Anon(id1);
                     let l2 = Label::Anon(id2);
 
-                    assert_eq!(l1 == l2, l1.to_string() == l2.to_string());
+                    prop_assert_eq!(l1 == l2, l1.to_string() == l2.to_string());
                 }
 
                 #[test]
                 fn pp_contains_anon_id(id in any::<usize>()) {
-                    assert!(Label::Anon(id).to_string().contains(&id.to_string()));
+                    prop_assert!(Label::Anon(id).to_string().contains(&id.to_string()));
                 }
 
                 #[test]
                 fn pp_contains_named_id(id in any::<ast::Identifier>()) {
                     let l = Label::Named(id.clone()).to_string();
-                    assert!(l.contains(&id.to_string()));
+                    prop_assert!(l.contains(&id.to_string()));
                 }
             }
         }
@@ -826,95 +922,77 @@ mod tests {
         mod op {
             use super::*;
 
-            #[rstest]
-            #[case(
-                Operation::Binary {
-                    op: BinaryOp::Add,
-                    a: Value::Constant(5), b: Value::Var(3.to_string()),
-                    dst: Value::Var(3.to_string())
-                }
-            )]
-            #[case(
-                Operation::Unary { op: UnaryOp::Negate, src: Value::Var(2.to_string()), dst: Value::Var(5.to_string()) }
-            )]
-            #[case(Operation::Branch(Label::Anon(5)))]
-            #[case(Operation::BranchIf {
-                cond: Value::Var(2.to_string()),
-                then_label: Label::Anon(5),
-                else_label: Label::Named(
-                    ast::Identifier::default()
-                )
-            })]
-            #[case(Operation::Label(Label::Anon(2)))]
-            #[case(Operation::Label(Label::Named(ast::Identifier::default())))]
-            #[case(Operation::BranchWhen { cond: Value::Constant(5), when_label: Label::Anon(2) })]
-            fn test_op_contains_info(#[case] op: Operation) {
-                cov_mark::check!(ir_pp_op);
-
-                let op_pp = op.to_string();
-
-                // TODO: once rstest_reuse is used for making templates of operation cases, separate checks for the presence of '=' into a separate test
-
-                match op {
-                    Operation::Return(_) | Operation::Copy { .. } => {}
-                    Operation::Unary { op, src: _, dst: _ } => {
-                        cov_mark::check!(ir_pp_unary_op_kind);
-
-                        assert!(op_pp.contains(&op.to_string()));
-
-                        assert!(op_pp.contains('='));
-                    }
-                    Operation::Binary {
-                        op,
-                        a: _,
-                        b: _,
-                        dst: _,
-                    } => {
-                        cov_mark::check!(ir_pp_binary_op_kind);
-
-                        assert!(op_pp.contains(&op.to_string()));
-
-                        assert!(op_pp.contains('='));
-                    }
-                    Operation::Branch(label) => {
-                        cov_mark::check!(ir_pp_label);
-
-                        assert!(op_pp.contains("branch"));
-
-                        assert!(op_pp.contains(&label.to_string()));
-                    }
-                    Operation::BranchIf {
-                        cond: _,
-                        then_label,
-                        else_label,
-                    } => {
-                        cov_mark::check!(ir_pp_label);
-
-                        assert!(op_pp.contains("branch"));
-                        assert!(op_pp.contains("if"));
-
-                        assert!(op_pp.contains(&then_label.to_string()));
-                        assert!(op_pp.contains(&else_label.to_string()));
-                    }
-                    Operation::BranchWhen {
-                        cond: _,
-                        when_label,
-                    } => {
-                        cov_mark::check!(ir_pp_label);
-
-                        assert!(op_pp.contains("when"));
-
-                        assert!(op_pp.contains(&when_label.to_string()));
-                    }
-                    Operation::Label(label) => {
-                        cov_mark::check!(ir_pp_label);
-
-                        assert!(op_pp.contains(&label.to_string()));
-                    }
-                }
-            }
-
             proptest! {
+                #[test]
+                fn test_assignment(op: Operation) {
+                    let op_pp = op.to_string();
+
+                    if let Some(dst) = op.get_dst() {
+                        prop_assert!(op_pp.contains('='));
+                        prop_assert!(op_pp.contains(&dst.to_string()));
+                    }
+                }
+
+                #[test]
+                fn test_contains_info(op: Operation) {
+                    cov_mark::check!(ir_pp_op);
+
+                    let op_pp = op.to_string();
+
+                    match op {
+                        Operation::Return(_) | Operation::Copy { .. } => {}
+                        Operation::Unary { op, src: _, dst: _ } => {
+                            cov_mark::check!(ir_pp_unary_op_kind);
+
+                            prop_assert!(op_pp.contains(&op.to_string()));
+                        }
+                        Operation::Binary {
+                            op,
+                            a: _,
+                            b: _,
+                            dst: _,
+                        } => {
+                            cov_mark::check!(ir_pp_binary_op_kind);
+
+                            prop_assert!(op_pp.contains(&op.to_string()));
+                        }
+                        Operation::Branch(label) => {
+                            cov_mark::check!(ir_pp_label);
+
+                            prop_assert!(op_pp.contains("branch"));
+
+                            prop_assert!(op_pp.contains(&label.to_string()));
+                        }
+                        Operation::BranchIf {
+                            cond: _,
+                            then_label,
+                            else_label,
+                        } => {
+                            cov_mark::check!(ir_pp_label);
+
+                            prop_assert!(op_pp.contains("branch"));
+                            prop_assert!(op_pp.contains("if"));
+
+                            prop_assert!(op_pp.contains(&then_label.to_string()));
+                            prop_assert!(op_pp.contains(&else_label.to_string()));
+                        }
+                        Operation::BranchWhen {
+                            cond: _,
+                            when_label,
+                        } => {
+                            cov_mark::check!(ir_pp_label);
+
+                            prop_assert!(op_pp.contains("when"));
+
+                            prop_assert!(op_pp.contains(&when_label.to_string()));
+                        }
+                        Operation::Label(label) => {
+                            cov_mark::check!(ir_pp_label);
+
+                            prop_assert!(op_pp.contains(&label.to_string()));
+                        }
+                    }
+                }
                 #[test]
                 fn test_op_contains_operands(op: Operation) {
                     cov_mark::check!(ir_pp_op);
@@ -943,8 +1021,39 @@ mod tests {
             }
         }
 
-        // TODO: test Function pretty printing
+        mod func {
+            use super::*;
 
-        // TODO: test Program pretty printing
+            proptest! {
+                #[test]
+                fn test_contains_name(func: Function) {
+                    let func_pp = func.to_string();
+
+                    prop_assert!(func_pp.contains(func.id.source_name()));
+                }
+
+                #[test]
+                fn test_contains_ops(func: Function) {
+                    let func_pp = func.to_string();
+
+                    for op in func.body {
+                        prop_assert!(func_pp.contains(&op.to_string()));
+                    }
+                }
+            }
+        }
+
+        mod program {
+            use super::*;
+
+            proptest! {
+                #[test]
+                fn test_contains_funcs(prg: Program) {
+                    let prg_pp = prg.to_string();
+
+                    prop_assert!(prg_pp.contains(&prg.body.to_string()))
+                }
+            }
+        }
     }
 }
