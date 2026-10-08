@@ -52,9 +52,9 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "contracts"
-version = "0.6.10"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80771e396e09e4d428c6d034440a3fc62f3927334b66e13c8b8689d3f8785e42"
+checksum = "5e0d8b18fa2c4dfe29a97ef84c5f8117f4feffbc735da9885497e46a0f85bf32"
 dependencies = [
  "proc-macro2",
  "quote",
